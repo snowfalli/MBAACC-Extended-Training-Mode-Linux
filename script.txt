@@ -1,0 +1,5 @@
+[FILENAMES]
+Open= game/ETM-x86.dll
+SaveAs= game/ETM-x86.dll
+[COMMANDS]
+-add game/ETM-x86.res
