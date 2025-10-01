@@ -1,5 +1,7 @@
 ![alt text](https://github.com/snowfalli/MBAACC-Extended-Training-Mode-Linux/blob/main/Images/Extended%20Training%20Mode%20v2.0%20Corner.png?raw=true)
 
+### Does not work with either GE-Proton, nor Proton, looking into the issue. Should work with wine.
+
 #
 ![alt text](https://github.com/snowfalli/MBAACC-Extended-Training-Mode-Linux/blob/main/Images/Features.png?raw=true)
 
