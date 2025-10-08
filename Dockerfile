@@ -42,7 +42,7 @@ RUN \
             #linking .res file here does not work, due to this not being run on windows? idrk
             #manually link it using wine and reshacker afterwards
             clang-20 --target=$TARGET_TRIPLE -c -o ETM-obj-$arch.o /out/ETM-x86.res Extended-Training-Mode-DLL/dllmain.cpp -ICommon -ICommon/d3dx9 -LCommon/d3dx9 -fuse-ld=lld -std=c++20 -w -Wno-unknown-pragmas && \
-            clang-20 --target=$TARGET_TRIPLE -ICommon -LCommon/x86 -L/opt/msvc/kits/10/lib/*/um/$arch -ICommon/d3dx9 -LCommon/d3dx9 -lUser32 -lGdi32 -lDbgHelp -fuse-ld=lld -std=c++20 -shared -v -g -o /out/ETM-x86.dll ETM-obj-x86.o \
+            clang-20 --target=$TARGET_TRIPLE -ICommon -LCommon/x86 -L/opt/msvc/kits/10/lib/*/um/$arch -ICommon/d3dx9 -LCommon/d3dx9 -lUser32 -lGdi32 -lDbgHelp -fuse-ld=lld -std=c++20 -shared -Wl,/SAFESEH:NO -v -g -o /out/ETM-x86.dll Extended-Training-Mode-DLL/DLLAsmFuncs.obj ETM-obj-x86.o \
         ) || exit 1; \
     done
 

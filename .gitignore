@@ -80,6 +80,9 @@ CMakeLists.txt.user*
 .rcc/
 .uic/
 /build*/
+/Extended-Training-Mode-DLL-b
+/Extended-Training-Mode-DLL/hookmain.cpp
+/Extended-Training-Mode-DLL/callbacks.h
 /.qtc_clangd
 .kdev4/Extended-Training-Mode-Linux.kdev4
 /Common/d3dx9
