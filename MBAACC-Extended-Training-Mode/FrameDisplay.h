@@ -753,7 +753,7 @@ void ResetBars(HANDLE hMBAAHandle)
 		}
 	}
 	WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adSharedScrolling), &nBarScrolling, 2, 0);
-	std::cout << "\x1b[J";
+    //std::cout << "\x1b[J";
 }
 
 void UpdateBars(Player& P, Player& Assist)
@@ -1335,7 +1335,7 @@ void FrameDisplay(HANDLE hMBAAHandle)
 	if (cGameState != 1) //If not in game (any gamemode)
 	{
 		ClearAllSaves();
-		std::cout << "\x1b[J";
+        //std::cout << "\x1b[J";
 		return;
 	}
 
@@ -1345,7 +1345,7 @@ void FrameDisplay(HANDLE hMBAAHandle)
 	nBarDisplayRange = (screenBufferInfo.srWindow.Right - screenBufferInfo.srWindow.Left) / 2;
 	if (nBarDisplayRange != nLastBarDisplayRange)
 	{
-		std::cout << "\x1b[J";
+        //std::cout << "\x1b[J";
 	}
 
 	UpdateGlobals(hMBAAHandle);
@@ -1421,7 +1421,7 @@ void FrameDisplay(HANDLE hMBAAHandle)
 		}
 		else
 		{
-			PrintFrameDisplay(hMBAAHandle, *Main1, *Main2, *Assist1, *Assist2);
+            //PrintFrameDisplay(hMBAAHandle, *Main1, *Main2, *Assist1, *Assist2);
 		}
 	}
 
@@ -1435,7 +1435,7 @@ void FrameDisplay(HANDLE hMBAAHandle)
 		}
 		else
 		{
-			PrintFrameDisplay(hMBAAHandle, *Main1, *Main2, *Assist1, *Assist2);
+            //PrintFrameDisplay(hMBAAHandle, *Main1, *Main2, *Assist1, *Assist2);
 		}
 	}
 

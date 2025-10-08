@@ -194,25 +194,25 @@ int main(int argc, char* argv[])
     
         InitializeCharacterMaps();
 
-        try
-        {
-            sOnlineVersion = GetLatestVersion();
-            if (sOnlineVersion != "" && sOnlineVersion != VERSION)
-            {
-                bNeedToAnnounceNewVersion = true;
-                LogInfo("New version " + sOnlineVersion + " found online");
-            }
-            else
-            {
-                LogInfo("Latest version installed");
-            }
+        // try
+        // {
+        //     sOnlineVersion = GetLatestVersion();
+        //     if (sOnlineVersion != "" && sOnlineVersion != VERSION)
+        //     {
+        //         bNeedToAnnounceNewVersion = true;
+        //         LogInfo("New version " + sOnlineVersion + " found online");
+        //     }
+        //     else
+        //     {
+        //         LogInfo("Latest version installed");
+        //     }
         
-        }
-        catch (...)
-        {
-            sOnlineVersion = "";
-            LogError("Cannot fetch latest version");
-        }
+        // }
+        // catch (...)
+        // {
+        //     sOnlineVersion = "";
+        //     LogError("Cannot fetch latest version");
+        // }
 
         CreateRegistryKey();
         ReadFromRegistry(L"FreezeKey", &nFreezeKey);
@@ -329,10 +329,7 @@ int main(int argc, char* argv[])
             std::cout << "===========================================================================" << "\n";
             std::cout << "|   Fang, gonp, and meepster99(Inana)'s Extended Training Mode Mod " << "INDEV" << "   |" << "\n";
             std::cout << "|   Modified by syntc for linux " << "                                           |" << "\n";
-            if (bNeedToAnnounceNewVersion && nCurrentTime % 3 != 0)
-                std::cout << "|   NEW VERSION " << "sOnlineVersihi" << " AVAILABLE ON GITHUB                                      |" << "\n";
-            else
-                std::cout << "|                                                                          |" << "\n";
+            std::cout << "|                                                                          |" << "\n";
             std::cout << "============================================================================" << "\n";
             
             SetConsoleCursorPosition(hConsoleHandle, { 0, 6 });
@@ -381,14 +378,14 @@ int main(int argc, char* argv[])
             if (nGameMode != 4112)
             {
                 SetConsoleCursorPosition(hConsoleHandle, { 0, 7 });
-                std::cout << "Cannot attach to versus mode....\x1b[K";
+                std::cout << "Cannot attach to versus mode...." << "\n";
                 //LogInfo("MBAA is in versus mode");
                 continue;
             }
             else
             {
                 SetConsoleCursorPosition(hConsoleHandle, { 0, 7 });
-                std::cout << "Attached to MBAA.exe\x1b[K" << "\n\x1b[K\n";
+                std::cout << "Attached to MBAA.exe" << "\n";
 
                 if (!bInjected)
                 {
@@ -405,6 +402,8 @@ int main(int argc, char* argv[])
                         LogInfo("Injection was a success");
 
                         bInjected = true;
+
+                        //std::cout << "\n" << "Please view ingame frame bar there is nothing here" << "\n";
 
                         // Set some initial stuff in the DLL
                         bool bTrue = true;
@@ -600,36 +599,26 @@ int main(int argc, char* argv[])
                         try
                         {
                             DWORD dwReturnToMainMenuString = GetReturnToMainMenuStringAddress(hMBAAHandle, dwBaseAddress);
-                            if (bNeedToAnnounceNewVersion)
-                            {
-                                // assemble the string for the message
-                                std::string sNewVersionMessage = "             VERSION " + sOnlineVersion + " AVAILABLE NOW ON GITHUB";
-                                int nMessageLength = sNewVersionMessage.size();
-                                sNewVersionMessage += "             " + sNewVersionMessage;
 
-                                if (nStartingTime == 0 || nCurrentSubMenu != nOldCurrentSubMenu || nMovingMessageIndex >= nMessageLength + 16)
-                                    nStartingTime = std::time(nullptr);
+                            // assemble the string for the message
+                            std::string sScrollingMessage = "      SEND LINUX ISSUES TO notanumb ON DISCORD <3";
+                            int nMessageLength = sScrollingMessage.size();
+                            sScrollingMessage += "             " + sScrollingMessage;
 
-                                // move the index based on the timer
-                                int nCurrentTime = std::time(nullptr);
-                                nMovingMessageIndex = (nCurrentTime - nStartingTime) * 2;
+                            if (nStartingTime == 0 || nCurrentSubMenu != nOldCurrentSubMenu || nMovingMessageIndex >= nMessageLength + 16)
+                                nStartingTime = std::time(nullptr);
 
-                                // chop the string up
-                                std::string sTempNewVersionMessage = "[" + sNewVersionMessage.substr(nMovingMessageIndex, 16) + "]";
+                            // move the index based on the timer
+                            int nCurrentTime = std::time(nullptr);
+                            nMovingMessageIndex = (nCurrentTime - nStartingTime) * 2;
 
-                                //send it
-                                char pcNewVersionMessage[19];
-                                strcpy_s(pcNewVersionMessage, (sTempNewVersionMessage).c_str());
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwReturnToMainMenuString), &pcNewVersionMessage, 19, 0);
-                            }
-                            else if (sOnlineVersion != "")
-                            {
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwReturnToMainMenuString), &pcLatestVersion_19, 19, 0);
-                            }
-                            else
-                            {
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwReturnToMainMenuString), &pcOffline_8, 8, 0);
-                            }
+                            // chop the string up
+                            std::string sTempNewVersionMessage = sScrollingMessage.substr(nMovingMessageIndex, 22);
+
+                            //send it
+                            char pcNewVersionMessage[24];
+                            strcpy_s(pcNewVersionMessage, (sTempNewVersionMessage).c_str());
+                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwReturnToMainMenuString), &pcNewVersionMessage, 24, 0);
                         }
                         catch (...)
                         {

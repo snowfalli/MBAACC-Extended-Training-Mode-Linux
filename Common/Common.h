@@ -2,9 +2,7 @@
 #ifndef UNICODE
 #define UNICODE
 #endif
-#define NOMINMAX
 #define NDEBUG
-#endif
 #include <cstdint>
 #include <ws2tcpip.h>
 #include <winsock2.h>
@@ -16,6 +14,10 @@
 #include <iostream>
 #include <cwctype>
 #include <algorithm>
+
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
+#define CLAMP(value, min_val, max_val) MAX(MIN((value), (max_val)), (min_val))
 
 #pragma comment(lib, "ws2_32.lib")
 

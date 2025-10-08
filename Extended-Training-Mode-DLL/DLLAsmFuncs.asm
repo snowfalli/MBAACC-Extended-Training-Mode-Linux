@@ -4,8 +4,8 @@
 PUBLIC _asmDrawRect
 .code
 _asmDrawRect PROC
-	
-	push ebp
+
+        push ebp
 	mov ebp,esp
 	sub esp,38h
 	mov eax,00415450h
@@ -32,16 +32,16 @@ _asmDrawRect PROC
 	call edx
 	add esp,24h
 	mov eax,00000001h
-	leave 
-	ret 
+	leave
+	ret
 
-_asmDrawRect ENDP 
+_asmDrawRect ENDP
 
 PUBLIC _asmDrawText
 .code
 _asmDrawText PROC
-	
-	push ebp
+
+        push ebp
 	mov ebp, esp
 	sub esp, 56
 	mov eax, 41D340h
@@ -69,9 +69,9 @@ _asmDrawText PROC
 	call edx
 	add esp, 48
 	mov eax, 1
-	leave 
+	leave
 
-	ret
+        ret
 
 _asmDrawText ENDP
 

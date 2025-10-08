@@ -95,7 +95,7 @@ bool bHighlightsOn = true;
 DWORD shouldDrawBackground = 1;
 DWORD shouldDrawHud = 1;
 DWORD shouldDrawGroundLine = 0;
-DWORD backgroundColor = 0xFFFFFFFF;
+DWORD backgroundColor = 0xFF000000;
 DWORD shouldDrawShadow = 0;
 DWORD fastReversePenalty = 0;
 
@@ -425,9 +425,7 @@ void DrawFilledRect(int x, int y, int w, int h, D3DCOLOR color, IDirect3DDevice9
     dev->Clear(1, &BarRect, D3DCLEAR_TARGET | D3DCLEAR_TARGET, color, 0, 0);
 }
 
-int asmDrawText(int w, int h, int x, int y, const char* text, int alpha, int shade, int layer, void* addr, int space, int idek, char* out) {
-    return 0;
-}
+extern "C" int asmDrawText(int w, int h, int x, int y, const char* text, int alpha, int shade, int layer, void* addr, int space, int idek, char* out);
 
 void __stdcall drawText(int x, int y, int w, int h, const char* text, int alpha, int shade, int layer = 0x2cc, void* font = (void*)adFont2)
 {
@@ -618,10 +616,7 @@ void __stdcall drawTextWithBorder(int x, int y, int w, int h, const char* text)
     }
 }
 
-//extern "C" int asmDrawRect(int screenXAddr, int screenYAddr, int width, int height, int A, int B, int C, int D, int layer); TODO
-int asmDrawRect(int screenXAddr, int screenYAddr, int width, int height, int A, int B, int C, int D, int layer) {
-    return 0;
-}
+extern "C" int asmDrawRect(int screenXAddr, int screenYAddr, int width, int height, int A, int B, int C, int D, int layer);
 
 void __stdcall drawRect(int x, int y, int w, int h, BYTE r, BYTE g, BYTE b, BYTE a, int layer = 0x2cc)
 {
@@ -1431,38 +1426,38 @@ void frameDoneCallback()
     switch (*(uint8_t*)(dwBaseAddress + adSharedBackgroundStyle))
     {
     case BG_NORMAL:
-        shouldDrawBackground = true;
+        shouldDrawBackground = 1;
         break;
     case BG_RED:
-        shouldDrawBackground = false;
+        shouldDrawBackground = 0;
         backgroundColor = 0xFFFF0000;
         break;
     case BG_GREEN:
-        shouldDrawBackground = false;
+        shouldDrawBackground = 0;
         backgroundColor = 0xFF00FF00;
         break;
     case BG_BLUE:
-        shouldDrawBackground = false;
+        shouldDrawBackground = 0;
         backgroundColor = 0xFF0000FF;
         break;
     case BG_WHITE:
-        shouldDrawBackground = false;
+        shouldDrawBackground = 0;
         backgroundColor = 0xFFFFFFFF;
         break;
     case BG_BLACK:
-        shouldDrawBackground = false;
+        shouldDrawBackground = 0;
         backgroundColor = 0xFF000000;
         break;
     case BG_GRAY:
-        shouldDrawBackground = false;
+        shouldDrawBackground = 0;
         backgroundColor = 0xFF888888;
         break;
     case BG_YELLOW:
-        shouldDrawBackground = false;
+        shouldDrawBackground = 0;
         backgroundColor = 0xFFFFFF00;
         break;
     case BG_PURPLE:
-        shouldDrawBackground = false;
+        shouldDrawBackground = 0;
         backgroundColor = 0xFFFF00FF;
         break;
     default:
@@ -2346,7 +2341,7 @@ __declspec(naked) void _naked_preventPauseReset() {
 
 void drawSolidBackground() {
 
-    if (backgroundColor == 0xFF000000) {
+    if (shouldDrawBackground == 1) {
         return;
     }
 
@@ -2392,9 +2387,7 @@ void drawBackgroundLine() {
 }
 
 void shouldDrawBackgroundAndGround() {
-    if (shouldDrawBackground == 1) {
-        drawSolidBackground();
-    }
+    drawSolidBackground();
 
     if (shouldDrawGroundLine == 1) {
         drawBackgroundLine();
@@ -2425,6 +2418,7 @@ __declspec(naked) void _naked_DrawBackground() {
         ret;
     }
 }
+
 
 DWORD _naked_DrawResourcesHud_FuncAddr;
 __declspec(naked) void _naked_DrawResourcesHud() {
@@ -2953,6 +2947,7 @@ void initDualInputDisplay() {
 
 HRESULT APIENTRY hkEndScene(LPDIRECT3DDEVICE9 pDevice)
 {
+    //DrawFilledRect(2, 2, 20, 20, D3DCOLOR_ARGB(128, 0, 255, 0), pDevice);
     return oEndScene(pDevice);
 }
 
@@ -2966,7 +2961,7 @@ HRESULT APIENTRY hkBeginScene(LPDIRECT3DDEVICE9 pDevice)
 
     }
 
-    DrawFilledRect(2, 2, 20, 20, D3DCOLOR_ARGB(128, 0, 255, 0), pDevice);
+    //DrawFilledRect(2, 2, 20, 20, D3DCOLOR_ARGB(128, 0, 255, 0), pDevice);
 
     return oBeginScene(pDevice);
 }
@@ -2981,6 +2976,7 @@ HRESULT APIENTRY hkPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pScourceRect, 
     //do draw calls in present
 
     doDrawCalls();
+
 
     //run the callback for frame start
     //frameStartCallback();
@@ -3127,7 +3123,6 @@ DWORD WINAPI Init(HMODULE hModule)
     initDrawBackground();
 
     initDualInputDisplay();
-
     if (GetD3D9Device(d3d9Device, sizeof(d3d9Device)))
     {
         //https://stackoverflow.com/a/61052959 basically stolen tbh
@@ -3157,7 +3152,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     {
     case DLL_PROCESS_ATTACH:
     {
-        CloseHandle(CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)Init, hModule, 0, nullptr));
+        CloseHandle(CreateThread(0, 0, (LPTHREAD_START_ROUTINE)Init, hModule, 0, 0));
     }
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:

@@ -80,20 +80,21 @@ std::string exec(const char* cmd) {
 
 std::string GetLatestVersion()
 {
-    char pcCommand[1024];
-    strcpy_s(pcCommand, ("curl -s " + GITHUB_LATEST).c_str());
-    std::string sOutputJSONBuffer = exec(pcCommand);
-    auto json = nlohmann::json::parse(sOutputJSONBuffer);
-    std::string sVersion = "";
-    try
-    {
-        sVersion = json["tag_name"];
-    }
-    catch (...)
-    {
-    }
+    return "latest";
+    // char pcCommand[1024];
+    // strcpy_s(pcCommand, ("curl -s " + GITHUB_LATEST).c_str());
+    // std::string sOutputJSONBuffer = exec(pcCommand);
+    // auto json = nlohmann::json::parse(sOutputJSONBuffer);
+    // std::string sVersion = "";
+    // try
+    // {
+    //     sVersion = json["tag_name"];
+    // }
+    // catch (...)
+    // {
+    // }
 
-    return sVersion;
+    // return sVersion;
 }
 
 DWORD GetBaseAddressByName(HANDLE pHandle, const wchar_t* name)
