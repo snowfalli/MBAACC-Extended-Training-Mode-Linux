@@ -2,7 +2,16 @@
 #include <set>
 #include <map>
 
+// todo, please move this over to a cpp
+#include "DebugInfo.h"
+
 // contains things which modify melty's rendering system internally.
+
+extern bool useCustomShaders;
+extern bool useDeerMode;
+
+bool shouldThisBeColored(BYTE charID, DWORD pattern);
+
 
 // 0x1C4 000111000100
 // 0x004			0x040				0x080			0x100
@@ -28,16 +37,27 @@ void _drawDebugMenu() {
 
 // key is mystery texture addr, val is its obj offset
 typedef struct LinkedListData {
+	bool shouldColor = false;
+	bool isDeer = false;
 	DWORD object = 0;
 	DWORD caller = 0;
 } LinkedListData;
 std::map<DWORD, LinkedListData> textureToObject;
 
-std::set<DWORD> textureAddrs;
+bool pixelShaderNeedsReset = false;
+IDirect3DPixelShader9* pPixelShader_backup = NULL;
+IDirect3DPixelShader9* pPixelShader = NULL;
+IDirect3DPixelShader9* pCustomShader = NULL;
 
-void renderModificationsFrameDone() {
-	//textureAddrs.clear();
+void loadCustomShader();
+
+bool hasTextureAddr(DWORD test) {
+	return textureToObject.find(test) != textureToObject.end();
 }
+
+std::set<DWORD> skipTextureAddrs;
+
+void renderModificationsFrameDone();
 
 void describeObject(char* buffer, size_t buflen, const LinkedListData& info) {
 
@@ -74,7 +94,10 @@ void describeObject(char* buffer, size_t buflen, const LinkedListData& info) {
 		DWORD pattern = *(DWORD*)(info.object + 0x0);
 		DWORD state = *(DWORD*)(info.object + 0x4);
 
-		snprintf(buffer, buflen, "PLAYER%d\nP:%d\nS:%d", playerIndex, pattern, state);
+		//snprintf(buffer, buflen, "PLAYER%d\nP:%d\nS:%d", playerIndex, pattern, state);
+		//playerDataArr[playerIndex].describe(buffer, buflen);
+		//int offset = snprintf(buffer, buflen, "PLAYER%d ");
+		playerDataArr[playerIndex].describe(buffer, buflen);
 		return;
 	}
 
@@ -83,7 +106,9 @@ void describeObject(char* buffer, size_t buflen, const LinkedListData& info) {
 		DWORD pattern = *(DWORD*)(info.object + 0x0);
 		DWORD state = *(DWORD*)(info.object + 0x4);
 
-		snprintf(buffer, buflen, "EFFECT: %d\nP:%d\nS:%d", effectIndex, pattern, state);
+		//snprintf(buffer, buflen, "EFFECT: %d\nP:%d\nS:%d", effectIndex, pattern, state);
+		//int offset = snprintf(buffer, buflen, "EFFECT%d ");
+		effectDataArr[effectIndex].describe(buffer, buflen);
 		return;
 	}
 
@@ -110,9 +135,11 @@ DWORD listAppendHook_callerAddr = 0;
 DWORD _naked_drawCallHook_ebx;
 void drawLoopHook() {
 
+	/*
 	if (!debugMode) {
 		return;
 	}
+	*/
 
 
 	// before we setup all the stupid vertex shit, lets figure out what we are actually drawing here
@@ -123,12 +150,20 @@ void drawLoopHook() {
 	unknownTexAddr = *(DWORD*)(_naked_drawCallHook_ebx + 0x54);
 	unknownTexAddr = *(DWORD*)(unknownTexAddr + 0xC);
 
+	bool isValidTex = false;
+	if (isValidTexture(unknownTexAddr)) {
+		isValidTex = true;
+		//if (mDown) {
+		//	saveTexture((IDirect3DBaseTexture9*)unknownTexAddr);
+		//}
+	}
+
 	if (textureToObject.find(unknownTexAddr) != textureToObject.end()) {
 		info = textureToObject[unknownTexAddr];
 	}
 
 	bool hasExtraDetail = false;
-	static char extraDetail[512];
+	static char extraDetail[2048];
 
 	const char* infoString = "NULL";
 	switch (info.caller) {
@@ -162,7 +197,7 @@ void drawLoopHook() {
 		infoString = "DrawCharactersAndBackground";
 		lineCol = 0xFF42e5f4;
 		hasExtraDetail = true;
-		describeObject(extraDetail, 512, info);
+		describeObject(extraDetail, 2048, info);
 		break;
 	case 0x0041621f:
 		infoString = "FUN_004161b0";
@@ -273,7 +308,7 @@ void drawLoopHook() {
 	float MinZ = view.MinZ;
 	float MaxZ = view.MaxZ;
 
-	if (vertFormat == 0x1C4 && PrimitiveCountTestVar == 4 && !(Height != 512 || Width != 1024)) {
+	if (debugMode && vertFormat == 0x1C4 && PrimitiveCountTestVar == 4 && !(Height != 512 || Width != 1024)) {
 
 		if (NumVertices % 4 != 0) {
 			//log("ohno");
@@ -418,7 +453,7 @@ void drawLoopHook() {
 
 	if (overkillVerboseMode) {
 		//TextDraw(0, drawY, 6, col, "%4d %08X %08X %08X %08X %08X %08X %08X %08X %s", linkedListLength, PrimitiveType, NumVertices, PrimitiveCount, pIndexData, pVertexStreamZeroData, VertexStreamZeroStride, unknownTexAddr, info.object, infoString);
-		TextDraw(0, drawY, 6, lineCol, "%4d %08X %08X %s", linkedListLength, unknownTexAddr, info.object, infoString);
+		TextDraw(0, drawY, 6, lineCol, "%4d %s%08X %08X %s", linkedListLength, isValidTex ? "TEX" : "???", unknownTexAddr, info.object, infoString);
 	}
 
 
@@ -435,36 +470,11 @@ void listAppendHook() { // for the life of me, why didnt i just not append this 
 		listAppendHook_objAddr = listAppendHook_objAddr_pat;
 	}
 
-	if (listAppendHook_hitEffectRetAddr == 0x0042389C) {
+	if (listAppendHook_hitEffectRetAddr == 0x0042389C) { // i accidentally overwrote all my reversing on this :)
 		listAppendHook_objAddr = 0x0061E170 + (listAppendHook_objAddr_hit * 0x60);
 	}
 
-	/*
-	
-	0061e230
-	0061e290
-	0061e2F0
-
-	check out 00415b88 in ghidra. 
-	there is most definitely a format for hit effects. figure it out!
-	whats the base addr for the array?
-	0061E170? (almost def it)
-
-	size is,, 0x60, i think
-	array length is,,, 4000?
-	0x0061E170 + (0x60 * 4000) = 0x67bd70, below the start addr for effects at ~ 0x67BDE8
-	oh god i dont know if this is the actual base offset for this thing or if its +-0x10
-
-	
-
-	*/
-
-	/*
-	while (textureToObject.find(listAppendHook_texAddr) != textureToObject.end()) {
-		listAppendHook_texAddr++; // super janky, super weird
-	}*/
-
-	textureToObject.insert({ listAppendHook_texAddr, { listAppendHook_objAddr, listAppendHook_callerAddr } });
+	textureToObject.insert({ listAppendHook_texAddr, { false, false, listAppendHook_objAddr, listAppendHook_callerAddr } });
 
 	if (listAppendHook_effectRetAddr == 0x0045410F || listAppendHook_effectRetAddr_pat == 0x0045410F) {
 
@@ -474,9 +484,13 @@ void listAppendHook() { // for the life of me, why didnt i just not append this 
 			DWORD pattern = *(DWORD*)(listAppendHook_objAddr + 0x0);
 			DWORD state = *(DWORD*)(listAppendHook_objAddr + 0x4);
 
-			if (source == -2 && !shouldDrawHud) {
-				// check effects.txt
-				switch (pattern) {
+			// what the hell is this doing??? is this doing something??? when did i write this????
+			// ok maddy thanks for the shit comments
+			// this is the code which prevents the flashing of the meter bar when hud is hidden.
+			if (source == -2) {
+				if (!shouldDrawHud) {
+					// check effects.txt
+					switch (pattern) {
 					case 100:
 					case 101:
 					case 102:
@@ -493,15 +507,43 @@ void listAppendHook() { // for the life of me, why didnt i just not append this 
 					case 306:
 					case 307:
 					case 308:
-						break;
+						skipTextureAddrs.insert(listAppendHook_texAddr);
+						return;
 					default:
 						return;
+					}
 				}
-			} else {
 				return;
 			}
+
+			if (enableEffectColors) {
 			
-			textureAddrs.insert(listAppendHook_texAddr);
+				BYTE owner = *(BYTE*)(listAppendHook_objAddr - 0x10 + 0x02F4);
+
+				BYTE charID;
+
+				if (owner == 0) {
+					charID = *(BYTE*)0x555135;
+				} else {
+					charID = *(BYTE*)0x555C31;
+				}
+
+				if (*(DWORD*)(listAppendHook_objAddr - 0x10 + 0x20) != 0x00000101) { // mystery heat detection thingy
+					textureToObject[listAppendHook_texAddr].shouldColor = shouldThisBeColored(charID, pattern); // tbh would having a seperate map for things to be colored be ideal.
+				}
+			}
+
+			if (useDeerMode) {
+
+				EffectData* effect = (EffectData*)(listAppendHook_objAddr - 0x10);
+
+				if (effect->pattern == 103 || (effect->pattern >= 108 && effect->pattern <= 111)) {
+					if (playerDataArr[effect->ownerIndex].charID == 10) { // we are nero.
+						textureToObject[listAppendHook_texAddr].isDeer = true;
+					}
+				}
+			}
+
 		}
 	}
 }
@@ -512,17 +554,56 @@ DWORD skipTextureDraw = 0;
 void drawPrimHook() {
 
 	if (leadToDrawPrimHook_ret != 0x004331D9) {
-		textureAddrs.clear(); // calling this repeatedly is wasteful!
+		skipTextureAddrs.clear(); // calling this repeatedly is wasteful!
 		textureToObject.clear();
 		return;
 	}
 
-	if (textureAddrs.contains(drawPrimHook_texAddr)) {
+
+
+	// set lookups are trash. there has to be some way of,, getting the index of this texture or something??
+	if (skipTextureAddrs.contains(drawPrimHook_texAddr)) {
 		skipTextureDraw = 1;
+	} else if (textureToObject.contains(drawPrimHook_texAddr)) {
+		
+		if (textureToObject[drawPrimHook_texAddr].isDeer) {
+			device->GetPixelShader(&pPixelShader_backup); // does this inc a refcount?
+
+			pixelShaderNeedsReset = true;
+			device->SetPixelShader(pCustomShader);
+		} else if (textureToObject[drawPrimHook_texAddr].shouldColor) {
+			device->GetPixelShader(&pPixelShader_backup); // does this inc a refcount?
+
+			pixelShaderNeedsReset = true;
+			device->SetPixelShader(pPixelShader);
+		}
+	}
+
+	if (useCustomShaders && !enableEffectColors && !useDeerMode) {
+		pixelShaderNeedsReset = true;
+		device->SetPixelShader(pCustomShader);
+	}
+	
+}
+
+void drawPrimCallback() {
+	if (pixelShaderNeedsReset) {
+		pixelShaderNeedsReset = false;
+		device->SetPixelShader(pPixelShader_backup);
+		pPixelShader_backup = NULL;
 	}
 }
 
 // naked funcs
+
+__declspec(naked) void _naked_drawPrimCallback() {
+	PUSH_ALL;
+    asmCall(drawPrimCallback)
+	POP_ALL;
+	__asm {
+		ret;
+	};
+}
 
 __declspec(naked) void _naked_drawIndexPrimHook() {
 	__asm {
@@ -530,7 +611,7 @@ __declspec(naked) void _naked_drawIndexPrimHook() {
 	}
 
 	PUSH_ALL;
-	//drawLoopHook(); TODO
+    asmCall(drawLoopHook)
 	POP_ALL;
 
 	__asm {
@@ -544,28 +625,6 @@ __declspec(naked) void _naked_drawIndexPrimHook() {
 
 	}
 
-
-}
-
-DWORD _naked_drawCallHook_Func = 0x004be290;
-__declspec(naked) void _naked_drawCallHook() {
-
-	__asm {
-		mov _naked_drawCallHook_ebx, ebx;
-	}
-
-	PUSH_ALL;
-	//drawLoopHook(); TODO
-	POP_ALL;
-
-	__asm {
-		call[_naked_drawCallHook_Func];
-	}
-
-	__asm {
-		push 004c03e4h;
-		ret;
-	}
 
 }
 
@@ -626,7 +685,7 @@ __declspec(naked) void _naked_listAppendHook() { // at 0x004c026b
 	__asm _emit 0x50;
 
 	PUSH_ALL;
-	//listAppendHook(); TODO
+    asmCall(listAppendHook)
 	POP_ALL;
 
 	__asm {
@@ -653,7 +712,7 @@ __declspec(naked) void _naked_drawPrimHook() {
 		mov eax, _naked_drawPrimHook_reg;
 	};
 	PUSH_ALL;
-	//drawPrimHook(); TODO
+    asmCall(drawPrimHook)
 	POP_ALL;
 	__asm {
 
@@ -695,27 +754,9 @@ __declspec(naked) void _naked_leadToDrawPrimHook() {
 
 // init 
 
-void initDrawCallHook() {
-	patchJump(0x004c03df, _naked_drawCallHook);
-}
+void initDrawIndexPrimHook();
 
-void initDrawIndexPrimHook() {
-	patchJump(0x004be46e, _naked_drawIndexPrimHook);
-}
+void initEffectSelector();
 
-void initEffectSelector() {
+bool initRenderModifications();
 
-	patchJump(0x004c026b, _naked_listAppendHook);
-	patchJump(0x004be290, _naked_drawPrimHook);
-	patchJump(0x004c0380, _naked_leadToDrawPrimHook);
-
-}
-
-bool initRenderModifications() {
-
-	initDrawIndexPrimHook();
-	
-	initEffectSelector();
-
-	return true;
-}

@@ -1,5 +1,5 @@
 #pragma once
-#include "..\Common\Common.h"
+#include "../Common/Common.h"
 
 #ifdef Obsolete
 char* pBuffer = nullptr;

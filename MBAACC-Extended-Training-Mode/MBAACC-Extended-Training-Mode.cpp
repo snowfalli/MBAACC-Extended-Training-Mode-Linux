@@ -1,10 +1,21 @@
 #include "MBAACC-Extended-Training-Mode.h"
-#include "Logger.h"
-
 
 int main(int argc, char* argv[])
 {
-    //timeBeginPeriod(1);
+    // if (!writeDLL()) {
+    //     fprintf(stderr, "FAILED TO WRITE DLL\n");
+    //     fprintf(stderr, "press any key to exit\n");
+    //     getchar();
+    //     return 1;
+    // }
+
+    /*while (true) {
+        KeyState::updateControllers();
+        KeyState::showControllerState();
+        Sleep(16);
+    }*/
+
+    timeBeginPeriod(1);
     try
     {
         DWORD dwExitCode = 0;
@@ -48,13 +59,18 @@ int main(int argc, char* argv[])
         int nReversalIndex2 = 0;
         int nReversalIndex3 = 0;
         int nReversalIndex4 = 0;
-        std::vector<std::string> vPatternNames = GetEmptyPatternList();
+        std::vector<std::string> vPatternNames = { "OFF" }; //GetEmptyPatternList();
         std::vector<int> vAirReversals;
         std::vector<int> vGroundReversals;
         int nMot = 0;
         int nOldMot = 0;
         int nP2Y = 0;
         int nBurstCooldown = 0;
+        bool bDoingHeldReversal = false;
+        bool bRecoverD = false;
+
+        float arrP1Guts[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        float arrP2Guts[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
         int nOldEnemyActionIndex = -1;
         int nOldPresetIndex = -1;
@@ -104,6 +120,15 @@ int main(int argc, char* argv[])
         int nP3TagFlag = 1;
         int nP4TagFlag = 1;
 
+        float fP1FancyInputX = DEFAULT_P1_FANCYINPUT_X;
+        float fP1FancyInputY = DEFAULT_P1_FANCYINPUT_Y;
+        float fP2FancyInputX = DEFAULT_P2_FANCYINPUT_X;
+        float fP2FancyInputY = DEFAULT_P2_FANCYINPUT_Y;
+        float fP1ListInputX = DEFAULT_P1_LISTINPUT_X;
+        float fP1ListInputY = DEFAULT_P1_LISTINPUT_Y;
+        float fP2ListInputX = DEFAULT_P2_LISTINPUT_X;
+        float fP2ListInputY = DEFAULT_P2_LISTINPUT_Y;
+
         uint8_t nRNGMode = RNG_OFF;
         uint8_t nRNGRate = RNG_EVERY_FRAME;
         uint32_t nCustomSeed = 0;
@@ -118,6 +143,7 @@ int main(int argc, char* argv[])
         uint8_t nBackgroundStyle = false;
         bool bDrawGround = false;
         bool bDisableShadow = false;
+        WORD dwDisableExtras = 0x0000;
 
         int nFrameBarY = 400;
         bool bShowStats = true;
@@ -134,6 +160,7 @@ int main(int argc, char* argv[])
         int nHotkeyPage = 1;
 
         int nGameMode = 0;
+        int nVersusCheck = 0;
 
         bool bPositionsLocked = false;
         int nP1X = P1_DEFAULT_X;
@@ -161,6 +188,9 @@ int main(int argc, char* argv[])
         bool bFrameDataDisplay = false;
 
         int nHitsTillBurst = TOO_HIGH_TO_BURST;
+        int nHitsTillBunker = 0;
+        bool bAlreadyBursted = false;
+        bool bBunkerInsteadOfBurst = false;
 
         bool bInfGuard = true;
     
@@ -171,6 +201,99 @@ int main(int argc, char* argv[])
         int nCurrentTime;
 
         HANDLE hConsoleHandle;
+
+
+        char pcModPath[MAX_PATH];
+        GetModuleFileNameA(NULL, pcModPath, sizeof(pcModPath));
+        std::vector<std::string> vPathTokens;
+        std::istringstream f(pcModPath);
+        std::string s;
+        while (std::getline(f, s, '\\'))
+            vPathTokens.push_back(s + "\\");
+        vPathTokens.pop_back();
+        std::string sInstallPath = std::accumulate(vPathTokens.begin(), vPathTokens.end(), std::string{});
+        //std::string sDLLPath = sInstallPath + "Extended-Training-Mode-DLL.dll";
+        std::wstring sDLLPath = L"ETM-x86.dll";//getDLLPath();
+        while (!std::ifstream(sDLLPath).good())
+        {
+            std::wstring sErrorString = L"UNABLE TO FIND DLL" + sDLLPath;
+            //int nReturnVal = MessageBoxA(NULL, sErrorString.c_str(), "", MB_ICONERROR | MB_RETRYCANCEL);
+            switch (MessageBoxW(NULL, sErrorString.c_str(), L"", MB_ICONERROR | MB_RETRYCANCEL))
+            {
+            case IDRETRY:
+                continue;
+            default:
+                return 0;
+                break;
+            }
+        }
+        
+        // Not needed currently, but if we ever need it this can be uncommented
+        SetRegistryValue(L"InstallPath", sInstallPath);
+
+        /*try
+        {
+            sOnlineVersion = GetLatestVersion();
+            if (sOnlineVersion != "" && sOnlineVersion != VERSION && false)
+            {
+                std::string sUpdate = "A new version of the Extended Training Mode is available.\nWould you like to update?";
+                switch (MessageBoxA(NULL, sUpdate.c_str(), "", MB_YESNO | MB_ICONASTERISK | MB_DEFBUTTON1))
+                {
+                case IDYES:
+                {
+                    std::string sUpdaterName = sInstallPath + UPDATER_NAME;
+
+                    STARTUPINFOA si;
+                    PROCESS_INFORMATION pi;
+
+                    ZeroMemory(&si, sizeof(si));
+                    si.cb = sizeof(si);
+                    ZeroMemory(&pi, sizeof(pi));
+
+                    std::string sCmdArgs =  UPDATER_NAME + " " +                        // Updater Name
+                                            sInstallPath + " " +                        // Path to the intstallation
+                                            GITHUB_DOWNLOAD + sOnlineVersion + "/ " +   // Path to the latest download
+                                            "exampleArg1;exampleArg2 " +                // cmdArgs to pass back
+                                            EXE_NAME + " " +                            // 1st download and what gets launched
+                                            DLL_NAME;                                   // 2nd download
+                                                                                        // append more files to download
+                    
+                    CreateProcessA(sUpdaterName.c_str(),    // the path
+                        (LPSTR)sCmdArgs.c_str(),            // Command line
+                        NULL,                               // Process handle not inheritable
+                        NULL,                               // Thread handle not inheritable
+                        FALSE,                              // Set handle inheritance to FALSE
+                        0,                                  // No creation flags
+                        NULL,                               // Use parent's environment block
+                        NULL,                               // Use parent's starting directory
+                        &si,                                // Pointer to STARTUPINFO structure
+                        &pi                                 // Pointer to PROCESS_INFORMATION structure
+                    );
+                    
+                    CloseHandle(pi.hProcess);
+                    CloseHandle(pi.hThread);
+
+                    TerminateProcess(GetCurrentProcess(), 0);
+                }
+                default:
+                    break;
+                }
+
+                bNeedToAnnounceNewVersion = true;
+                LogInfo("New version " + sOnlineVersion + " found online");
+            }
+            else
+            {
+                LogInfo("Latest version installed");
+            }
+
+        }
+        catch (...)
+        {
+            sOnlineVersion = "";
+            LogError("Cannot fetch latest version");
+        }*/
+
 
         std::srand((unsigned int)std::time(nullptr));
    
@@ -185,7 +308,7 @@ int main(int argc, char* argv[])
   
         try
         {
-            InitializeLogger(false);
+            InitializeLogger(hConsoleHandle);
         }
         catch (...)
         { 
@@ -193,26 +316,6 @@ int main(int argc, char* argv[])
         }
     
         InitializeCharacterMaps();
-
-        // try
-        // {
-        //     sOnlineVersion = GetLatestVersion();
-        //     if (sOnlineVersion != "" && sOnlineVersion != VERSION)
-        //     {
-        //         bNeedToAnnounceNewVersion = true;
-        //         LogInfo("New version " + sOnlineVersion + " found online");
-        //     }
-        //     else
-        //     {
-        //         LogInfo("Latest version installed");
-        //     }
-        
-        // }
-        // catch (...)
-        // {
-        //     sOnlineVersion = "";
-        //     LogError("Cannot fetch latest version");
-        // }
 
         CreateRegistryKey();
         ReadFromRegistry(L"FreezeKey", &nFreezeKey);
@@ -285,6 +388,21 @@ int main(int argc, char* argv[])
             nSlowKey = nDefaultSlowKey;
         else
             bSlowKeySet = true;
+        ReadFromRegistry(L"NextFrameKey", &nNextFrameKey);
+        if (MapVirtualKeyW(nNextFrameKey, MAPVK_VK_TO_VSC) == 0)
+            nNextFrameKey = nDefaultNextFrameKey;
+        else
+            bNextFrameKeySet = true;
+        ReadFromRegistry(L"PrevFrameKey", &nPrevFrameKey);
+        if (MapVirtualKeyW(nPrevFrameKey, MAPVK_VK_TO_VSC) == 0)
+            nPrevFrameKey = nDefaultPrevFrameKey;
+        else
+            bPrevFrameKeySet = true;
+        ReadFromRegistry(L"ResetKey", &nResetKey);
+        if (MapVirtualKeyW(nResetKey, MAPVK_VK_TO_VSC) == 0)
+            nResetKey = nDefaultResetKey;
+        else
+            bResetKeySet = true;
         ReadFromRegistry(L"FrameDisplay", &nFrameData);
         if (nFrameData == FRAMEDISPLAY_NORMAL)
             bSimpleFrameInfo = true;
@@ -292,31 +410,25 @@ int main(int argc, char* argv[])
             bSimpleFrameInfo = false;
         ReadFromRegistry(L"DisplayFreeze", &bDisplayFreeze);
         ReadFromRegistry(L"DisplayInputs", &bDisplayInputs);
+        ReadFromRegistry(L"DisplayCancels", &bDisplayCancels);
         ReadFromRegistry(L"HitboxStyle", &nHitboxStyle);
         ReadFromRegistry(L"FrameBarY", &nFrameBarY);
         ReadFromRegistry(L"P1InputDisplay", &nP1InputDisplay);
         ReadFromRegistry(L"P2InputDisplay", &nP2InputDisplay);
-
-        char pcModPath[MAX_PATH];
-        GetModuleFileNameA(NULL, pcModPath, sizeof(pcModPath));
-        //std::string sDLLPath = std::string(pcModPath).substr(0, std::string(pcModPath).length() - 33) + "ETM-x86.dll";
-        std::cout << std::string(pcModPath) << "\n";
-        std::string sDLLPath = "ETM-x86.dll";
-        //a
-        while (!std::ifstream(sDLLPath).good())
-        {
-            std::wstring wsErrorString(sDLLPath.begin(), sDLLPath.end());
-            wsErrorString = L"UNABLE TO FIND " + wsErrorString;
-            int nReturnVal = MessageBoxW(NULL, wsErrorString.c_str(), L"", MB_ICONERROR | MB_RETRYCANCEL);
-            switch (nReturnVal)
-            {
-            case IDRETRY:
-                continue;
-            default:
-                return 0;
-                break;
-            }
-        }
+        ReadFromRegistry(L"BlockingHighlight", &nBlockingHighlightSetting);
+        ReadFromRegistry(L"ThrowProtectionHighlight", &nThrowProtectionHighlightSetting);
+        ReadFromRegistry(L"HitHighlight", &nHitHighlightSetting);
+        ReadFromRegistry(L"IdleHighlight", &nIdleHighlightSetting);
+        ReadFromRegistry(L"ArmorHighlight", &nArmorHighlightSetting);
+        ReadFromRegistry(L"HighlightToggle", &bHighlight);
+        ReadFromRegistry(L"P1FancyInputX", &fP1FancyInputX);
+        ReadFromRegistry(L"P1FancyInputY", &fP1FancyInputY);
+        ReadFromRegistry(L"P2FancyInputX", &fP2FancyInputX);
+        ReadFromRegistry(L"P2FancyInputY", &fP2FancyInputY);
+        ReadFromRegistry(L"P1ListInputX", &fP1ListInputX);
+        ReadFromRegistry(L"P1ListInputY", &fP1ListInputY);
+        ReadFromRegistry(L"P2ListInputX", &fP2ListInputX);
+        ReadFromRegistry(L"P2ListInputY", &fP2ListInputY);
 
         while (1)
         {
@@ -326,15 +438,18 @@ int main(int argc, char* argv[])
 
             
             SetConsoleCursorPosition(hConsoleHandle, { 0, 0 });
-            std::cout << "===========================================================================" << "\n";
-            std::cout << "|   Fang, gonp, and meepster99(Inana)'s Extended Training Mode Mod " << "INDEV" << "   |" << "\n";
-            std::cout << "|   Modified by syntc for linux " << "                                           |" << "\n";
-            std::cout << "|                                                                          |" << "\n";
-            std::cout << "============================================================================" << "\n";
+            std::cout << "===========================================================================\x1b[K" << "\n";
+            std::cout << "|   Fang, gonp, and meepster99(Inana)'s Extended Training Mode Mod " << VERSION << "   |\x1b[K" << "\n";
+            std::cout << "|                                                                         |\x1b[K" << "\n";
+            std::cout << "|   " << GITHUB_RELEASE << "   |\x1b[K" << "\n";
+            if (bNeedToAnnounceNewVersion && nCurrentTime % 3 != 0)
+                std::cout << "|   NEW VERSION " << sOnlineVersion << " AVAILABLE ON GITHUB                                  |\x1b[K" << "\n";
+            else
+                std::cout << "|                                                                         |\x1b[K" << "\n";
+            std::cout << "===========================================================================\x1b[K" << "\n";
             
             SetConsoleCursorPosition(hConsoleHandle, { 0, 6 });
-            std::cout << "\n";
-
+            std::cout << "\x1b[K";
 
             GetExitCodeProcess(hMBAAHandle, &dwExitCode);
             if (hMBAAHandle == 0x0 || dwExitCode != 259)    //259 is the not-closed return code
@@ -349,12 +464,12 @@ int main(int argc, char* argv[])
                 hMBAAHandle = 0x0;
 
                 SetConsoleCursorPosition(hConsoleHandle, { 0, 7 });
-                std::string sLookingForMelty = "Looking for MBAA.exe        ";
+                std::string sLookingForMelty = "Looking for MBAA.exe        \x1b[K";
                 for (int i = 0; i < nCurrentTime % 8; i++)
                     sLookingForMelty[20 + i] = '.';
                 std::cout << sLookingForMelty;
                 SetConsoleCursorPosition(hConsoleHandle, { 0, 8 });
-                std::cout << "\n";
+                std::cout << "\x1b[J";
 
                 hMBAAHandle = GetProcessByName(L"MBAA.exe");
 
@@ -373,37 +488,26 @@ int main(int argc, char* argv[])
             }
 
             // check this to prevent attaching to netplay
-            ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwGameMode), &nReadResult, 4, 0);
-            nGameMode = nReadResult;
-            if (nGameMode != 4112)
+            ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwGameMode), &nGameMode, 4, 0);
+            ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwVersusCheck), &nVersusCheck, 4, 0);
+            if(nGameMode == 1 && nVersusCheck == 1) //Versus
             {
                 SetConsoleCursorPosition(hConsoleHandle, { 0, 7 });
-                std::cout << "Cannot attach to versus mode...." << "\n";
+                std::cout << "Cannot attach to versus mode....\x1b[K";
                 //LogInfo("MBAA is in versus mode");
                 continue;
             }
-            else
+            else if (nGameMode == 4112 || (nGameMode == 1 && nVersusCheck == 2)) //Training OR Replay
             {
-                SetConsoleCursorPosition(hConsoleHandle, { 0, 7 });
-                std::cout << "Attached to MBAA.exe" << "\n";
-
+                SetConsoleCursorPosition(hConsoleHandle, { 0, 7 });               
+                std::cout << "Attached to MBAA.exe\x1b[K" << "\n\x1b[K\n";
+                
                 if (!bInjected)
                 {
                     DWORD dwPID = GetProcessPID(L"MBAA.exe");
-                    LogInfo("Injecting into MBAA");
-                    int res = 1;
-                    try {
-                        res = InjectIntoMBAA(dwPID, sDLLPath);
-                    } catch (...) {
-                        LogError("Failed to inject");
-                    }
-                    if (res == 0)
+                    if (InjectIntoMBAA(dwPID, sDLLPath) != 0)
                     {
-                        LogInfo("Injection was a success");
-
                         bInjected = true;
-
-                        //std::cout << "\n" << "Please view ingame frame bar there is nothing here" << "\n";
 
                         // Set some initial stuff in the DLL
                         bool bTrue = true;
@@ -422,6 +526,9 @@ int main(int argc, char* argv[])
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedReversalKey), &nReversalKey, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedReversalKeyHeld), &bTrue, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSlowKey), &nSlowKey, 1, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedNextFrameKey), &nNextFrameKey, 1, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedPrevFrameKey), &nPrevFrameKey, 1, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedResetKey), &nResetKey, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSlowSpeed), &bSlow, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSaveSlot), &nSaveSlot, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedDisplayFreeze), &bDisplayFreeze, 1, 0);
@@ -434,13 +541,20 @@ int main(int argc, char* argv[])
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedColorBlindMode), &bColorBlindMode, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedDisplayHitboxes), &bDisplayHitboxes, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedExtendOrigins), &bExtendOrigins, 1, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adHealthRestore), &MAX_HEALTH, 4, 0);
 
-                        std::array<uint8_t, 4> arrTemp = CreateColorArray2(NO_HIGHLIGHT);
-                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedIdleHighlight), &arrTemp, 4, 0);
-                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedBlockingHighlight), &arrTemp, 4, 0);
-                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHitHighlight), &arrTemp, 4, 0);
-                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedArmorHighlight), &arrTemp, 4, 0);
-                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedThrowProtectionHighlight), &arrTemp, 4, 0);
+                        //std::array<uint8_t, 4> arrTemp = CreateColorArray2(NO_HIGHLIGHT);
+                        std::array<uint8_t, 4> arrTempBlockingHighlight = CreateColorArray2(nBlockingHighlightSetting);
+                        std::array<uint8_t, 4> arrTempHitHighlight = CreateColorArray2(nHitHighlightSetting);
+                        std::array<uint8_t, 4> arrTempThrowProtectionHighlight = CreateColorArray2(nThrowProtectionHighlightSetting);
+                        std::array<uint8_t, 4> arrTempIdleHighlight = CreateColorArray2(nIdleHighlightSetting);
+                        std::array<uint8_t, 4> arrTempArmorHighlight = CreateColorArray2(nArmorHighlightSetting);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedIdleHighlight), &arrTempIdleHighlight, 4, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedBlockingHighlight), &arrTempBlockingHighlight, 4, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHitHighlight), &arrTempHitHighlight, 4, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedArmorHighlight), &arrTempArmorHighlight, 4, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedThrowProtectionHighlight), &arrTempThrowProtectionHighlight, 4, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHighlight), &bHighlight, 1, 0);
 
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedOnExtendedSettings), &bOnSettingsMenu, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcBlank_64, 64, 0);
@@ -452,6 +566,7 @@ int main(int argc, char* argv[])
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedBackgroundStyle), &nBackgroundStyle, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedDrawGround), &bDrawGround, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedDisableShadow), &bDisableShadow, 1, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHideFPS), &dwDisableExtras, 2, 0);
 
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFrameDataDisplay), &bFrameDataDisplay, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFastReversePenalty), &bFastReversePenalty, 1, 0);
@@ -459,23 +574,31 @@ int main(int argc, char* argv[])
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedShowStats), &bShowStats, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1InputDisplay), &nP1InputDisplay, 1, 0);
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2InputDisplay), &nP2InputDisplay, 1, 0);
-                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHighlight), &bHighlight, 1, 0);
+
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1FancyInputX), &fP1FancyInputX, 4, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1FancyInputY), &fP1FancyInputY, 4, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2FancyInputX), &fP2FancyInputX, 4, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2FancyInputY), &fP2FancyInputY, 4, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1ListInputX), &fP1ListInputX, 4, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1ListInputY), &fP1ListInputY, 4, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2ListInputX), &fP2ListInputX, 4, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2ListInputY), &fP2ListInputY, 4, 0);
+
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1Guts), &arrP1Guts, 12, 0);
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2Guts), &arrP2Guts, 12, 0);
                     }
                 }
             }
+
             long long start = getMicroSec();
 
             FrameDisplay(hMBAAHandle);
-
+            
             long long totalTime = getMicroSec() - start;
 
             if (totalTime > 8000) {
                 //netlog("console framedisplay took %3lld.%03lld ms", totalTime / 1000, totalTime % 1000);
             }
-
-
-            //nWriteBuffer = nPlayerAdvantage;
-            //WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwFPS), &nWriteBuffer, 4, 0);
 
             ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwCSSFlag), &nReadResult, 4, 0);
             if (nReadResult == 0)
@@ -511,9 +634,9 @@ int main(int argc, char* argv[])
 
                 // these flags are used to determine if assist chars exist
                 ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwP3Exists), &nReadResult, 4, 0);
-                bP3Exists = (nReadResult == 1 ? true : false);
+                bP3Exists = (nReadResult == 1 && nP1CharacterNumber != 4 ? true : false);
                 ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwP4Exists), &nReadResult, 4, 0);
-                bP4Exists = (nReadResult == 1 ? true : false);
+                bP4Exists = (nReadResult == 1 && nP2CharacterNumber != 4 ? true : false);
 
                 // update the location variables if not locked
                 if (!bPositionsLocked)
@@ -542,6 +665,9 @@ int main(int argc, char* argv[])
                 uint8_t nP2Controlled;
                 ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adP1ControlledCharacter), &nP1Controlled, 1, 0);
                 ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adP2ControlledCharacter), &nP2Controlled, 1, 0);
+                ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adP1SubBase + adDoTrainingAction), &nReadResult, 1, 0);
+                uint8_t nPlayer = nReadResult == 0 ? nP1Controlled : nP2Controlled;
+                uint8_t nDummy = nReadResult == 0 ? nP2Controlled : nP1Controlled;
 
                 // This is the big if-else
                 if (bPaused)
@@ -599,26 +725,36 @@ int main(int argc, char* argv[])
                         try
                         {
                             DWORD dwReturnToMainMenuString = GetReturnToMainMenuStringAddress(hMBAAHandle, dwBaseAddress);
+                            if (bNeedToAnnounceNewVersion)
+                            {
+                                // assemble the string for the message
+                                std::string sNewVersionMessage = "             VERSION " + sOnlineVersion + " AVAILABLE NOW ON GITHUB";
+                                int nMessageLength = sNewVersionMessage.size();
+                                sNewVersionMessage += "             " + sNewVersionMessage;
 
-                            // assemble the string for the message
-                            std::string sScrollingMessage = "      SEND LINUX ISSUES TO notanumb ON DISCORD <3";
-                            int nMessageLength = sScrollingMessage.size();
-                            sScrollingMessage += "             " + sScrollingMessage;
+                                if (nStartingTime == 0 || nCurrentSubMenu != nOldCurrentSubMenu || nMovingMessageIndex >= nMessageLength + 16)
+                                    nStartingTime = std::time(nullptr);
 
-                            if (nStartingTime == 0 || nCurrentSubMenu != nOldCurrentSubMenu || nMovingMessageIndex >= nMessageLength + 16)
-                                nStartingTime = std::time(nullptr);
+                                // move the index based on the timer
+                                int nCurrentTime = std::time(nullptr);
+                                nMovingMessageIndex = (nCurrentTime - nStartingTime) * 2;
 
-                            // move the index based on the timer
-                            int nCurrentTime = std::time(nullptr);
-                            nMovingMessageIndex = (nCurrentTime - nStartingTime) * 2;
+                                // chop the string up
+                                std::string sTempNewVersionMessage = "[" + sNewVersionMessage.substr(nMovingMessageIndex, 16) + "]";
 
-                            // chop the string up
-                            std::string sTempNewVersionMessage = sScrollingMessage.substr(nMovingMessageIndex, 22);
-
-                            //send it
-                            char pcNewVersionMessage[24];
-                            strcpy_s(pcNewVersionMessage, (sTempNewVersionMessage).c_str());
-                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwReturnToMainMenuString), &pcNewVersionMessage, 24, 0);
+                                //send it
+                                char pcNewVersionMessage[19];
+                                strcpy_s(pcNewVersionMessage, (sTempNewVersionMessage).c_str());
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwReturnToMainMenuString), &pcNewVersionMessage, 19, 0);
+                            }
+                            else if (sOnlineVersion != "")
+                            {
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwReturnToMainMenuString), &pcLatestVersion_19, 19, 0);
+                            }
+                            else
+                            {
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwReturnToMainMenuString), &pcOffline_8, 8, 0);
+                            }
                         }
                         catch (...)
                         {
@@ -795,8 +931,8 @@ int main(int argc, char* argv[])
                                 continue;
 
                             // Reset "hits till burst" if status is not manual
-                            if (nEnemyStatusIndex != eEnemyStatus::MANUAL)
-                                nHitsTillBurst = TOO_HIGH_TO_BURST;
+                            //if (nEnemyStatusIndex != eEnemyStatus::MANUAL)
+                            //    nHitsTillBurst = TOO_HIGH_TO_BURST;
 
                             ReadProcessMemory(hMBAAHandle, (LPVOID)(dwSubMenuAddress), &nReadResult, 4, 0);
                             nCurrentSubMenu = nReadResult;
@@ -808,6 +944,27 @@ int main(int argc, char* argv[])
                             {
                                 switch (nSettingsPage)
                                 {
+                                case REVERSALS_PAGE:
+                                {
+                                    if (nEnemySettingsCursor == 2)
+                                        nReversalIndex1 = 0;
+                                    if (nEnemySettingsCursor == 3)
+                                        nReversalIndex2 = 0;
+                                    if (nEnemySettingsCursor == 5)
+                                        nReversalIndex3 = 0;
+                                    if (nEnemySettingsCursor == 6)
+                                        nReversalIndex4 = 0;
+                                    if (nEnemySettingsCursor == 8)
+                                        nReversalDelayFrames = 0;
+                                    
+                                    break;
+                                }
+                                case STATS_PAGE:
+                                {
+                                    if (nEnemySettingsCursor == 8)
+                                        bBunkerInsteadOfBurst = !bBunkerInsteadOfBurst;
+                                    break;
+                                }
                                 case POSITIONS_PAGE:
                                 {
                                     if (nEnemySettingsCursor == 8)
@@ -828,6 +985,7 @@ int main(int argc, char* argv[])
                                     if (nEnemySettingsCursor == 6)
                                     {
                                         bPrintColorGuide = !bPrintColorGuide;
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedColorGuide), &bPrintColorGuide, 1, 0);
                                         system("cls");
                                     }
                                     break;
@@ -904,7 +1062,7 @@ int main(int argc, char* argv[])
                                             }
                                             if (nRNGMode == RNG_RN)
                                             {
-                                                nCustomRN = PromptForNumber(hMBAAHandle, dwBaseAddress);
+                                                nCustomRN = nOut;
                                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedRNGCustomRN), &nCustomRN, 4, 0);
                                             }
                                         }
@@ -922,13 +1080,58 @@ int main(int argc, char* argv[])
                                     }
                                     break;
                                 }
+                                case UI_PAGE:
+                                {
+                                    if (nEnemySettingsCursor == 2)
+                                    {
+                                        if (nP1InputDisplay == INPUT_ARCADE || nP1InputDisplay == INPUT_BOTH)
+                                        {
+                                            fP1FancyInputX = DEFAULT_P1_FANCYINPUT_X;
+                                            fP1FancyInputY = DEFAULT_P1_FANCYINPUT_Y;
+                                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1FancyInputX), &fP1FancyInputX, 4, 0);
+                                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1FancyInputY), &fP1FancyInputY, 4, 0);
+                                            SetRegistryValue(L"P1FancyInputX", fP1FancyInputX);
+                                            SetRegistryValue(L"P1FancyInputY", fP1FancyInputY);
+                                        }
+                                        if (nP1InputDisplay == INPUT_LIST || nP1InputDisplay == INPUT_BOTH)
+                                        {
+                                            fP1ListInputX = DEFAULT_P1_LISTINPUT_X;
+                                            fP1ListInputY = DEFAULT_P1_LISTINPUT_Y;
+                                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1ListInputX), &fP1ListInputX, 4, 0);
+                                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1ListInputY), &fP1ListInputY, 4, 0);
+                                            SetRegistryValue(L"P1ListInputX", fP1ListInputX);
+                                            SetRegistryValue(L"P1ListInputY", fP1ListInputY);
+                                        }
+                                    }
+                                    if (nEnemySettingsCursor == 3)
+                                    {
+                                        if (nP2InputDisplay == INPUT_ARCADE || nP2InputDisplay == INPUT_BOTH)
+                                        {
+                                            fP2FancyInputX = DEFAULT_P2_FANCYINPUT_X;
+                                            fP2FancyInputY = DEFAULT_P2_FANCYINPUT_Y;
+                                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2FancyInputX), &fP2FancyInputX, 4, 0);
+                                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2FancyInputY), &fP2FancyInputY, 4, 0);
+                                            SetRegistryValue(L"P2FancyInputX", fP2FancyInputX);
+                                            SetRegistryValue(L"P2FancyInputY", fP2FancyInputY);
+                                        }
+                                        if (nP2InputDisplay == INPUT_LIST || nP2InputDisplay == INPUT_BOTH)
+                                        {
+                                            fP2ListInputX = DEFAULT_P2_LISTINPUT_X;
+                                            fP2ListInputY = DEFAULT_P2_LISTINPUT_Y;
+                                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2ListInputX), &fP2ListInputX, 4, 0);
+                                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2ListInputY), &fP2ListInputY, 4, 0);
+                                            SetRegistryValue(L"P2ListInputX", fP2ListInputX);
+                                            SetRegistryValue(L"P2ListInputY", fP2ListInputY);
+                                        }
+                                    }
+                                }
                                 default:
                                     break;
                                 }
                             }
 
                             uint8_t nIsHoveringScroll = 0;
-                            if ((nSettingsPage == FRAME_TOOL && nEnemySettingsCursor == 5))
+                            if ((nSettingsPage == FRAME_TOOL && (nEnemySettingsCursor == 5 || nEnemySettingsCursor == 6)))
                                 nIsHoveringScroll = 1;
                             else if (nSettingsPage == UI_PAGE && nEnemySettingsCursor == 5)
                                 nIsHoveringScroll = 2;
@@ -962,7 +1165,14 @@ int main(int argc, char* argv[])
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeStringAddress), &pcGuardBar_10, 10, 0);
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryString), &pcMeter_6, 6, 0);
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryString), &pcHealth_7, 7, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryString), &pcHitsUntilBurst_17, 17, 0);
+                                if (bBunkerInsteadOfBurst)
+                                {
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryString), &pcHitsUntilBunker_18, 18, 0);
+                                }
+                                else
+                                {
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryString), &pcHitsUntilBurst_17, 17, 0);
+                                }
 
                                 break;
                             }
@@ -998,11 +1208,11 @@ int main(int argc, char* argv[])
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemySettingsMenuTitle), &pcFrameData_11, 11, 0);
 
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionString), &pcFrameData_11, 11, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseString), &pcDisplayFreeze_16, 16, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeStringAddress), &pcDisplayInputs_15, 15, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseString), &pcShowFreezeInputs_21, 21, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeStringAddress), &pcShowCancelWindows_20, 20, 0);
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryString), &pcScrollDisplay_15, 15, 0);
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryString), &pcColorGuide_12, 12, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryString), &pcDrawOnScreen_15, 15, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryString), &pcInGameFramebar_17, 17, 0);
 
                                 break;
                             }
@@ -1085,7 +1295,7 @@ int main(int argc, char* argv[])
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseString), &pcHideHUD_9, 9, 0);
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeStringAddress), &pcBackground_11, 11, 0);
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryString), &pcHideShadow_13, 13, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryString), &pcBlank_1, 1, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryString), &pcHideExtras_12, 12, 0);
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryString), &pcBlank_1, 1, 0);
 
                                 break;
@@ -1142,7 +1352,7 @@ int main(int argc, char* argv[])
                                 {
                                     char pcTemp64[64] = "Enemy reversal {slot 1}.";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
-                                    strcpy_s(pcTemp64, std::string(">Reversal {" + vPatternNames[nReversalIndex1] + ".").c_str());
+                                    strcpy_s(pcTemp64, std::string(">Reversal {" + vPatternNames[nReversalIndex1] + ". {Press A} to reset.").c_str());
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
                                     break;
                                 }
@@ -1150,7 +1360,7 @@ int main(int argc, char* argv[])
                                 {
                                     char pcTemp64[64] = "Enemy reversal {slot 2}.";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
-                                    strcpy_s(pcTemp64, std::string(">Reversal {" + vPatternNames[nReversalIndex2] + ".").c_str());
+                                    strcpy_s(pcTemp64, std::string(">Reversal {" + vPatternNames[nReversalIndex2] + ". {Press A} to reset.").c_str());
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
                                     break;
                                 }
@@ -1158,7 +1368,7 @@ int main(int argc, char* argv[])
                                 {
                                     char pcTemp64[64] = "Enemy reversal {slot 3}.";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
-                                    strcpy_s(pcTemp64, std::string(">Reversal {" + vPatternNames[nReversalIndex3] + ".").c_str());
+                                    strcpy_s(pcTemp64, std::string(">Reversal {" + vPatternNames[nReversalIndex3] + ". {Press A} to reset.").c_str());
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
                                     break;
                                 }
@@ -1166,7 +1376,7 @@ int main(int argc, char* argv[])
                                 {
                                     char pcTemp64[64] = "Enemy reversal {slot 4}.";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
-                                    strcpy_s(pcTemp64, std::string(">Reversal {" + vPatternNames[nReversalIndex4] + ".").c_str());
+                                    strcpy_s(pcTemp64, std::string(">Reversal {" + vPatternNames[nReversalIndex4] + ". {Press A} to reset.").c_str());
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
                                     break;
                                 }
@@ -1235,16 +1445,16 @@ int main(int argc, char* argv[])
                                 }
                                 case 6:
                                 {
-                                    char pcTemp64[64] = "Set a specific health amount.";
+                                    char pcTemp64[64] = "Set a specific health amount (Recover 100% only).";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
                                     int nPercent = (int)((float)nCustomHealth / 11400.0f * 100.0f);
-                                    strcpy_s(pcTemp64, (">" + std::to_string(nPercent) + "%%. {Hold A} for precise numbers.").c_str());
+                                    strcpy_s(pcTemp64, (">" + std::to_string(nPercent) + "%. {Hold A} for precise numbers.").c_str());
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
                                     break;
                                 }
                                 case 8:
                                 {
-                                    char pcTemp64[64] = "Number of hits into a combo before the will burst.";
+                                    char pcTemp64[64] = "Number of hits before the dummy will burst.";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
                                     if (nHitsTillBurst == TOO_HIGH_TO_BURST)
                                         strcpy_s(pcTemp64, ">Dummy will {not} burst.");
@@ -1526,7 +1736,7 @@ int main(int argc, char* argv[])
                                 {
                                     char pcTemp64[64] = "Display a line on the ground";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
-                                    if (!bDrawGround)
+                                    if (bDrawGround)
                                         strcpy_s(pcTemp64, ">A line on the ground {will be drawn.");
                                     else
                                         strcpy_s(pcTemp64, ">A line on the ground {will not be drawn.");
@@ -1621,7 +1831,7 @@ int main(int argc, char* argv[])
                                 {
                                 case 0:
                                 {
-                                    char pcTemp64[64] = "Level of detail to show in the {frame display.";
+                                    char pcTemp64[64] = "Level of detail to show in the {console window.";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
                                     if (nFrameData == FRAMEDISPLAY_NORMAL)
                                         strcpy_s(pcTemp64, ">Display {the basics.");
@@ -1632,42 +1842,32 @@ int main(int argc, char* argv[])
                                 }
                                 case 2:
                                 {
-                                    char pcTemp64[64] = "Display {freeze frames} in the frame display.";
+                                    char pcTemp64[64] = "Show {freeze frames} and {inputs} in the frame display.";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
                                     if (bDisplayFreeze)
-                                        strcpy_s(pcTemp64, ">Freeze frames {will be displayed.");
+                                        strcpy_s(pcTemp64, ">Freeze frames and inputs {will be displayed.");
                                     else
-                                        strcpy_s(pcTemp64, ">Freeze frames {will not be displayed.");
+                                        strcpy_s(pcTemp64, ">Freeze frames and inputs {will not be displayed.");
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
                                     break;
                                 }
                                 case 3:
                                 {
-                                    char pcTemp64[64] = "Display {controller inputs} in the frame display.";
+                                    char pcTemp64[64] = "Show {cancel windows} in the frame display.";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
-                                    if (bDisplayInputs)
-                                        strcpy_s(pcTemp64, ">Controller inputs {will be displayed.");
+                                    if (bDisplayCancels)
+                                        strcpy_s(pcTemp64, ">Cancel windows {will be displayed} (console only).");
                                     else
-                                        strcpy_s(pcTemp64, ">Controller inputs {will not be displayed.");
+                                        strcpy_s(pcTemp64, ">Cancel windows {will not be displayed.");
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
                                     break;
                                 }
                                 case 5:
                                 {
-                                    /*if (bFrameDataDisplay)
-                                    {
-                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcBlank_64, 64, 0);
-                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcBlank_64, 64, 0);
-                                    }
-                                    else
-                                    {
-                                        char pcTemp64[64] = "Scroll through the frame display.";
-                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
-                                        strcpy_s(pcTemp64, ">{DRAW ON SCREEN} is turned off.");
-                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
-                                    }*/
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcBlank_64, 64, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcBlank_64, 64, 0);
+                                    char pcTemp64[64] = "Scroll through the frame display.";
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
+                                    strcpy_s(pcTemp64, ">Up to {400} frames are stored.");
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
                                     break;
                                 }
                                 case 6:
@@ -1680,12 +1880,12 @@ int main(int argc, char* argv[])
                                 }
                                 case 8:
                                 {
-                                    char pcTemp64[64] = "Display game data on screen.";
+                                    char pcTemp64[64] = "Display frame-by-frame data on screen.";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
                                     if (bFrameDataDisplay)
-                                        strcpy_s(pcTemp64, ">Game data {will be displayed.");
+                                        strcpy_s(pcTemp64, ">Data {will be displayed.");
                                     else
-                                        strcpy_s(pcTemp64, ">Game data {will not be displayed");
+                                        strcpy_s(pcTemp64, ">Data {will not be displayed");
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
                                     break;
                                 }
@@ -1811,6 +2011,13 @@ int main(int argc, char* argv[])
                                 }
                                 case 6:
                                 {
+                                    char pcTemp64[64] = "Toggle whether {extra UI elements} are drawn.";
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
+                                    if (bDisableShadow)
+                                        strcpy_s(pcTemp64, std::string(">Extras {will not be drawn.").c_str());
+                                    else
+                                        strcpy_s(pcTemp64, std::string(">Extras {will be drawn.").c_str());
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
                                     break;
                                 }
                                 case 8:
@@ -1839,7 +2046,11 @@ int main(int argc, char* argv[])
                                 }
                                 case 2:
                                 {
-                                    char pcTemp64[64] = "Show Player 1's inputs.";
+                                    char pcTemp64[64];
+                                    if (nP1InputDisplay != INPUT_OFF)
+                                        strcpy_s(pcTemp64, "Show Player 1 inputs. (Press A to reset position)");
+                                    else
+                                        strcpy_s(pcTemp64, "Show Player 1 inputs.");
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
                                     if (nP1InputDisplay == INPUT_OFF)
                                         strcpy_s(pcTemp64, ">Inputs {will not display.");
@@ -1854,7 +2065,11 @@ int main(int argc, char* argv[])
                                 }
                                 case 3:
                                 {
-                                    char pcTemp64[64] = "Show Player 2's inputs.";
+                                    char pcTemp64[64];
+                                    if (nP2InputDisplay != INPUT_OFF)
+                                        strcpy_s(pcTemp64, "Show Player 2 inputs. (Press A to reset position)");
+                                    else
+                                        strcpy_s(pcTemp64, "Show Player 2 inputs.");
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
                                     if (nP2InputDisplay == INPUT_OFF)
                                         strcpy_s(pcTemp64, ">Inputs {will not display.");
@@ -2123,19 +2338,19 @@ int main(int argc, char* argv[])
                             }
                             case SYSTEM_PAGE:
                             {
-                                if (nOldEnemySettingsCursor == 5 && nEnemySettingsCursor == 6)
+                                if (nOldEnemySettingsCursor == 6 && nEnemySettingsCursor == 8)
                                 {
                                     nWriteBuffer = 10;
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemySettingsCursor), &nWriteBuffer, 4, 0);
                                     nEnemySettingsCursor = 10;
                                     nOldEnemySettingsCursor = 10;
                                 }
-                                else if (nEnemySettingsCursor > 5 && nEnemySettingsCursor < 10)
+                                else if (nEnemySettingsCursor > 6 && nEnemySettingsCursor < 10)
                                 {
-                                    nWriteBuffer = 5;
+                                    nWriteBuffer = 6;
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemySettingsCursor), &nWriteBuffer, 4, 0);
-                                    nEnemySettingsCursor = 5;
-                                    nOldEnemySettingsCursor = 5;
+                                    nEnemySettingsCursor = 6;
+                                    nOldEnemySettingsCursor = 6;
                                 }
                                 break;
                             }
@@ -2187,44 +2402,60 @@ int main(int argc, char* argv[])
                                     nOldEnemyDefenseIndex = nEnemyDefenseIndex;
                                 else if (nOldEnemyDefenseIndex > nEnemyDefenseIndex)// left
                                 {
-                                    nReversalIndex1 = max(0, nReversalIndex1 - 1);
+                                    nReversalIndex1--;
+                                    if (nReversalIndex1 == -1)
+                                        nReversalIndex1 = vPatternNames.size() - 1;
                                 }
                                 else if (nOldEnemyDefenseIndex < nEnemyDefenseIndex)// right
                                 {
-                                    nReversalIndex1 = min(nReversalIndex1 + 1, vPatternNames.size() - 1);
+                                    nReversalIndex1++;
+                                    if (nReversalIndex1 == vPatternNames.size())
+                                        nReversalIndex1 = 0;
                                 }
 
                                 if (nOldEnemyDefenseTypeIndex == -1)
                                     nOldEnemyDefenseTypeIndex = nEnemyDefenseTypeIndex;
                                 else if (nOldEnemyDefenseTypeIndex > nEnemyDefenseTypeIndex)// left
                                 {
-                                    nReversalIndex2 = max(0, nReversalIndex2 - 1);
+                                    nReversalIndex2--;
+                                    if (nReversalIndex2 == -1)
+                                        nReversalIndex2 = vPatternNames.size() - 1;
                                 }
                                 else if (nOldEnemyDefenseTypeIndex < nEnemyDefenseTypeIndex)// right
                                 {
-                                    nReversalIndex2 = min(nReversalIndex2 + 1, vPatternNames.size() - 1);
+                                    nReversalIndex2++;
+                                    if (nReversalIndex2 == vPatternNames.size())
+                                        nReversalIndex2 = 0;
                                 }
 
                                 if (nOldAirRecoveryIndex == -1)
                                     nOldAirRecoveryIndex = nAirRecoveryIndex;
                                 else if (nOldAirRecoveryIndex > nAirRecoveryIndex)// left
                                 {
-                                    nReversalIndex3 = max(0, nReversalIndex3 - 1);
+                                    nReversalIndex3--;
+                                    if (nReversalIndex3 == -1)
+                                        nReversalIndex3 = vPatternNames.size() - 1;
                                 }
                                 else if (nOldAirRecoveryIndex < nAirRecoveryIndex)// right
                                 {
-                                    nReversalIndex3 = min(nReversalIndex3 + 1, vPatternNames.size() - 1);
+                                    nReversalIndex3++;
+                                    if (nReversalIndex3 == vPatternNames.size())
+                                        nReversalIndex3 = 0;
                                 }
 
                                 if (nOldDownRecoveryIndex == -1)
                                     nOldDownRecoveryIndex = nDownRecoveryIndex;
                                 else if (nOldDownRecoveryIndex > nDownRecoveryIndex)// left
                                 {
-                                    nReversalIndex4 = max(0, nReversalIndex4 - 1);
+                                    nReversalIndex4--;
+                                    if (nReversalIndex4 == -1)
+                                        nReversalIndex4 = vPatternNames.size() - 1;
                                 }
                                 else if (nOldDownRecoveryIndex < nDownRecoveryIndex)// right
                                 {
-                                    nReversalIndex4 = min(nReversalIndex4 + 1, vPatternNames.size() - 1);
+                                    nReversalIndex4++;
+                                    if (nReversalIndex4 == vPatternNames.size())
+                                        nReversalIndex4 = 0;
                                 }
 
                                 if (nOldThrowRecoveryIndex == -1)
@@ -2288,28 +2519,48 @@ int main(int argc, char* argv[])
                                 else if (nOldDownRecoveryIndex > nDownRecoveryIndex)// left
                                 {
                                     nCustomHealth = max(0, nCustomHealth - (bAPressed ? 1 : 100));
-                                    SetHealth(hMBAAHandle, dwBaseAddress, nCustomHealth, nP1Controlled, nP2Controlled);
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adHealthRestore), &nCustomHealth, 4, 0);
+                                    //SetHealth(hMBAAHandle, dwBaseAddress, nCustomHealth, nP1Controlled, nP2Controlled);
                                 }
                                 else if (nOldDownRecoveryIndex < nDownRecoveryIndex)// right
                                 {
                                     nCustomHealth = min(nCustomHealth + (bAPressed ? 1 : 100), MAX_HEALTH);
-                                    SetHealth(hMBAAHandle, dwBaseAddress, nCustomHealth, nP1Controlled, nP2Controlled);
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adHealthRestore), &nCustomHealth, 4, 0);
+                                    //SetHealth(hMBAAHandle, dwBaseAddress, nCustomHealth, nP1Controlled, nP2Controlled);
                                 }
 
-                                if (nOldThrowRecoveryIndex == -1)
-                                    nOldThrowRecoveryIndex = nThrowRecoveryIndex;
-                                else if (nOldThrowRecoveryIndex > nThrowRecoveryIndex)// left
+                                if (bBunkerInsteadOfBurst)
                                 {
-                                    nHitsTillBurst = max(0, nHitsTillBurst - 1);
-                                    if (nHitsTillBurst == 0)
-                                        nHitsTillBurst = TOO_HIGH_TO_BURST;
+                                    if (nOldThrowRecoveryIndex == -1)
+                                        nOldThrowRecoveryIndex = nThrowRecoveryIndex;
+                                    else if (nOldThrowRecoveryIndex > nThrowRecoveryIndex)// left
+                                    {
+                                        if (nHitsTillBunker > 0)
+                                            nHitsTillBunker--;
+                                    }
+                                    else if (nOldThrowRecoveryIndex < nThrowRecoveryIndex)// right
+                                    {
+                                        if (nHitsTillBunker < 99)
+                                            nHitsTillBunker++;
+                                    }
                                 }
-                                else if (nOldThrowRecoveryIndex < nThrowRecoveryIndex)// right
+                                else
                                 {
-                                    if (nHitsTillBurst == TOO_HIGH_TO_BURST)
-                                        nHitsTillBurst = 1;
-                                    else
-                                        nHitsTillBurst = min(MAX_BURST, nHitsTillBurst + 1);
+                                    if (nOldThrowRecoveryIndex == -1)
+                                        nOldThrowRecoveryIndex = nThrowRecoveryIndex;
+                                    else if (nOldThrowRecoveryIndex > nThrowRecoveryIndex)// left
+                                    {
+                                        nHitsTillBurst = max(0, nHitsTillBurst - 1);
+                                        if (nHitsTillBurst == 0)
+                                            nHitsTillBurst = TOO_HIGH_TO_BURST;
+                                    }
+                                    else if (nOldThrowRecoveryIndex < nThrowRecoveryIndex)// right
+                                    {
+                                        if (nHitsTillBurst == TOO_HIGH_TO_BURST)
+                                            nHitsTillBurst = 1;
+                                        else
+                                            nHitsTillBurst = min(MAX_BURST, nHitsTillBurst + 1);
+                                    }
                                 }
                                 break;
                             }
@@ -2407,6 +2658,9 @@ int main(int argc, char* argv[])
                                 }
                                 else if (nOldEnemyDefenseIndex < nEnemyDefenseIndex)// right
                                 {
+                                    bDisplayInputs = true;
+                                    SetRegistryValue(L"DisplayInputs", bDisplayInputs);
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedDisplayInputs), &bDisplayInputs, 1, 0);
                                     bDisplayFreeze = true;
                                     SetRegistryValue(L"DisplayFreeze", bDisplayFreeze);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedDisplayFreeze), &bDisplayFreeze, 1, 0);
@@ -2416,19 +2670,13 @@ int main(int argc, char* argv[])
                                     nOldEnemyDefenseTypeIndex = nEnemyDefenseTypeIndex;
                                 else if (nOldEnemyDefenseTypeIndex > nEnemyDefenseTypeIndex)// left
                                 {
-                                    bDisplayInputs = false;
-                                    SetRegistryValue(L"DisplayInputs", bDisplayInputs);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedDisplayInputs), &bDisplayInputs, 1, 0);
-                                    system("cls");
+                                    bDisplayCancels = false;
+                                    SetRegistryValue(L"DisplayCancels", bDisplayCancels);
                                 }
                                 else if (nOldEnemyDefenseTypeIndex < nEnemyDefenseTypeIndex)// right
                                 {
-                                    bDisplayInputs = true;
-                                    SetRegistryValue(L"DisplayInputs", bDisplayInputs);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedDisplayInputs), &bDisplayInputs, 1, 0);
-                                    bDisplayFreeze = true;
-                                    SetRegistryValue(L"DisplayFreeze", bDisplayFreeze);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedDisplayFreeze), &bDisplayFreeze, 1, 0);
+                                    bDisplayCancels = true;
+                                    SetRegistryValue(L"DisplayCancels", bDisplayCancels);
                                 }
 
                                 if (nOldAirRecoveryIndex == -1)
@@ -2687,11 +2935,13 @@ int main(int argc, char* argv[])
                                 {
                                     bHighlight = false;
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHighlight), &bHighlight, 1, 0);
+                                    SetRegistryValue(L"HighlightToggle", bHighlight);
                                 }
                                 else if (nOldEnemyActionIndex < nEnemyActionIndex)// right
                                 {
                                     bHighlight = true;
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHighlight), &bHighlight, 1, 0);
+                                    SetRegistryValue(L"HighlightToggle", bHighlight);
                                 }
 
                                 if (nOldEnemyDefenseIndex == -1)
@@ -2701,12 +2951,14 @@ int main(int argc, char* argv[])
                                     nBlockingHighlightSetting = max(NO_HIGHLIGHT, nBlockingHighlightSetting - 1);
                                     std::array<uint8_t, 4> arrTemp = CreateColorArray2(nBlockingHighlightSetting);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedBlockingHighlight), &arrTemp, 4, 0);
+                                    SetRegistryValue(L"BlockingHighlight", nBlockingHighlightSetting);
                                 }
                                 else if (nOldEnemyDefenseIndex < nEnemyDefenseIndex)// right
                                 {
                                     nBlockingHighlightSetting = min(BLACK_HIGHLIGHT, nBlockingHighlightSetting + 1);
                                     std::array<uint8_t, 4> arrTemp = CreateColorArray2(nBlockingHighlightSetting);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedBlockingHighlight), &arrTemp, 4, 0);
+                                    SetRegistryValue(L"BlockingHighlight", nBlockingHighlightSetting);
                                 }
 
                                 if (nOldEnemyDefenseTypeIndex == -1)
@@ -2716,12 +2968,14 @@ int main(int argc, char* argv[])
                                     nHitHighlightSetting = max(NO_HIGHLIGHT, nHitHighlightSetting - 1);
                                     std::array<uint8_t, 4> arrTemp = CreateColorArray2(nHitHighlightSetting);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHitHighlight), &arrTemp, 4, 0);
+                                    SetRegistryValue(L"HitHighlight", nHitHighlightSetting);
                                 }
                                 else if (nOldEnemyDefenseTypeIndex < nEnemyDefenseTypeIndex)// right
                                 {
                                     nHitHighlightSetting = min(BLACK_HIGHLIGHT, nHitHighlightSetting + 1);
                                     std::array<uint8_t, 4> arrTemp = CreateColorArray2(nHitHighlightSetting);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHitHighlight), &arrTemp, 4, 0);
+                                    SetRegistryValue(L"HitHighlight", nHitHighlightSetting);
                                 }
 
                                 if (nOldAirRecoveryIndex == -1)
@@ -2731,12 +2985,14 @@ int main(int argc, char* argv[])
                                     nArmorHighlightSetting = max(NO_HIGHLIGHT, nArmorHighlightSetting - 1);
                                     std::array<uint8_t, 4> arrTemp = CreateColorArray2(nArmorHighlightSetting);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedArmorHighlight), &arrTemp, 4, 0);
+                                    SetRegistryValue(L"ArmorHighlight", nArmorHighlightSetting);
                                 }
                                 else if (nOldAirRecoveryIndex < nAirRecoveryIndex)// right
                                 {
                                     nArmorHighlightSetting = min(BLACK_HIGHLIGHT, nArmorHighlightSetting + 1);
                                     std::array<uint8_t, 4> arrTemp = CreateColorArray2(nArmorHighlightSetting);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedArmorHighlight), &arrTemp, 4, 0);
+                                    SetRegistryValue(L"ArmorHighlight", nArmorHighlightSetting);
                                 }
 
                                 if (nOldDownRecoveryIndex == -1)
@@ -2746,12 +3002,14 @@ int main(int argc, char* argv[])
                                     nThrowProtectionHighlightSetting = max(NO_HIGHLIGHT, nThrowProtectionHighlightSetting - 1);
                                     std::array<uint8_t, 4> arrTemp = CreateColorArray2(nThrowProtectionHighlightSetting);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedThrowProtectionHighlight), &arrTemp, 4, 0);
+                                    SetRegistryValue(L"ThrowProtectionHighlight", nThrowProtectionHighlightSetting);
                                 }
                                 else if (nOldDownRecoveryIndex < nDownRecoveryIndex)// right
                                 {
                                     nThrowProtectionHighlightSetting = min(BLACK_HIGHLIGHT, nThrowProtectionHighlightSetting + 1);
                                     std::array<uint8_t, 4> arrTemp = CreateColorArray2(nThrowProtectionHighlightSetting);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedThrowProtectionHighlight), &arrTemp, 4, 0);
+                                    SetRegistryValue(L"ThrowProtectionHighlight", nThrowProtectionHighlightSetting);
                                 }
 
                                 if (nOldThrowRecoveryIndex == -1)
@@ -2761,12 +3019,14 @@ int main(int argc, char* argv[])
                                     nIdleHighlightSetting = max(NO_HIGHLIGHT, nIdleHighlightSetting - 1);
                                     std::array<uint8_t, 4> arrTemp = CreateColorArray2(nIdleHighlightSetting);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedIdleHighlight), &arrTemp, 4, 0);
+                                    SetRegistryValue(L"IdleHighlight", nIdleHighlightSetting);
                                 }
                                 else if (nOldThrowRecoveryIndex < nThrowRecoveryIndex)// right
                                 {
                                     nIdleHighlightSetting = min(BLACK_HIGHLIGHT, nIdleHighlightSetting + 1);
                                     std::array<uint8_t, 4> arrTemp = CreateColorArray2(nIdleHighlightSetting);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedIdleHighlight), &arrTemp, 4, 0);
+                                    SetRegistryValue(L"IdleHighlight", nIdleHighlightSetting);
                                 }
 
                                 break;
@@ -2898,6 +3158,21 @@ int main(int argc, char* argv[])
                                 {
                                     bDisableShadow = true;
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedDisableShadow), &bDisableShadow, 1, 0);
+                                }
+
+                                if (nOldDownRecoveryIndex == -1)
+                                    nOldDownRecoveryIndex = nDownRecoveryIndex;
+                                else if (nOldDownRecoveryIndex > nDownRecoveryIndex)// left
+                                {
+                                    dwDisableExtras = 0x0;
+                                    char temp[2] = { 0, 0 };
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHideFPS), &dwDisableExtras, 2, 0);
+                                }
+                                else if (nOldDownRecoveryIndex < nDownRecoveryIndex)// right
+                                {
+                                    dwDisableExtras = 0x0101;
+                                    char temp[2] = { 1, 1 };
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHideFPS), &dwDisableExtras, 2, 0);
                                 }
 
                                 break;
@@ -3087,141 +3362,57 @@ int main(int argc, char* argv[])
                                     break;
                                 }
 
+                                char pcTemp[19];
                                 if (nReversalIndex1 == 0)
-                                {
-                                    char pcTemp[4] = "OFF";
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseOffString), &pcTemp, 4, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseAllGuardString), &pcTemp, 4, 0);
-
-                                    nWriteBuffer = 0;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseIndex), &nWriteBuffer, 4, 0);
-                                    nEnemyDefenseIndex = 0;
-                                }
-                                else if (nReversalIndex1 == vPatternNames.size() - 1)
-                                {
-                                    char pcTemp[19];
-                                    strcpy_s(pcTemp, vPatternNames[nReversalIndex1].c_str());
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseDodgeString), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseStatusShieldString), &pcTemp, 19, 0);
-
-                                    nWriteBuffer = 5;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseIndex), &nWriteBuffer, 4, 0);
-                                    nEnemyDefenseIndex = 5;
-                                }
+                                    strcpy_s(pcTemp, "OFF");
                                 else
-                                {
-                                    char pcTemp[19];
                                     strcpy_s(pcTemp, vPatternNames[nReversalIndex1].c_str());
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseAllGuardString), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseStatusGuardString), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseAllShieldString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseAllGuardString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseStatusGuardString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseAllShieldString), &pcTemp, 19, 0);
 
-                                    nWriteBuffer = 2;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseIndex), &nWriteBuffer, 4, 0);
-                                    nEnemyDefenseIndex = 2;
-                                }
+                                nWriteBuffer = 2;
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseIndex), &nWriteBuffer, 4, 0);
+                                nEnemyDefenseIndex = 2;
+
 
                                 if (nReversalIndex2 == 0)
-                                {
-                                    char pcTemp[4] = "OFF";
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeNormalStringAddress), &pcTemp, 4, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeComboStringAddress), &pcTemp, 4, 0);
-
-                                    nWriteBuffer = 0;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeIndex), &nWriteBuffer, 4, 0);
-                                    nEnemyDefenseTypeIndex = 0;
-                                }
-                                else if (nReversalIndex2 == vPatternNames.size() - 1)
-                                {
-                                    char pcTemp[19];
-                                    strcpy_s(pcTemp, vPatternNames[nReversalIndex2].c_str());
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeComboStringAddress), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeRandomStringAddress), &pcTemp, 19, 0);
-
-                                    nWriteBuffer = 2;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeIndex), &nWriteBuffer, 4, 0);
-                                    nEnemyDefenseTypeIndex = 2;
-                                }
+                                    strcpy_s(pcTemp, "OFF");
                                 else
-                                {
-                                    char pcTemp[19];
                                     strcpy_s(pcTemp, vPatternNames[nReversalIndex2].c_str());
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeNormalStringAddress), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeComboStringAddress), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeRandomStringAddress), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeNormalStringAddress), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeComboStringAddress), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeRandomStringAddress), &pcTemp, 19, 0);
 
-                                    nWriteBuffer = 1;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeIndex), &nWriteBuffer, 4, 0);
-                                    nEnemyDefenseTypeIndex = 1;
-                                }
+                                nWriteBuffer = 1;
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeIndex), &nWriteBuffer, 4, 0);
+                                nEnemyDefenseTypeIndex = 1;
 
                                 if (nReversalIndex3 == 0)
-                                {
-                                    char pcTemp[4] = "OFF";
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryOffString), &pcTemp, 4, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryNeutralString), &pcTemp, 4, 0);
-
-                                    nWriteBuffer = 0;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryIndex), &nWriteBuffer, 4, 0);
-                                    nAirRecoveryIndex = 0;
-                                }
-                                else if (nReversalIndex3 == vPatternNames.size() - 1)
-                                {
-                                    char pcTemp[19];
-                                    strcpy_s(pcTemp, vPatternNames[nReversalIndex3].c_str());
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryRandom1String), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryRandom2String), &pcTemp, 19, 0);
-
-                                    nWriteBuffer = 5;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryIndex), &nWriteBuffer, 4, 0);
-                                    nAirRecoveryIndex = 5;
-                                }
+                                    strcpy_s(pcTemp, "OFF");
                                 else
-                                {
-                                    char pcTemp[19];
                                     strcpy_s(pcTemp, vPatternNames[nReversalIndex3].c_str());
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryNeutralString), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryBackString), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryForwardString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryNeutralString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryBackString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryForwardString), &pcTemp, 19, 0);
 
-                                    nWriteBuffer = 2;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryIndex), &nWriteBuffer, 4, 0);
-                                    nAirRecoveryIndex = 2;
-                                }
+                                nWriteBuffer = 2;
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryIndex), &nWriteBuffer, 4, 0);
+                                nAirRecoveryIndex = 2;
+
 
                                 if (nReversalIndex4 == 0)
-                                {
-                                    char pcTemp[4] = "OFF";
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryOffString), &pcTemp, 4, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryNeutralString), &pcTemp, 4, 0);
-
-                                    nWriteBuffer = 0;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryIndex), &nWriteBuffer, 4, 0);
-                                    nDownRecoveryIndex = 0;
-                                }
-                                else if (nReversalIndex4 == vPatternNames.size() - 1)
-                                {
-                                    char pcTemp[19];
-                                    strcpy_s(pcTemp, vPatternNames[nReversalIndex4].c_str());
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryRandom1String), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryRandom2String), &pcTemp, 19, 0);
-
-                                    nWriteBuffer = 5;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryIndex), &nWriteBuffer, 4, 0);
-                                    nDownRecoveryIndex = 5;
-                                }
+                                    strcpy_s(pcTemp, "OFF");
                                 else
-                                {
-                                    char pcTemp[19];
                                     strcpy_s(pcTemp, vPatternNames[nReversalIndex4].c_str());
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryNeutralString), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryBackString), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryForwardString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryNeutralString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryBackString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryForwardString), &pcTemp, 19, 0);
 
-                                    nWriteBuffer = 2;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryIndex), &nWriteBuffer, 4, 0);
-                                    nDownRecoveryIndex = 2;
-                                }
+                                nWriteBuffer = 2;
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryIndex), &nWriteBuffer, 4, 0);
+                                nDownRecoveryIndex = 2;
+
 
                                 if (nReversalDelayFrames == 0)
                                 {
@@ -3403,51 +3594,90 @@ int main(int argc, char* argv[])
                                     nDownRecoveryIndex = 2;
                                 }
 
-                                if (nHitsTillBurst == TOO_HIGH_TO_BURST)
+                                if (bBunkerInsteadOfBurst)
                                 {
-                                    char pcTemp[4] = "OFF";
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryNormalString), &pcTemp, 4, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryAllFastString), &pcTemp, 4, 0);
+                                    if (nHitsTillBunker == 0)
+                                    {
+                                        char pcTemp[4] = "OFF";
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryNormalString), &pcTemp, 4, 0);
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryAllFastString), &pcTemp, 4, 0);
 
-                                    nWriteBuffer = 0;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryIndex), &nWriteBuffer, 4, 0);
-                                    nThrowRecoveryIndex = 0;
+                                        nWriteBuffer = 0;
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryIndex), &nWriteBuffer, 4, 0);
+                                        nThrowRecoveryIndex = 0;
+                                    }
+                                    else if (nHitsTillBunker == 99)
+                                    {
+                                        char pcTemp[3];
+                                        strcpy_s(pcTemp, std::to_string(nHitsTillBunker).c_str());
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryRandomLateString), &pcTemp, 3, 0);
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryRandomRandomString), &pcTemp, 3, 0);
 
-                                    //nWriteBuffer = eEnemyStatus::STAND;
-                                    //WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyStatusIndex), &nWriteBuffer, 4, 0);
-                                }
-                                else if (nHitsTillBurst == MAX_BURST)
-                                {
-                                    char pcTemp[3];
-                                    strcpy_s(pcTemp, std::to_string(nRoaHiddenCharge).c_str());
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryRandomLateString), &pcTemp, 3, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryRandomRandomString), &pcTemp, 3, 0);
+                                        nWriteBuffer = 6;
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryIndex), &nWriteBuffer, 4, 0);
+                                        nThrowRecoveryIndex = 6;
+                                    }
+                                    else
+                                    {
+                                        char pcTemp[3];
+                                        strcpy_s(pcTemp, std::to_string(nHitsTillBunker).c_str());
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryAllLateString), &pcTemp, 3, 0);
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryAllRandomString), &pcTemp, 3, 0);
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryRandomFastString), &pcTemp, 3, 0);
 
-                                    nWriteBuffer = 6;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryIndex), &nWriteBuffer, 4, 0);
-                                    nThrowRecoveryIndex = 6;
-
-                                    nWriteBuffer = eEnemyStatus::MANUAL;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyStatusIndex), &nWriteBuffer, 4, 0);
-                                    nWriteBuffer = eMagicCircuit::UNLIMITED;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwMagicCircuitSetting), &nWriteBuffer, 4, 0);
+                                        nWriteBuffer = 3;
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryIndex), &nWriteBuffer, 4, 0);
+                                        nThrowRecoveryIndex = 3;
+                                    }
                                 }
                                 else
                                 {
-                                    char pcTemp[3];
-                                    strcpy_s(pcTemp, std::to_string(nHitsTillBurst).c_str());
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryAllLateString), &pcTemp, 3, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryAllRandomString), &pcTemp, 3, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryRandomFastString), &pcTemp, 3, 0);
+                                    if (nHitsTillBurst == TOO_HIGH_TO_BURST)
+                                    {
+                                        char pcTemp[4] = "OFF";
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryNormalString), &pcTemp, 4, 0);
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryAllFastString), &pcTemp, 4, 0);
 
-                                    nWriteBuffer = 3;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryIndex), &nWriteBuffer, 4, 0);
-                                    nThrowRecoveryIndex = 3;
+                                        nWriteBuffer = 0;
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryIndex), &nWriteBuffer, 4, 0);
+                                        nThrowRecoveryIndex = 0;
 
-                                    nWriteBuffer = eEnemyStatus::MANUAL;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyStatusIndex), &nWriteBuffer, 4, 0);
-                                    nWriteBuffer = eMagicCircuit::UNLIMITED;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwMagicCircuitSetting), &nWriteBuffer, 4, 0);
+                                        //nWriteBuffer = eEnemyStatus::STAND;
+                                        //WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyStatusIndex), &nWriteBuffer, 4, 0);
+                                    }
+                                    else if (nHitsTillBurst == MAX_BURST)
+                                    {
+                                        char pcTemp[3];
+                                        strcpy_s(pcTemp, std::to_string(nHitsTillBurst).c_str());
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryRandomLateString), &pcTemp, 3, 0);
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryRandomRandomString), &pcTemp, 3, 0);
+
+                                        nWriteBuffer = 6;
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryIndex), &nWriteBuffer, 4, 0);
+                                        nThrowRecoveryIndex = 6;
+
+                                        //nWriteBuffer = eEnemyStatus::MANUAL;
+                                        //WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyStatusIndex), &nWriteBuffer, 4, 0);
+                                        //nWriteBuffer = eMagicCircuit::UNLIMITED;
+                                        //WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwMagicCircuitSetting), &nWriteBuffer, 4, 0);
+                                    }
+                                    else
+                                    {
+                                        char pcTemp[3];
+                                        strcpy_s(pcTemp, std::to_string(nHitsTillBurst).c_str());
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryAllLateString), &pcTemp, 3, 0);
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryAllRandomString), &pcTemp, 3, 0);
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryRandomFastString), &pcTemp, 3, 0);
+
+                                        nWriteBuffer = 3;
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryIndex), &nWriteBuffer, 4, 0);
+                                        nThrowRecoveryIndex = 3;
+
+                                        //nWriteBuffer = eEnemyStatus::MANUAL;
+                                        //WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyStatusIndex), &nWriteBuffer, 4, 0);
+                                        //nWriteBuffer = eMagicCircuit::UNLIMITED;
+                                        //WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwMagicCircuitSetting), &nWriteBuffer, 4, 0);
+                                    }
                                 }
                                 break;
                             }
@@ -3686,7 +3916,7 @@ int main(int argc, char* argv[])
                                     nEnemyDefenseIndex = 5;
                                 }
 
-                                if (!bDisplayInputs)
+                                if (!bDisplayCancels)
                                 {
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeNormalStringAddress), &pcOff_4, 4, 0);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeComboStringAddress), &pcOff_4, 4, 0);
@@ -4437,8 +4667,8 @@ int main(int argc, char* argv[])
                                 }
                                 else
                                 {
-                                    char pcTemp[3];
-                                    strcpy_s(pcTemp, std::to_string(nReversalDelayFrames).c_str());
+                                    char pcTemp[19];
+                                    strcpy_s(pcTemp, vHighlightNames[nIdleHighlightSetting]);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryAllFastString), &pcTemp, 19, 0);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryAllLateString), &pcTemp, 19, 0);
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryAllRandomString), &pcTemp, 19, 0);
@@ -4546,13 +4776,13 @@ int main(int argc, char* argv[])
                             {
                                 nWriteBuffer = OFFSCREEN_LOCATION;
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryOptionX), &nWriteBuffer, 4, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryOptionX), &nWriteBuffer, 4, 0);
 
                                 nWriteBuffer = ONSCREEN_LOCATION;
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionOptionX), &nWriteBuffer, 4, 0);
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryOptionX), &nWriteBuffer, 4, 0);
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeOptionX), &nWriteBuffer, 4, 0);
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseOptionX), &nWriteBuffer, 4, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryOptionX), &nWriteBuffer, 4, 0);
 
                                 if (!bSlow)
                                 {
@@ -4664,6 +4894,25 @@ int main(int argc, char* argv[])
                                     nWriteBuffer = 5;
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryIndex), &nWriteBuffer, 4, 0);
                                     nAirRecoveryIndex = 5;
+                                }
+
+                                if (!dwDisableExtras)
+                                {
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryOffString), &pcOff_4, 4, 0);
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryNeutralString), &pcOff_4, 4, 0);
+
+                                    nWriteBuffer = 0;
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryIndex), &nWriteBuffer, 4, 0);
+                                    nDownRecoveryIndex = 0;
+                                }
+                                else
+                                {
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryRandom1String), &pcOn_3, 3, 0);
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryRandom2String), &pcOn_3, 3, 0);
+
+                                    nWriteBuffer = 5;
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryIndex), &nWriteBuffer, 4, 0);
+                                    nDownRecoveryIndex = 5;
                                 }
 
                                 break;
@@ -4873,6 +5122,18 @@ int main(int argc, char* argv[])
                             {
                                 switch (nHotkeyPage)
                                 {
+                                case REVERSALS_HOTKEY_PAGE:
+                                {
+                                    if (nEnemySettingsCursor == 0)
+                                    {
+                                        ResetKeysHeld();
+                                        bReversalKeySet = false;
+                                        nReversalKey = 0;
+                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedReversalKey), &nReversalKey, 1, 0);
+                                        SetRegistryValue(L"ReversalKey", nReversalKey);
+                                    }
+                                    break;
+                                }
                                 case GENERIC_HOTKEYS_PAGE:
                                 {
                                     if (nEnemySettingsCursor == 0)
@@ -4891,7 +5152,7 @@ int main(int argc, char* argv[])
                                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFrameStepKey), &nFrameStepKey, 1, 0);
                                         SetRegistryValue(L"FrameStepKey", nFrameStepKey);
                                     }
-                                    else if (nEnemySettingsCursor == 3)
+                                    else if (nEnemySettingsCursor == 5)
                                     {
                                         ResetKeysHeld();
                                         bHitboxDisplayKeySet = false;
@@ -4899,7 +5160,7 @@ int main(int argc, char* argv[])
                                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHitboxesDisplayKey), &nHitboxDisplayKey, 1, 0);
                                         SetRegistryValue(L"HitboxesDisplayKey", nHitboxDisplayKey);
                                     }
-                                    else if (nEnemySettingsCursor == 5)
+                                    else if (nEnemySettingsCursor == 6)
                                     {
                                         ResetKeysHeld();
                                         bFrameDataDisplayKeySet = false;
@@ -4907,21 +5168,13 @@ int main(int argc, char* argv[])
                                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFrameDataDisplayKey), &nFrameDataDisplayKey, 1, 0);
                                         SetRegistryValue(L"FrameDataDisplayKey", nFrameDataDisplayKey);
                                     }
-                                    else if (nEnemySettingsCursor == 6)
+                                    else if (nEnemySettingsCursor == 8)
                                     {
                                         ResetKeysHeld();
                                         bHighlightsOnKeySet = false;
                                         nHighlightsOnKey = 0;
                                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHighlightsOnKey), &nHighlightsOnKey, 1, 0);
                                         SetRegistryValue(L"HighlightsOnKey", nHighlightsOnKey);
-                                    }
-                                    else if (nEnemySettingsCursor == 8)
-                                    {
-                                        ResetKeysHeld();
-                                        bReversalKeySet = false;
-                                        nReversalKey = 0;
-                                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedReversalKey), &nReversalKey, 1, 0);
-                                        SetRegistryValue(L"ReversalKey", nReversalKey);
                                     }
                                     break;
                                 }
@@ -5001,16 +5254,28 @@ int main(int argc, char* argv[])
                             WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDefaultString), &pcBlank_1, 1, 0);
                             switch (nHotkeyPage)
                             {
+                            case REVERSALS_HOTKEY_PAGE:
+                            {
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemySettingsMenuTitle), &pcReversalsHotkeys_10, 16, 0);
+
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionString), &pcReversal_9, 9, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseString), &pcBlank_1, 1, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeStringAddress), &pcBlank_1, 1, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryString), &pcBlank_1, 1, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryString), &pcBlank_1, 1, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryString), &pcBlank_1, 1, 0);
+                                break;
+                            }
                             case GENERIC_HOTKEYS_PAGE:
                             {
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemySettingsMenuTitle), &pcGeneralHotkeys_16, 16, 0);
 
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionString), &pcFreeze_11, 11, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseString), &pcNextStep_14, 14, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeStringAddress), &pcHitboxes_13, 13, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryString), &pcFrameDisplay_18, 18, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryString), &pcHighlights_15, 15, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryString), &pcReversal_9, 9, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseString), &pcNextFrame_15, 15, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeStringAddress), &pcPreviousFrame_15, 15, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryString), &pcHitboxes_13, 13, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryString), &pcFrameDisplay_18, 18, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryString), &pcHighlights_15, 15, 0);
                                 break;
                             }
                             case FRAME_TOOL_HOTKEYS_PAGE:
@@ -5050,6 +5315,24 @@ int main(int argc, char* argv[])
                             // Replace Main Info text
                             switch (nHotkeyPage)
                             {
+                            case REVERSALS_HOTKEY_PAGE:
+                            {
+                                switch (nEnemySettingsCursor)
+                                {
+                                case 0:
+                                {
+                                    char pcTemp64[64] = "Execute an {enemy reversal.";
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
+
+                                    if (bHighlightsOnKeySet)
+                                        strcpy_s(pcTemp64, ">{Press A} to change the key.");
+                                    else
+                                        strcpy_s(pcTemp64, ">{Press any key} to set the key.");
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
+                                    break;
+                                }
+                                }
+                            }
                             case GENERIC_HOTKEYS_PAGE:
                             {
                                 switch (nEnemySettingsCursor)
@@ -5080,6 +5363,18 @@ int main(int argc, char* argv[])
                                 }
                                 case 3:
                                 {
+                                    char pcTemp64[64] = "Rewind the game by one frame while frozen.";
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
+
+                                    if (bFrameStepKeySet)
+                                        strcpy_s(pcTemp64, ">{Press A} to change the key.");
+                                    else
+                                        strcpy_s(pcTemp64, ">{Press any key} to set the key.");
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
+                                    break;
+                                }
+                                case 5:
+                                {
                                     char pcTemp64[64] = "Turn {hitboxes} on or off.";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
 
@@ -5090,7 +5385,7 @@ int main(int argc, char* argv[])
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
                                     break;
                                 }
-                                case 5:
+                                case 6:
                                 {
                                     char pcTemp64[64] = "Turn {in-game frame data} on or off";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
@@ -5102,21 +5397,9 @@ int main(int argc, char* argv[])
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
                                     break;
                                 }
-                                case 6:
-                                {
-                                    char pcTemp64[64] = "Turn {character highlighting} on or off.";
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
-
-                                    if (bHighlightsOnKeySet)
-                                        strcpy_s(pcTemp64, ">{Press A} to change the key.");
-                                    else
-                                        strcpy_s(pcTemp64, ">{Press any key} to set the key.");
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSubInfoText), &pcTemp64, 64, 0);
-                                    break;
-                                }
                                 case 8:
                                 {
-                                    char pcTemp64[64] = "Execute an {enemy reversal.";
+                                    char pcTemp64[64] = "Turn {character highlighting} on or off.";
                                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMainInfoText), &pcTemp64, 64, 0);
 
                                     if (bHighlightsOnKeySet)
@@ -5293,6 +5576,24 @@ int main(int argc, char* argv[])
                             // Skipping blank menu items
                             switch (nHotkeyPage)
                             {
+                            case REVERSALS_HOTKEY_PAGE:
+                            {
+                                if (nOldEnemySettingsCursor == 0 && nEnemySettingsCursor == 2)
+                                {
+                                    nWriteBuffer = 10;
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemySettingsCursor), &nWriteBuffer, 4, 0);
+                                    nEnemySettingsCursor = 10;
+                                    nOldEnemySettingsCursor = 10;
+                                }
+                                else if (nEnemySettingsCursor > 0 && nEnemySettingsCursor < 10)
+                                {
+                                    nWriteBuffer = 0;
+                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemySettingsCursor), &nWriteBuffer, 4, 0);
+                                    nEnemySettingsCursor = 0;
+                                    nOldEnemySettingsCursor = 0;
+                                }
+                                break;
+                            }
                             case GENERIC_HOTKEYS_PAGE:
                             {
                                 /*if (nOldEnemySettingsCursor == 6 && nEnemySettingsCursor == 8)
@@ -5375,6 +5676,7 @@ int main(int argc, char* argv[])
                             // left-right handlers
                             switch (nHotkeyPage)
                             {
+                            case REVERSALS_HOTKEY_PAGE:
                             case GENERIC_HOTKEYS_PAGE:
                             case FRAME_TOOL_HOTKEYS_PAGE:
                             case RNG_HOTKEYS_PAGE:
@@ -5429,6 +5731,59 @@ int main(int argc, char* argv[])
                             // dynamic menu items
                             switch (nHotkeyPage)
                             {
+                            case REVERSALS_HOTKEY_PAGE:
+                            {
+                                nWriteBuffer = ONSCREEN_LOCATION;
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionOptionX), &nWriteBuffer, 4, 0);
+
+                                nWriteBuffer = OFFSCREEN_LOCATION;
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseOptionX), &nWriteBuffer, 4, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeOptionX), &nWriteBuffer, 4, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryOptionX), &nWriteBuffer, 4, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryOptionX), &nWriteBuffer, 4, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwThrowRecoveryOptionX), &nWriteBuffer, 4, 0);
+
+                                char pcTemp[19];
+
+                                // REVERSAL
+                                if (!bReversalKeySet)
+                                {
+                                    uint8_t nKeyJustPressed = 0;
+                                    if (nEnemySettingsCursor == 0)
+                                        nKeyJustPressed = KeyJustPressed();
+
+                                    strcpy_s(pcTemp, "PRESS ANY KEY");
+                                    if (nKeyJustPressed != 0)
+                                    {
+                                        if (IsControllerNeutral())
+                                        {
+                                            bReversalKeySet = true;
+                                            nReversalKey = nKeyJustPressed;
+                                            SetRegistryValue(L"ReversalKey", nReversalKey);
+                                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedReversalKey), &nReversalKey, 1, 0);
+                                            ReplaceKey(nReversalKey, KEY_REVERSAL);
+                                        }
+                                    }
+                                }
+                                if (bReversalKeySet)
+                                {
+                                    char pcName[19];
+                                    UINT scanCode = MapVirtualKeyA(nReversalKey, MAPVK_VK_TO_VSC);
+                                    LONG lParamValue = (scanCode << 16);
+                                    GetKeyNameTextA(lParamValue, pcName, 19);
+                                    strcpy_s(pcTemp, pcName);
+                                }
+
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionAString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionBString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionCString), &pcTemp, 19, 0);
+
+                                nWriteBuffer = 2;
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionIndex), &nWriteBuffer, 4, 0);
+                                nEnemyActionIndex = 2;
+
+                                break;
+                            }
                             case GENERIC_HOTKEYS_PAGE:
                             {
                                 nWriteBuffer = ONSCREEN_LOCATION;
@@ -5514,11 +5869,48 @@ int main(int argc, char* argv[])
                                 WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseIndex), &nWriteBuffer, 4, 0);
                                 nEnemyDefenseIndex = 2;
 
+                                // PREV FRAME
+                                if (!bPrevFrameKeySet)
+                                {
+                                    uint8_t nKeyJustPressed = 0;
+                                    if (nEnemySettingsCursor == 3)
+                                        nKeyJustPressed = KeyJustPressed();
+
+                                    strcpy_s(pcTemp, "PRESS ANY KEY");
+                                    if (nKeyJustPressed != 0)
+                                    {
+                                        if (IsControllerNeutral())
+                                        {
+                                            bPrevFrameKeySet = true;
+                                            nPrevFrameKey = nKeyJustPressed;
+                                            SetRegistryValue(L"PrevFrameKey", nPrevFrameKey);
+                                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedPrevFrameKey), &nPrevFrameKey, 1, 0);
+                                            ReplaceKey(nPrevFrameKey, KEY_PREVFRAME);
+                                        }
+                                    }
+                                }
+                                if (bPrevFrameKeySet)
+                                {
+                                    char pcName[19];
+                                    UINT scanCode = MapVirtualKeyA(nPrevFrameKey, MAPVK_VK_TO_VSC);
+                                    LONG lParamValue = (scanCode << 16);
+                                    GetKeyNameTextA(lParamValue, pcName, 19);
+                                    strcpy_s(pcTemp, pcName);
+                                }
+
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeNormalStringAddress), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeComboStringAddress), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeRandomStringAddress), &pcTemp, 19, 0);
+
+                                nWriteBuffer = 1;
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeIndex), &nWriteBuffer, 4, 0);
+                                nEnemyDefenseTypeIndex = 1;
+
                                 // HITBOX
                                 if (!bHitboxDisplayKeySet)
                                 {
                                     uint8_t nKeyJustPressed = 0;
-                                    if (nEnemySettingsCursor == 3)
+                                    if (nEnemySettingsCursor == 5)
                                         nKeyJustPressed = KeyJustPressed();
 
                                     strcpy_s(pcTemp, "PRESS ANY KEY");
@@ -5543,19 +5935,19 @@ int main(int argc, char* argv[])
                                     strcpy_s(pcTemp, pcName);
                                 }
 
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeNormalStringAddress), &pcTemp, 19, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeComboStringAddress), &pcTemp, 19, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeRandomStringAddress), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryNeutralString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryBackString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryForwardString), &pcTemp, 19, 0);
 
-                                nWriteBuffer = 1;
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyDefenseTypeIndex), &nWriteBuffer, 4, 0);
-                                nEnemyDefenseTypeIndex = 1;
+                                nWriteBuffer = 2;
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryIndex), &nWriteBuffer, 4, 0);
+                                nAirRecoveryIndex = 2;
 
                                 // FRAME BAR
                                 if (!bFrameDataDisplayKeySet)
                                 {
                                     uint8_t nKeyJustPressed = 0;
-                                    if (nEnemySettingsCursor == 5)
+                                    if (nEnemySettingsCursor == 6)
                                         nKeyJustPressed = KeyJustPressed();
 
                                     strcpy_s(pcTemp, "PRESS ANY KEY");
@@ -5580,19 +5972,19 @@ int main(int argc, char* argv[])
                                     strcpy_s(pcTemp, pcName);
                                 }
 
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryNeutralString), &pcTemp, 19, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryBackString), &pcTemp, 19, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryForwardString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryNeutralString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryBackString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryForwardString), &pcTemp, 19, 0);
 
                                 nWriteBuffer = 2;
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwAirRecoveryIndex), &nWriteBuffer, 4, 0);
-                                nAirRecoveryIndex = 2;
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryIndex), &nWriteBuffer, 4, 0);
+                                nDownRecoveryIndex = 2;
 
                                 // HIGHLIGHT
                                 if (!bHighlightsOnKeySet)
                                 {
                                     uint8_t nKeyJustPressed = 0;
-                                    if (nEnemySettingsCursor == 6)
+                                    if (nEnemySettingsCursor == 8)
                                         nKeyJustPressed = KeyJustPressed();
 
                                     strcpy_s(pcTemp, "PRESS ANY KEY");
@@ -5612,43 +6004,6 @@ int main(int argc, char* argv[])
                                 {
                                     char pcName[19];
                                     UINT scanCode = MapVirtualKeyA(nHighlightsOnKey, MAPVK_VK_TO_VSC);
-                                    LONG lParamValue = (scanCode << 16);
-                                    GetKeyNameTextA(lParamValue, pcName, 19);
-                                    strcpy_s(pcTemp, pcName);
-                                }
-
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryNeutralString), &pcTemp, 19, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryBackString), &pcTemp, 19, 0);
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryForwardString), &pcTemp, 19, 0);
-
-                                nWriteBuffer = 2;
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwDownRecoveryIndex), &nWriteBuffer, 4, 0);
-                                nDownRecoveryIndex = 2;
-
-                                // REVERSAL
-                                if (!bReversalKeySet)
-                                {
-                                    uint8_t nKeyJustPressed = 0;
-                                    if (nEnemySettingsCursor == 8)
-                                        nKeyJustPressed = KeyJustPressed();
-
-                                    strcpy_s(pcTemp, "PRESS ANY KEY");
-                                    if (nKeyJustPressed != 0)
-                                    {
-                                        if (IsControllerNeutral())
-                                        {
-                                            bReversalKeySet = true;
-                                            nReversalKey = nKeyJustPressed;
-                                            SetRegistryValue(L"ReversalKey", nReversalKey);
-                                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedReversalKey), &nReversalKey, 1, 0);
-                                            ReplaceKey(nReversalKey, KEY_REVERSAL);
-                                        }
-                                    }
-                                }
-                                if (bReversalKeySet)
-                                {
-                                    char pcName[19];
-                                    UINT scanCode = MapVirtualKeyA(nReversalKey, MAPVK_VK_TO_VSC);
                                     LONG lParamValue = (scanCode << 16);
                                     GetKeyNameTextA(lParamValue, pcName, 19);
                                     strcpy_s(pcTemp, pcName);
@@ -5990,9 +6345,6 @@ int main(int argc, char* argv[])
                             if (nCurrentSubMenu != eMenu::ENEMY_SETTINGS)
                                 continue;
 
-                            // enemy action.
-                            //char pcEnemyActionInfo[16] = "enemy reversal.";
-                            //WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionInfoStringAddress), &pcEnemyActionInfo, 16, 0);
 
                             // ENEMY ACTION
                             WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionString), &pcBlank_1, 1, 0);
@@ -6024,49 +6376,36 @@ int main(int argc, char* argv[])
                             }
 
                             nWriteBuffer = OFFSCREEN_LOCATION;
-                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionOptionX), &nWriteBuffer, 4, 0);
+                            //WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionOptionX), &nWriteBuffer, 4, 0);
 
                             /*if (nOldEnemyActionIndex == -1)
                                 nOldEnemyActionIndex = nEnemyActionIndex;
                             else if (nOldEnemyActionIndex > nEnemyActionIndex)// left
-                                nReversalIndex1 = max(0, nReversalIndex1 - 1);
+                                bRecoverD = false;
                             else if (nOldEnemyActionIndex < nEnemyActionIndex)// right
-                                nReversalIndex1 = min(nReversalIndex1 + 1, vPatternNames.size() - 1);*/
+                                bRecoverD = true;
 
-                                /*if (nReversalIndex1 == 0)
-                                {
-                                    char pcTemp[4] = "OFF";
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionAString), &pcTemp, 4, 0);
+                            if (!bRecoverD)
+                            {
+                                char pcTemp[4] = "OFF";
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionAString), &pcTemp, 4, 0);
 
-                                    nWriteBuffer = 0;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionIndex), &nWriteBuffer, 4, 0);
-                                    nEnemyActionIndex = 0;
-                                }
-                                else if (nReversalIndex1 == vPatternNames.size() - 1)
-                                {
-                                    char pcTemp[19];
-                                    strcpy_s(pcTemp, vPatternNames[nReversalIndex1].c_str());
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyRecoverCString), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyRecoverDString), &pcTemp, 19, 0);
+                                nWriteBuffer = 0;
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionIndex), &nWriteBuffer, 4, 0);
+                                nEnemyActionIndex = 0;
+                            }
+                            else
+                            {
+                                char pcTemp[19] = "RECOVER D";
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyRecoverCString), &pcTemp, 19, 0);
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyRecoverDString), &pcTemp, 19, 0);
 
-                                    nWriteBuffer = 8;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionIndex), &nWriteBuffer, 4, 0);
-                                    nEnemyActionIndex = 8;
-                                }
-                                else
-                                {
-                                    char pcTemp[19];
-                                    strcpy_s(pcTemp, vPatternNames[nReversalIndex1].c_str());
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionAString), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionBString), &pcTemp, 19, 0);
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionCString), &pcTemp, 19, 0);
+                                nWriteBuffer = 8;
+                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionIndex), &nWriteBuffer, 4, 0);
+                                nEnemyActionIndex = 8;
+                            }
 
-                                    nWriteBuffer = 2;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwEnemyActionIndex), &nWriteBuffer, 4, 0);
-                                    nEnemyActionIndex = 2;
-                                }
-
-                                nOldEnemyActionIndex = nEnemyActionIndex;*/
+                            nOldEnemyActionIndex = nEnemyActionIndex;*/
 
                             nStoredEnemyDefense = nEnemyDefenseIndex;
                             nStoredEnemyAction = nEnemyActionIndex;
@@ -6086,6 +6425,7 @@ int main(int argc, char* argv[])
                     }
 
                     // BATTLE SETTINGS
+                    /*
                     if (nCurrentSubMenu == eMenu::BATTLE_SETTINGS)
                     {
                         DWORD dwNoRecoverString = GetNoRecoverStringAddress(hMBAAHandle, dwBaseAddress);
@@ -6115,15 +6455,15 @@ int main(int argc, char* argv[])
 
                         // left
                         else if (nOldLifeIndex > nLifeIndex)
-                            bLifeRecover = true;
+                            bLifeRecover = false;
                         // right
                         else if (nOldLifeIndex < nLifeIndex)
-                            bLifeRecover = false;
+                            bLifeRecover = true;
 
                         if (bLifeRecover)
                         {
-                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwNoRecoverString), &pcRecover_8, 8, 0);
-                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwRecover25String), &pcRecover_8, 8, 0);
+                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwNoRecoverString), &pcRecover_11, 11, 0);
+                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwRecover25String), &pcRecover_11, 11, 0);
 
                             nWriteBuffer = 0;
                             WriteProcessMemory(hMBAAHandle, (LPVOID)(dwLifeIndex), &nWriteBuffer, 4, 0);
@@ -6131,8 +6471,8 @@ int main(int argc, char* argv[])
                         }
                         else
                         {
-                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwRecover75String), &pcRecover_11, 11, 0);
-                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwRecover100String), &pcRecover_11, 11, 0);
+                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwRecover75String), &pcRecover_8, 8, 0);
+                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwRecover100String), &pcRecover_8, 8, 0);
 
                             nWriteBuffer = 4;
                             WriteProcessMemory(hMBAAHandle, (LPVOID)(dwLifeIndex), &nWriteBuffer, 4, 0);
@@ -6141,6 +6481,7 @@ int main(int argc, char* argv[])
 
                         nOldLifeIndex = nLifeIndex;
                     }
+                    */
                 }
                 else // not paused
                 {
@@ -6149,6 +6490,15 @@ int main(int argc, char* argv[])
                         bJustUnpaused = false;
 
                         // put stuff here
+                        if (bPrintColorGuide)
+                        {
+                            bPrintColorGuide = false;
+                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedColorGuide), &bPrintColorGuide, 1, 0);
+                            system("cls");
+                        }
+
+                        uint8_t nIsHoveringScroll = 0;
+                        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHoveringScroll), &nIsHoveringScroll, 1, 0);
                     }
 
                     long long testStartTime = getMicroSec();
@@ -6164,16 +6514,94 @@ int main(int argc, char* argv[])
                     if (nExGuardSetting == eEnemyOffOnRandom::ON || (rand() % 2 == 0 && nExGuardSetting == eEnemyOffOnRandom::RANDOM))
                         nWriteBuffer = 10;
                     //WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwP2ExGuard), &nWriteBuffer, 4, 0);
-                    WriteCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1ExGuard, &nWriteBuffer, 4, nP1Controlled);
-                    WriteCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1ExGuard, &nWriteBuffer, 4, nP2Controlled);
+                    ReadCharacterMemory(hMBAAHandle, adMBAABase + adP1SubBase + adDoTrainingAction, &nReadResult, 1, nDummy);
+                    if (nReadResult)
+                        WriteCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1ExGuard, &nWriteBuffer, 4, nDummy);
 
                     // Disable built-in health recovery
-                    nWriteBuffer = 4;
-                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwLifeRecover), &nWriteBuffer, 4, 0);
+                    //nWriteBuffer = 4;
+                    //WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwLifeRecover), &nWriteBuffer, 4, 0);
 
                     // Disable built-in reversal action
                     nWriteBuffer = 0;
                     WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwEnemyAction), &nWriteBuffer, 4, 0);
+
+
+                    if (bDoingHeldReversal)
+                    {
+                        uint8_t nHoldButtons = 112;
+                        WriteCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1ButtonHeld, &nHoldButtons, 1, nP2Controlled);
+                    }
+                    //else
+                    //{
+                    //    uint8_t nHoldButtons = 0;
+                    //    WriteCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1ButtonHeld, &nHoldButtons, 1, nP2Controlled);
+                    //}
+
+
+                    float fTempP1FancyInputX;
+                    float fTempP1FancyInputY;
+                    float fTempP2FancyInputX;
+                    float fTempP2FancyInputY;
+                    float fTempP1ListInputX;
+                    float fTempP1ListInputY;
+                    float fTempP2ListInputX;
+                    float fTempP2ListInputY;
+                    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1FancyInputX), &fTempP1FancyInputX, 4, 0);
+                    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1FancyInputY), &fTempP1FancyInputY, 4, 0);
+                    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2FancyInputX), &fTempP2FancyInputX, 4, 0);
+                    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2FancyInputY), &fTempP2FancyInputY, 4, 0);
+                    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1ListInputX), &fTempP1ListInputX, 4, 0);
+                    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1ListInputY), &fTempP1ListInputY, 4, 0);
+                    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2ListInputX), &fTempP2ListInputX, 4, 0);
+                    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2ListInputY), &fTempP2ListInputY, 4, 0);
+                    if (fTempP1FancyInputX != fP1FancyInputX)
+                    {
+                        SetRegistryValue(L"P1FancyInputX", fTempP1FancyInputX);
+                        fP1FancyInputX = fTempP1FancyInputX;
+                    }
+                    if (fTempP1FancyInputY != fP1FancyInputY)
+                    {
+                        SetRegistryValue(L"P1FancyInputY", fTempP1FancyInputY);
+                        fP1FancyInputY = fTempP1FancyInputY;
+                    }
+                    if (fTempP2FancyInputX != fP2FancyInputX)
+                    {
+                        SetRegistryValue(L"P2FancyInputX", fTempP2FancyInputX);
+                        fP2FancyInputX = fTempP2FancyInputX;
+                    }
+                    if (fTempP2FancyInputY != fP2FancyInputY)
+                    {
+                        SetRegistryValue(L"P2FancyInputY", fTempP2FancyInputY);
+                        fP2FancyInputY = fTempP2FancyInputY;
+                    }
+                    if (fTempP1ListInputX != fP1ListInputX)
+                    {
+                        SetRegistryValue(L"P1ListInputX", fTempP1ListInputX);
+                        fP1ListInputX = fTempP1ListInputX;
+                    }
+                    if (fTempP1ListInputY != fP1ListInputY)
+                    {
+                        SetRegistryValue(L"P1ListInputY", fTempP1ListInputY);
+                        fP1ListInputY = fTempP1ListInputY;
+                    }
+                    if (fTempP2ListInputX != fP2ListInputX)
+                    {
+                        SetRegistryValue(L"P2ListInputX", fTempP2ListInputX);
+                        fP2ListInputX = fTempP2ListInputX;
+                    }
+                    if (fTempP2ListInputY != fP2ListInputY)
+                    {
+                        SetRegistryValue(L"P2ListInputY", fTempP2ListInputY);
+                        fP2ListInputY = fTempP2ListInputY;
+                    }
+
+
+                    GetP1Guts(arrP1Guts, nP1Controlled);
+                    GetP2Guts(arrP2Guts, nP2Controlled);
+
+                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP1Guts), &arrP1Guts, 16, 0);
+                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedP2Guts), &arrP2Guts, 16, 0);
 
 
                     // This locks all the code that follows to the framerate of the game
@@ -6183,6 +6611,14 @@ int main(int argc, char* argv[])
                     if (nFrameCounter == nOldFrameCounter)
                         continue;
                     nOldFrameCounter = nFrameCounter;
+
+                    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwSomeDummyPlaybackFlag2), &nReadResult, 4, 0);
+                    if (nReadResult == 2) {
+                        ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwSomeDummyPlaybackFlag), &nReadResult, 4, 0);
+                        if (nReadResult == 0) {
+                            continue; //skip stuff if in replay mode
+                        }
+                    }
 
                     // populate the reversal patterns list and character data
                     // may be able to remove the timer condition, since CSS clears patternname list
@@ -6212,31 +6648,43 @@ int main(int argc, char* argv[])
                         nWriteBuffer = 0;
                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwP1HitstopRemaining + dwP2Offset), &nWriteBuffer, 4, 0);
                     }*/
+                    int nHitComboCount;
+                    int nBlockComboCount;
+                    ReadCharacterMemory(hMBAAHandle, adMBAABase + adP1SubBase + adOnHitCount, &nHitComboCount, 2, nDummy);
+                    ReadCharacterMemory(hMBAAHandle, adMBAABase + adP1SubBase + adOnBlockCount, &nBlockComboCount, 2, nDummy);
+
+                    if (nHitComboCount == 0 && nBlockComboCount == 0)
+                        bAlreadyBursted = false;
 
                     // burst a combo
-                    if (nHitsTillBurst != TOO_HIGH_TO_BURST)
+                    if (nHitsTillBurst != TOO_HIGH_TO_BURST && !bAlreadyBursted && !bBunkerInsteadOfBurst)
                     {
-                        int nComboCount, nHitstopRemaining, nHitstunRemaining;
-                        ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwComboCount), &nComboCount, 4, 0);
-                        ReadCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1HitstopRemaining, &nHitstopRemaining, 4, nP2Controlled);
-                        ReadCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1HitstunRemaining, &nHitstunRemaining, 4, nP2Controlled);
-                        if (nComboCount >= nHitsTillBurst && nHitstopRemaining == 0 && nHitstunRemaining != 0)
+                        uint8_t nHitstunRemaining, nHitstopRemaining;
+                        ReadCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1HitstopRemaining, &nHitstopRemaining, 1, nDummy);
+                        ReadCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1HitstunRemaining, &nHitstunRemaining, 1, nDummy);
+                        if ((nHitComboCount >= nHitsTillBurst || nBlockComboCount >= nHitsTillBurst) && nHitstopRemaining <= 2 && nHitstunRemaining != 0)
                         {
-                            while (true)
-                            {
-                                ReadCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1HitstunRemaining, &nHitstunRemaining, 4, nP2Controlled);
-                                if (nHitstunRemaining == 0)
-                                {
-                                    Sleep(16);  //need to wait 1 frame
-                                    nWriteBuffer = 0;
-                                    WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwComboCount), &nWriteBuffer, 4, 0);
-                                    break;
-                                }
+                            uint16_t nButtonInputs[3] = { 0, 1, 1 };
+                            WriteCharacterMemory(hMBAAHandle, adMBAABase + adP1Base + adAInputBuffer, &nButtonInputs, 6, nDummy);
+                            WriteCharacterMemory(hMBAAHandle, adMBAABase + adP1Base + adBInputBuffer, &nButtonInputs, 6, nDummy);
+                            WriteCharacterMemory(hMBAAHandle, adMBAABase + adP1Base + adCInputBuffer, &nButtonInputs, 6, nDummy);
+                            bAlreadyBursted = true;
+                        }
+                    }
 
-                                // mash the hell out of E
-                                nWriteBuffer = 1;
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwP2E), &nWriteBuffer, 1, 0);
-                            }
+                    //guard cancel bunker
+                    if (nHitsTillBunker != 0 && bBunkerInsteadOfBurst)
+                    {
+                        uint8_t nHitstunRemaining;
+                        uint8_t nStance;
+                        ReadCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1HitstunRemaining, &nHitstunRemaining, 1, nDummy);
+                        ReadCharacterMemory(hMBAAHandle, adMBAABase + adP1SubBase + adStanceDelayed, &nStance, 1, nDummy);
+                        if (nBlockComboCount >= nHitsTillBunker && nHitstunRemaining != 0 && nStance != 1)
+                        {
+                            uint16_t nDirInputs[7] = { 2, 2, 1, 1, 1, 4, 1 };
+                            uint16_t nDInputs[5] = { 1, 0, 3, 1, 1 };
+                            WriteCharacterMemory(hMBAAHandle, adMBAABase + adP1Base + adDirInputBuffer, &nDirInputs, 14, nDummy);
+                            WriteCharacterMemory(hMBAAHandle, adMBAABase + adP1Base + adDInputBuffer, &nDInputs, 10, nDummy);
                         }
                     }
 
@@ -6273,13 +6721,21 @@ int main(int argc, char* argv[])
                     int nHitstunRemaining = nReadResult;
                     ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwP2PatternRead), &nReadResult, 4, 0);
                     int nP2Pattern = nReadResult;*/
-                    int nHitstunRemaining, nP2Pattern;
-                    ReadCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1HitstunRemaining, &nHitstunRemaining, 4, nP2Controlled);
+                    BYTE nHitstunRemaining;
+                    int nP2Pattern;
+                    ReadCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1HitstunRemaining, &nHitstunRemaining, 1, nP2Controlled);
                     ReadCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1PatternRead, &nP2Pattern, 4, nP2Controlled);
+
+                    //static int nHealthRefillTimerCount = 0;
 
                     if (nHitstunRemaining == 0 && nP2Pattern != 350)
                     {
-                        nHealthRefillTimer = 1;
+                        //nHealthRefillTimerCount++;
+                        //if (nHealthRefillTimerCount == 45) { // 6c into kouma AAD causes problems without this
+                        //    nHealthRefillTimerCount = 0;
+                        //    nHealthRefillTimer = 1;
+                        //}
+                        
                         nSionBulletsRefillTimer = 1;
                     
                         // roa needs to be reset a little differently
@@ -6297,18 +6753,18 @@ int main(int argc, char* argv[])
                     }
                     else
                     {
-                        nHealthRefillTimer = 0;
+                        //nHealthRefillTimer = 0;
                         nSionBulletsRefillTimer = 0;
                     }
 
                 
 
                     // refill health if training mode is reset or long enough time has passed
-                    if ((nFrameCounter == 1 && !CheckSave(nSaveSlot)) || (nHealthRefillTimer == 1 && bLifeRecover))
-                    {
-                        SetHealth(hMBAAHandle, dwBaseAddress, nCustomHealth, nP1Controlled, nP2Controlled);
-                        nHealthRefillTimer = 0;
-                    }
+                    //if ((nFrameCounter == 1 && !CheckSave(nSaveSlot)) || (nHealthRefillTimer == 1 && bLifeRecover))
+                    //{
+                    //    SetHealth(hMBAAHandle, dwBaseAddress, nCustomHealth, nP1Controlled, nP2Controlled);
+                    //    nHealthRefillTimer = 0;
+                    //}
 
                     // refill character specifics
                     if (!CheckSave(nSaveSlot))
@@ -6350,16 +6806,28 @@ int main(int argc, char* argv[])
                         }
                     }
                 
+
+                    nOldMot = nMot;
+                    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwMot), &nMot, 4, 0);
+                    if (!bDelayingReversal && nMot == 0 && nMot != nOldMot)
+                    { 
+                        bDoingHeldReversal = false;
+                    }
+
                     bool bReversalKeyHeld;
                     ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedReversalKeyHeld), &bReversalKeyHeld, 1, 0);
-                    if (nReversalType == REVERSAL_SHIELD && !bReversalKeyHeld)
+
+                    nReadResult = 0;
+                    //ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwP2ShieldType), &nReadResult, 1, 0);
+                    ReadCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1ShieldType, &nReadResult, 1, nP2Controlled);
+
+                    if (nReversalType != REVERSAL_OFF && !bReversalKeyHeld && nReadResult != 0)
                     {
-                        nReadResult = 0;
-                        //ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwP2ShieldType), &nReadResult, 1, 0);
-                        ReadCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1ShieldType, &nReadResult, 1, nP2Controlled);
+                        
                         if (nReadResult != 0)
                         {
                             std::vector<int> vValidReversals = (nP2Y == 0 ? vGroundReversals : vAirReversals);
+                            RemoveShieldReversals(&vValidReversals, nP2CharacterID);
                             if (vValidReversals.size() != 0)
                             {
                                 int nTempReversalIndex = 0;
@@ -6369,8 +6837,13 @@ int main(int argc, char* argv[])
                                     if (vValidReversals[nTempReversalIndex] != 0)
                                         break;
                                 }
-                                nWriteBuffer = vValidReversals[nTempReversalIndex];
-                                //WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwP2InputEvent), &nWriteBuffer, 4, 0);
+                                nWriteBuffer = vValidReversals[nTempReversalIndex] % 1000;
+                                
+                                if (vValidReversals[nTempReversalIndex] > 999)
+                                    bDoingHeldReversal = true;
+                                else
+                                    bDoingHeldReversal = false;
+
                                 WriteCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1InputEvent, &nWriteBuffer, 4, nP2Controlled);
                             }
                             
@@ -6394,9 +6867,7 @@ int main(int argc, char* argv[])
                         ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwMot), &nReadResult, 4, 0);
                         nOldMot = nMot;
                         nMot = nReadResult;*/
-                        nOldMot = nMot;
                         ReadCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1Y, &nP2Y, 4, nP2Controlled);
-                        ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwMot), &nMot, 4, 0);
 
                         if (nFrameCounter == 0)
                             bReversaled = true;
@@ -6411,6 +6882,7 @@ int main(int argc, char* argv[])
                         {
                             if (!bDelayingReversal && (nMot == 0 || nHitstun != 0) && (nMot != nOldMot || nReversalType == REVERSAL_REPEAT || bReversalKeyHeld) /* && nP2Y == 0*/)
                             {
+                                bDoingHeldReversal = false;
                                 if (!bReversaled)
                                 {
                                     bDelayingReversal = true;
@@ -6440,6 +6912,8 @@ int main(int argc, char* argv[])
                                 if (nReversalType != REVERSAL_RANDOM || rand() % 2 == 0)
                                 {
                                     std::vector<int> vValidReversals = (nP2Y == 0 ? vGroundReversals : vAirReversals);
+                                    if (nReversalType == REVERSAL_SHIELD)
+                                        //RemoveNonShieldReversals(&vValidReversals, nP2CharacterID);
                                     if (vValidReversals.size() != 0)
                                     {
                                         int nTempReversalIndex = 0;
@@ -6449,7 +6923,13 @@ int main(int argc, char* argv[])
                                             if (vValidReversals[nTempReversalIndex] != 0)
                                                 break;
                                         }
-                                        nWriteBuffer = vValidReversals[nTempReversalIndex];
+                                        nWriteBuffer = vValidReversals[nTempReversalIndex] % 1000;
+                                        
+                                        if (vValidReversals[nTempReversalIndex] > 999)
+                                            bDoingHeldReversal = true;
+                                        else
+                                            bDoingHeldReversal = false;
+                                        
                                         if (nP2Controlled == 1)
                                             WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwP2PatternSet), &nWriteBuffer, 4, 0);
                                         else
@@ -6465,16 +6945,16 @@ int main(int argc, char* argv[])
                         }
                     }
                     
-                    short sBlockHelper = 0;
+                    short sOnHitCount = 0;
                     char cEnemyDefense = 0;
                     ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwEnemyDefense), &cEnemyDefense, 1, 0);
                     if (cEnemyDefense == 1 || cEnemyDefense == 2)
                     {
-                        ReadCharacterMemory(hMBAAHandle, dwBaseAddress + adP1Base + adBlockHelper, &sBlockHelper, 2, nP2Controlled);
-                        if (sBlockHelper)
+                        ReadCharacterMemory(hMBAAHandle, adMBAABase + adP1SubBase + adOnHitCount, &sOnHitCount, 2, nDummy);
+                        if (sOnHitCount)
                         {
                             char c0 = 0;
-                            WriteCharacterMemory(hMBAAHandle, dwBaseAddress + adP1Base + adWillBlock, &c0, 1, nP2Controlled);
+                            WriteCharacterMemory(hMBAAHandle, dwBaseAddress + adP1SubBase + adWillBlock, &c0, 1, nDummy);
                         }
                     }
                   
@@ -6491,7 +6971,7 @@ int main(int argc, char* argv[])
 
                     ///long long testSleepTime = getMicroSec();
 
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                    //std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
                     //long long endTestTime = getMicroSec();
 
@@ -6501,11 +6981,12 @@ int main(int argc, char* argv[])
                     //netlog("test time took %3lld.%03lld ms sleep: %3lld.%03lld ms", testTime / 1000, testTime % 1000, testSleepTimeEnd / 1000, testSleepTimeEnd % 1000);
                 }
             }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
     catch (const std::exception& ex)
     {
-        DeleteRegistry();
+       // DeleteRegistry();
         LogError("Exception: " + std::string(ex.what()));
     }
 

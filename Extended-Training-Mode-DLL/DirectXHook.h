@@ -1,52 +1,38 @@
-//https://stackoverflow.com/a/61052959
-//straight from here
-bool Hook(char* src, char* dst, int len)
-{
-    if (len < 5) return false;
+#pragma once
+#include "../Common/Common.h"
 
-    DWORD curProtection;
+#include "dllmain.h"
 
-    VirtualProtect(src, len, PAGE_EXECUTE_READWRITE, &curProtection);
+extern HWND window;
 
-    memset(src, 0x90, len);
+extern bool bInit;
 
-    uintptr_t relativeAddress = (uintptr_t)(dst - src - 5);
+extern void* d3d9Device[119];
+extern LPDIRECT3DDEVICE9 pD3DDevice;
+extern LPD3DXFONT d3dFont;
 
-    *src = (char)0xE9;
-    *(uintptr_t*)(src + 1) = (uintptr_t)relativeAddress;
+void DrawFilledRect(int x, int y, int w, int h, D3DCOLOR color, IDirect3DDevice9* dev);
 
-    DWORD temp;
-    VirtualProtect(src, len, curProtection, &temp);
+bool Hook(char* src, char* dst, int len);
 
-    return true;
-}
+char* TrampHook(char* src, char* dst, unsigned int len);
 
-char* TrampHook(char* src, char* dst, unsigned int len)
-{
-    if (len < 5) return 0;
+BOOL CALLBACK EnumWindowsCallback(HWND handle, LPARAM lParam);
 
-    // Create the gateway (len + 5 for the overwritten bytes + the jmp)
-    char* gateway = (char*)VirtualAlloc(0, len + 5, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+HWND GetProcessWindow();
+bool GetD3D9Device(void** pTable, size_t Size);
 
-    // Put the bytes that will be overwritten in the gateway
-    memcpy(gateway, src, len);
+HRESULT APIENTRY hkEndScene(LPDIRECT3DDEVICE9 pDevice);
+HRESULT APIENTRY hkBeginScene(LPDIRECT3DDEVICE9 pDevice);
+HRESULT APIENTRY hkReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters);
+HRESULT APIENTRY hkPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pScourceRect, const RECT *pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion);
 
-    // Get the gateway to destination addy
-    uintptr_t gateJmpAddy = (uintptr_t)(src - gateway - 5);
+typedef HRESULT(APIENTRY* tEndScene)(LPDIRECT3DDEVICE9 pDevice);
+typedef HRESULT(APIENTRY* tBeginScene)(LPDIRECT3DDEVICE9 pDevice);
+typedef HRESULT(APIENTRY* tReset)(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters);
+typedef HRESULT(APIENTRY* tPresent)(LPDIRECT3DDEVICE9 pDevice, const RECT *pScourceRect, const RECT *pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion);
 
-    // Add the jmp opcode to the end of the gateway
-    *(gateway + len) = (char)0xE9;
-
-    // Add the address to the jmp
-    *(uintptr_t*)(gateway + len + 1) = gateJmpAddy;
-
-    // Place the hook at the destination
-    if (Hook(src, dst, len))
-    {
-        return gateway;
-    }
-    else return nullptr;
-}
-
-
-
+extern tEndScene oEndScene;
+extern tBeginScene oBeginScene;
+extern tReset oReset;
+extern tPresent oPresent;

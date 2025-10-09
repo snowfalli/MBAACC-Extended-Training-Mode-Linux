@@ -3,7 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include "..\Common\Common.h"
+#include "../Common/Common.h"
 #include "Logger.h"
 #include <cstdarg>
 
@@ -13,13 +13,16 @@ void __stdcall netlog(const char* format, ...);
 char cGameState = 0; // 1:In-Game 2:Title 3:Logos 8:Loading 9:Arcade Cutscene 10:Next Stage 12:Options 20:CSS 25:Main Menu
 char cP1Freeze = 0; //Used for EXFlashes where initiator still moves (ex. Satsuki 214C winds up during flash)
 char cP2Freeze = 0;
+char cP3Freeze = 0;
+char cP4Freeze = 0;
 int nFrameCount = 0; //Counts slower during slowdown
 int nLastFrameCount = 0;
 int nTrueFrameCount = 0; //Counts all frames during slowdown
 int nLastTrueFrameCount = 0;
 char cGlobalFreeze = 0; //Used for EXFlashes where neither char moves
 char cP1FN2Input = 0;
-char cDummyState = 0; // Same as Common.h "Enemy Status" except -1 for recording
+static char cDummyState = 0; // Same as Common.h "Enemy Status" except -1 for recording
+int nTimer = 0;
 
 int nBarCounter = 0;
 short nBarScrolling = 0;
@@ -41,6 +44,7 @@ static bool bInExtendedSettings = false;
 static bool bSimpleFrameInfo = true;
 static bool bDisplayFreeze = false; //Whether to show global ex flashes and frames where both chars are in hitstop
 static bool bDisplayInputs = false;
+static bool bDisplayCancels = false;
 static bool bPrintColorGuide = false;
 static bool bLoadRNG = false;
 char cDisplayOptions = 0;
@@ -48,7 +52,7 @@ char cLastDisplayOptions = 0;
 
 std::string sColumnHeader = "";
 
-static uint8_t nSaveSlot = 0;
+static uint8_t nSaveSlot = 1;
 
 static int nPlayerAdvantage;
 int nSharedHitstop;
@@ -125,15 +129,18 @@ void CheckGameState(HANDLE hMBAAHandle)
 
 void UpdateGlobals(HANDLE hMBAAHandle)
 {
-	nLastFrameCount = nFrameCount;
-	nLastTrueFrameCount = nTrueFrameCount;
+	//nLastFrameCount = nFrameCount;
+	//nLastTrueFrameCount = nTrueFrameCount;
 	ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1Freeze), &cP1Freeze, 1, 0);
 	ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2Freeze), &cP2Freeze, 1, 0);
+	ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP3Freeze), &cP3Freeze, 1, 0);
+	ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP4Freeze), &cP4Freeze, 1, 0);
 	ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adFrameCount), &nFrameCount, 4, 0);
 	ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adTrueFrameCount), &nTrueFrameCount, 4, 0);
 	ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adGlobalFreeze), &cGlobalFreeze, 1, 0);
 	ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adDummyState), &cDummyState, 1, 0);
 	ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1FN2Input), &cP1FN2Input, 1, 0);
+	ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adSharedTimer), &nTimer, 4, 0);
 }
 
 struct Player
@@ -208,6 +215,8 @@ struct Player
 	DWORD dwConditions_Condition2Pointer = 0x0; //0x320 : 0x44 : 0x4
 	DWORD dwCondition1_ConditionType = 0; //0x320 : 0x44 : 0x0 : 0x0
 	DWORD dwCondition2_ConditionType = 0; //0x320 : 0x44 : 0x4 : 0x0
+	DWORD dwCondition1_ConditionParam1 = 0; //0x320 : 0x44 : 0x0 : 0x4
+	DWORD dwCondition2_ConditionParam1 = 0; //0x320 : 0x44 : 0x4 : 0x4
 
 	char cPlayerNumber = 0;
 	DWORD adPlayerBase = 0x0;
@@ -267,10 +276,10 @@ void CheckProjectiles(HANDLE hMBAAHandle)
 		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adEffectBase + dwEffectStructSize * i), &bProjectileExists, 1, 0);
 		if (!bProjectileExists) continue;
 		cBlankEffectCount = 0;
-		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adEffectBase + dwEffectStructSize * i + adEffectStatus), &cProjectileStatus, 1, 0);
+		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adEffectSubBase + dwEffectStructSize * i + adEffectStatus), &cProjectileStatus, 1, 0);
 		if (cProjectileStatus != 0xFF) continue;
-		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adEffectBase + dwEffectStructSize * i + adEffectOwner), &cProjectileOwner, 1, 0);
-		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adEffectBase + dwEffectStructSize * i + adAttackDataPointer), &dwProjectileAttackDataPointer, 4, 0);
+		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adEffectSubBase + dwEffectStructSize * i + adEffectOwner), &cProjectileOwner, 1, 0);
+		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adEffectSubBase + dwEffectStructSize * i + adAttackDataPointer), &dwProjectileAttackDataPointer, 4, 0);
 		if (dwProjectileAttackDataPointer) (*paPlayerArray[cProjectileOwner]).nActiveProjectileCount++;
 	}
 }
@@ -285,7 +294,7 @@ void UpdatePlayers(HANDLE hMBAAHandle)
 		P.bLastOnRight = P.bIsOnRight;
 		P.cLastStance = P.cState_Stance;
 		ReadProcessMemory(hMBAAHandle, (LPVOID)(P.adPlayerBase), &P, 1, 0);
-		if (!P.cExists) return;
+		if (!P.cExists) continue;
 		ReadProcessMemory(hMBAAHandle, (LPVOID)(P.adPlayerBase), &P, 0x328, 0);
 		ReadProcessMemory(hMBAAHandle, (LPVOID)(P.dwAnimationDataPointer + adAnimationData_StateDataPointer), &P.dwAnimation_StateDataPointer, 4, 0);
 		ReadProcessMemory(hMBAAHandle, (LPVOID)(P.dwAnimationDataPointer + adAnimationData_ConditionCount), &P.cAnimation_ConditionCount, 1, 0);
@@ -300,10 +309,12 @@ void UpdatePlayers(HANDLE hMBAAHandle)
 			ReadProcessMemory(hMBAAHandle, (LPVOID)(P.dwAnimationDataPointer + adAnimationData_ConditionsPointer), &P.dwAnimation_ConditionsPointer, 4, 0);
 			ReadProcessMemory(hMBAAHandle, (LPVOID)(P.dwAnimation_ConditionsPointer + adConditions_Condition1Pointer), &P.dwConditions_Condition1Pointer, 4, 0);
 			ReadProcessMemory(hMBAAHandle, (LPVOID)(P.dwConditions_Condition1Pointer + adCondition_Type), &P.dwCondition1_ConditionType, 4, 0);
+			ReadProcessMemory(hMBAAHandle, (LPVOID)(P.dwConditions_Condition1Pointer + adCondition_Param1), &P.dwCondition1_ConditionParam1, 4, 0);
 			if (P.cAnimation_ConditionCount > 1)
 			{
 				ReadProcessMemory(hMBAAHandle, (LPVOID)(P.dwAnimation_ConditionsPointer + adConditions_Condition2Pointer), &P.dwConditions_Condition2Pointer, 4, 0);
 				ReadProcessMemory(hMBAAHandle, (LPVOID)(P.dwConditions_Condition2Pointer + adCondition_Type), &P.dwCondition2_ConditionType, 4, 0);
+				ReadProcessMemory(hMBAAHandle, (LPVOID)(P.dwConditions_Condition2Pointer + adCondition_Param1), &P.dwCondition2_ConditionParam1, 4, 0);
 			}
 			else
 			{
@@ -345,14 +356,14 @@ void SaveState(HANDLE hMBAAHandle, int nSaveSlot)
 		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2ControlledCharacter), &S.dwSaveP2ControlledCharacter, 4, 0);
 		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2NextControlledCharacter), &S.dwSaveP2NextControlledCharacter, 4, 0);
 
-		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1Base + adSave1Offset), &S.dwaSave1P1, SAVE_PLAYER_1_SIZE, 0);
-		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1Base + adSave2Offset), &S.dwaSave2P1, SAVE_PLAYER_2_SIZE, 0);
-		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2Base + adSave1Offset), &S.dwaSave1P2, SAVE_PLAYER_1_SIZE, 0);
-		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2Base + adSave2Offset), &S.dwaSave2P2, SAVE_PLAYER_2_SIZE, 0);
-		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP3Base + adSave1Offset), &S.dwaSave1P3, SAVE_PLAYER_1_SIZE, 0);
-		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP3Base + adSave2Offset), &S.dwaSave2P3, SAVE_PLAYER_2_SIZE, 0);
-		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP4Base + adSave1Offset), &S.dwaSave1P4, SAVE_PLAYER_1_SIZE, 0);
-		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP4Base + adSave2Offset), &S.dwaSave2P4, SAVE_PLAYER_2_SIZE, 0);
+		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1SubBase + adSave1Offset), &S.dwaSave1P1, SAVE_PLAYER_1_SIZE, 0);
+		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1SubBase + adSave2Offset), &S.dwaSave2P1, SAVE_PLAYER_2_SIZE, 0);
+		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2SubBase + adSave1Offset), &S.dwaSave1P2, SAVE_PLAYER_1_SIZE, 0);
+		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2SubBase + adSave2Offset), &S.dwaSave2P2, SAVE_PLAYER_2_SIZE, 0);
+		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP3SubBase + adSave1Offset), &S.dwaSave1P3, SAVE_PLAYER_1_SIZE, 0);
+		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP3SubBase + adSave2Offset), &S.dwaSave2P3, SAVE_PLAYER_2_SIZE, 0);
+		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP4SubBase + adSave1Offset), &S.dwaSave1P4, SAVE_PLAYER_1_SIZE, 0);
+		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP4SubBase + adSave2Offset), &S.dwaSave2P4, SAVE_PLAYER_2_SIZE, 0);
 		
 		ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adSaveRNG), &S.dwaSaveRNG, SAVE_RNG_SIZE, 0);
 
@@ -404,14 +415,14 @@ void LoadState(HANDLE hMBAAHandle, int nSaveSlot, bool bLoadRNG = false)
 		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2ControlledCharacter), &S.dwSaveP2ControlledCharacter, 4, 0);
 		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2NextControlledCharacter), &S.dwSaveP2NextControlledCharacter, 4, 0);
 
-		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1Base + adSave1Offset), &S.dwaSave1P1, SAVE_PLAYER_1_SIZE, 0);
-		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1Base + adSave2Offset), &S.dwaSave2P1, SAVE_PLAYER_2_SIZE, 0);
-		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2Base + adSave1Offset), &S.dwaSave1P2, SAVE_PLAYER_1_SIZE, 0);
-		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2Base + adSave2Offset), &S.dwaSave2P2, SAVE_PLAYER_2_SIZE, 0);
-		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP3Base + adSave1Offset), &S.dwaSave1P3, SAVE_PLAYER_1_SIZE, 0);
-		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP3Base + adSave2Offset), &S.dwaSave2P3, SAVE_PLAYER_2_SIZE, 0);
-		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP4Base + adSave1Offset), &S.dwaSave1P4, SAVE_PLAYER_1_SIZE, 0);
-		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP4Base + adSave2Offset), &S.dwaSave2P4, SAVE_PLAYER_2_SIZE, 0);
+		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1SubBase + adSave1Offset), &S.dwaSave1P1, SAVE_PLAYER_1_SIZE, 0);
+		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1SubBase + adSave2Offset), &S.dwaSave2P1, SAVE_PLAYER_2_SIZE, 0);
+		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2SubBase + adSave1Offset), &S.dwaSave1P2, SAVE_PLAYER_1_SIZE, 0);
+		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2SubBase + adSave2Offset), &S.dwaSave2P2, SAVE_PLAYER_2_SIZE, 0);
+		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP3SubBase + adSave1Offset), &S.dwaSave1P3, SAVE_PLAYER_1_SIZE, 0);
+		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP3SubBase + adSave2Offset), &S.dwaSave2P3, SAVE_PLAYER_2_SIZE, 0);
+		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP4SubBase + adSave1Offset), &S.dwaSave1P4, SAVE_PLAYER_1_SIZE, 0);
+		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP4SubBase + adSave2Offset), &S.dwaSave2P4, SAVE_PLAYER_2_SIZE, 0);
 
 		if (bLoadRNG)
 		{
@@ -566,7 +577,7 @@ void LoadStateFromFile(HANDLE hMBAAHandle, int nSaveSlot)
 				if (nP1FileCharacterID != nP1CharacterID || nP2FileCharacterID != nP2CharacterID)
 				{
 					std::string sErrorTitle = "INCORRECT CHARACTER IDS";
-					std::string sErrorString = "This save state file is for P1: " + GetCharacterNameFromID(nP1FileCharacterID) + " & P2: " + GetCharacterNameFromID(nP2FileCharacterID);
+                    std::string sErrorString = "This save state file is for P1: ";
 					int nReturnVal = MessageBoxA(NULL, sErrorString.c_str(), sErrorTitle.c_str(), MB_ICONWARNING);
 					LogError("INCORRECT CHARACTER IDS");
 					return;
@@ -684,7 +695,7 @@ void PrintColorGuide()
 	std::cout << FD_SHIELD << "00" << FD_CLEAR << " SHIELD\n";
 	std::cout << FD_INACTIONABLE_INVULN << "00" << FD_CLEAR << " INVULN\t\t\t";
 	std::cout << FD_ACTIONABLE_INVULN << "00" << FD_CLEAR << " INVULN AND FULLY ACTIONABLE\n";
-	std::cout << FD_FREEZE << "00" << FD_CLEAR << " EX FLASH SCREEN FREEZE\t";
+	std::cout << FD_FREEZE << "00" << FD_CLEAR << " SCREEN FREEZE\t\t";
 	std::cout << FD_HITSTOP << "00" << FD_CLEAR << " HITSTOP\n";
 	std::cout << FD_ACTIVE << "00" << FD_CLEAR << " ACTIVE FRAMES\t\t";
 	std::cout << FD_ASSIST_ACTIVE << "00" << FD_CLEAR << " ASSIST ACTIVE FRAMES\n";
@@ -693,8 +704,16 @@ void PrintColorGuide()
 	std::cout << FD_A_PRESSED << "00" << FD_CLEAR << " A PRESSED\t\t\t";
 	std::cout << FD_B_PRESSED << "00" << FD_CLEAR << " B PRESSED\n";
 	std::cout << FD_C_PRESSED << "00" << FD_CLEAR << " C PRESSED\t\t\t";
-	std::cout << FD_D_PRESSED << "00" << FD_CLEAR << " D PRESSED\n";
+	std::cout << FD_D_PRESSED << "00" << FD_CLEAR << " D PRESSED\n\n";
 	
+	std::cout << "WHEN \"SHOW CANCEL WINDOWS\" IS TURNED ON:\n";
+	std::cout << NORMAL_CANCEL_FONTS[0] + FD_NORMAL_GUIDE_FG << "00" << FD_CLEAR << " NO NORMAL CANCEL\t\t";
+	std::cout << NORMAL_CANCEL_FONTS[1] + FD_NORMAL_GUIDE_FG << "00" << FD_CLEAR << " NORMAL CANCEL ON (SUCCESSFUL) HIT\n";
+	std::cout << NORMAL_CANCEL_FONTS[2] + FD_NORMAL_GUIDE_FG << "00" << FD_CLEAR << " NORMAL CANCEL ALWAYS\n";
+	std::cout << SPECIAL_CANCEL_FONTS[0] + FD_SPECIAL_GUIDE_BG << "00" << FD_CLEAR << " NO SPECIAL CANCEL\t\t";
+	std::cout << SPECIAL_CANCEL_FONTS[1] + FD_SPECIAL_GUIDE_BG << "00" << FD_CLEAR << " SPECIAL/REKKA CANCEL ON (SUCCESSFUL) HIT\n";
+	std::cout << SPECIAL_CANCEL_FONTS[2] + FD_SPECIAL_GUIDE_BG << "00" << FD_CLEAR << " SPECIAL/REKKA CANCEL ALWAYS\t";
+	std::cout << FD_INACTIONABLE + FD_UNDERLINE << "00" << FD_CLEAR << " EX CANCEL\n";
 }
 
 void CalculateAdvantage(Player& P1, Player& P2)
@@ -710,15 +729,18 @@ void CalculateAdvantage(Player& P1, Player& P2)
 		P2.nAdvantageCounter = 0;
 	}
 
-	if (bDoAdvantage && nFrameCount != nLastFrameCount && cGlobalFreeze == 0)
+	if (bDoAdvantage && nFrameCount != nLastFrameCount && 
+		cP1Freeze == 0 &&
+		cP2Freeze == 0 &&
+		cGlobalFreeze == 0)
 	{
 		if (P1.nInactionableFrames == 0 && P2.nInactionableFrames != 0)
 		{
-			P1.nAdvantageCounter++;
+			P1.nAdvantageCounter += nFrameCount - nLastFrameCount;
 		}
 		else if (P2.nInactionableFrames == 0 && P1.nInactionableFrames != 0)
 		{
-			P2.nAdvantageCounter++;
+			P2.nAdvantageCounter += nFrameCount - nLastFrameCount;
 		}
 	}
 }
@@ -753,7 +775,7 @@ void ResetBars(HANDLE hMBAAHandle)
 		}
 	}
 	WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adSharedScrolling), &nBarScrolling, 2, 0);
-    //std::cout << "\x1b[J";
+	std::cout << "\x1b[J";
 }
 
 void UpdateBars(Player& P, Player& Assist)
@@ -787,12 +809,18 @@ void UpdateBars(Player& P, Player& Assist)
 			else //Grounded
 			{
 				if (P.nHitstunRemaining > 1) //Still has hitstun remaining
+				{
 					sBarValue = std::format("{:2}", (P.nHitstunRemaining - 1) % 100);
+				}
 			}
 		}
 		else if (P.bBlockstunFlag) //Blockstun
 		{
 			sFont = FD_BLOCKSTUN;
+			if (P.cState_Stance != 1 && P.nHitstunRemaining > 1)
+			{
+				sBarValue = std::format("{:2}", (P.nHitstunRemaining - 1) % 100);
+			}
 		}
 		else if (bHasInvuln)
 		{
@@ -801,6 +829,22 @@ void UpdateBars(Player& P, Player& Assist)
 		else
 		{
 			sFont = FD_INACTIONABLE;
+			if (bDisplayCancels)
+			{
+				char SpecialCancel = P.cState_SpecialCancel;
+				if (P.dwCondition1_ConditionType == 35 || P.dwCondition2_ConditionType == 35)
+				{
+					if (P.dwCondition1_ConditionParam1 == 1 || P.dwCondition2_ConditionParam1 == 1)
+					{
+						SpecialCancel = 1;
+					}
+					else
+					{
+						SpecialCancel = 2;
+					}
+				}
+				sFont = SPECIAL_CANCEL_FONTS[SpecialCancel] + NORMAL_CANCEL_FONTS[P.cState_NormalCancel];
+			}
 		}
 	}
 	else //Fully actionable
@@ -822,7 +866,16 @@ void UpdateBars(Player& P, Player& Assist)
 		}
 	}
 
-	if (cGlobalFreeze != 0 || cP1Freeze != 0 || cP2Freeze != 0) //Screen is frozen
+	if (bDisplayCancels && P.nState_Flagset2 & 1)
+	{
+		sFont = FD_UNDERLINE + sFont;
+	}
+	else
+	{
+		sFont = FD_CLEAR + sFont;
+	}
+
+	if (cGlobalFreeze != 0 || cP1Freeze != 0 || cP2Freeze != 0 || cP3Freeze != 0 || cP4Freeze != 0) //Screen is frozen
 	{
 		sFont = FD_FREEZE;
 	}
@@ -888,7 +941,7 @@ void UpdateBars(Player& P, Player& Assist)
 	P.sBar2[nBarCounter % BAR_MEMORY_SIZE][1] = sBarValue;
 
 	//Bar 3 - Projectile and assist active frames
-	if (Assist.dwAttackDataPointer != 0)
+	if (Assist.cExists && Assist.dwAttackDataPointer != 0)
 	{
 		sBarValue = std::format("{:2}", Assist.nActiveCounter % 100);
 		if (cGlobalFreeze != 0 || cP1Freeze != 0 || cP2Freeze != 0)
@@ -1031,9 +1084,9 @@ void UpdateBars(Player& P, Player& Assist)
 
 void IncrementActive(Player& P)
 {
-	if (P.dwAttackDataPointer != 0 && P.cHitstop == 0 && P.nLastFrameCount != P.nFrameCount)
+	if (P.dwAttackDataPointer != 0 && P.cHitstop == 0 && nFrameCount != nLastFrameCount)
 	{
-		P.nActiveCounter++;
+		P.nActiveCounter += nFrameCount - nLastFrameCount;
 	}
 	else if (P.dwAttackDataPointer == 0)
 	{
@@ -1053,17 +1106,12 @@ void BarHandling(HANDLE hMBAAHandle, Player &P1, Player &P2, Player& P1Assist, P
 {
 	CalculateAdvantage(P1, P2);
 
-	bool IsInput = (
-		P1.cRawDirectionalInput != 0 || P2.cRawDirectionalInput != 0 ||
-		P1.cButtonInput != 0 || P2.cButtonInput ||
-		P1.cMacroInput != 0 || P2.cMacroInput != 0
-		); //True if player or dummy has any input
 	bool DoBarUpdate = (
 		P1.nInactionableFrames != 0 || P2.nInactionableFrames ||
 		P1.nState_Flagset2 != 0 || P2.nState_Flagset2 != 0 ||
 		P1.nActiveProjectileCount != 0 || P2.nActiveProjectileCount ||
-		P1Assist.dwAttackDataPointer != 0 || P2Assist.dwAttackDataPointer ||
-		P1Assist.nActiveProjectileCount != 0 || P2Assist.nActiveProjectileCount != 0
+		(P1Assist.cExists && (P1Assist.dwAttackDataPointer != 0 || P1Assist.nActiveProjectileCount != 0) ) ||
+		(P2Assist.cExists && (P2Assist.dwAttackDataPointer || P2Assist.nActiveProjectileCount != 0) )
 		); //True if either char is inactionable, can't block, has an active projectile, has an active assist, or has an active assist projectile
 
 	if (DoBarUpdate)
@@ -1120,27 +1168,23 @@ void BarHandling(HANDLE hMBAAHandle, Player &P1, Player &P2, Player& P1Assist, P
 			IncrementActive(P2);
 			HandleInactive(P1);
 			HandleInactive(P2);
-			UpdateBars(P1, P1Assist);
-			UpdateBars(P2, P2Assist);
 			if (P1Assist.cExists)
 			{
 				IncrementActive(P1Assist);
 				UpdateBars(P1Assist, P1);
-
 			}
 			if (P2Assist.cExists)
 			{
 				IncrementActive(P2Assist);
 				UpdateBars(P2Assist, P2);
-
 			}
-			nBarCounter++;
+			UpdateBars(P1, P1Assist);
+			UpdateBars(P2, P2Assist);
+			nBarCounter += nTrueFrameCount - nLastTrueFrameCount;
+			if (nBarCounter < 0) {
+				nBarCounter = 0;
+			}
 		}
-	}
-
-	if (nTrueFrameCount == 0)
-	{
-		ResetBars(hMBAAHandle);
 	}
 }
 
@@ -1167,6 +1211,14 @@ void PrintFrameDisplay(HANDLE hMBAAHandle, Player &P1, Player &P2, Player &P3, P
 	ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adSharedScrolling), &nBarScrolling, 2, 0);
 	short sAdjustedScroll = min(min(nBarCounter - nBarDisplayRange, BAR_MEMORY_SIZE - nBarDisplayRange), nBarScrolling);
 
+	int nForStart = (nBarCounter % BAR_MEMORY_SIZE) - nBarDisplayRange - sAdjustedScroll;
+	int nForEnd = (nBarCounter % BAR_MEMORY_SIZE) - sAdjustedScroll;
+	if (nBarCounter <= nBarDisplayRange)
+	{
+		nForStart = 0;
+		nForEnd = nBarCounter;
+	}
+
 	std::string sLastFont1 = "";
 	std::string sLastFont2 = "";
 	std::string sLastFont3 = "";
@@ -1186,7 +1238,7 @@ void PrintFrameDisplay(HANDLE hMBAAHandle, Player &P1, Player &P2, Player &P3, P
 	P2.sBarString4 = "";
 	P2.sBarString5 = "";
 	bool bFirstFrameInDisplay = true;
-	for (int i = (nBarCounter % BAR_MEMORY_SIZE) - nBarDisplayRange - sAdjustedScroll; i < (nBarCounter % BAR_MEMORY_SIZE) - sAdjustedScroll; i++)
+	for (int i = nForStart; i < nForEnd; i++)
 	{
 		int c = i < 0 ? i + BAR_MEMORY_SIZE : i;
 		int l = i - 1 < 0 ? i - 1 + BAR_MEMORY_SIZE : i - 1;
@@ -1272,18 +1324,14 @@ void PrintFrameDisplay(HANDLE hMBAAHandle, Player &P1, Player &P2, Player &P3, P
 	int nP1YPixelPosition = (int)floor(P1.nYPosition / 128.0);
 	char cP1CounterHit = CH_MAP[P1.cCounterHit];
 	int nP1GuardGauge = (int)P1.fGuardGauge;
-	int nP1Gravity = (int)max(0, round((P1.fGravity - 0.072) / 0.008));
-	nP1Gravity -= (int)floor(nP1Gravity / 60.0);
-	nP1Gravity = (int)ceil(nP1Gravity / 6.0);
+	int nP1Gravity = max(0, (int)100 - floor(100 - (P1.fGravity - 0.072f) / 0.928f * 19));
 	int nP1GravityHits = (int)round(P1.fGravity / 0.008);
 
 	int nP2XPixelPosition = (int)floor(P2.nXPosition / 128.0);
 	int nP2YPixelPosition = (int)floor(P2.nYPosition / 128.0);
 	char cP2CounterHit = CH_MAP[P2.cCounterHit];
 	int nP2GuardGauge = (int)P2.fGuardGauge;
-	int nP2Gravity = (int)max(0, round((P2.fGravity - 0.072) / 0.008));
-	nP2Gravity -= (int)floor(nP2Gravity / 60.0);
-	nP2Gravity = (int)ceil(nP2Gravity / 6.0);
+	int nP2Gravity = max(0, (int)100 - floor(100 - (P2.fGravity - 0.072f) / 0.928f * 19));
 	int nP2GravityHits = (int)round(P2.fGravity / 0.008);
 
 	int nXDistance = (int)abs(P1.nXPosition - P2.nXPosition);
@@ -1314,10 +1362,10 @@ void PrintFrameDisplay(HANDLE hMBAAHandle, Player &P1, Player &P2, Player &P3, P
 
 	if (!bSimpleFrameInfo)
 	{
-		writeBuffer("\x1b[0m" "ex %2i" "\x1b[7m" "ch %c" "\x1b[0m" "partner %3i [%2i]" "\x1b[7m" "scaling %2i [%i+%i]" "\x1b[0m" "rhp %5i" "\x1b[7m" "gg %5i [%.3f]" "\x1b[0m" "total %3i" "\x1b[0m\x1b[K\n"
-			"\x1b[0m" "ex %2i" "\x1b[7m" "ch %c" "\x1b[0m" "partner %3i [%2i]" "\x1b[7m" "scaling %2i [%i+%i]" "\x1b[0m" "rhp %5i" "\x1b[7m" "gg %5i [%.3f]" "\x1b[0m" "total %3i"  "\x1b[0m\x1b[K\n",
-			cP1Freeze, cP1CounterHit, P3.nPattern, P3.nState, nP1GravityHits, nP1Gravity % 10, P1.sUntechPenalty % 10, P1.nRedHealth, nP1GuardGauge, P1.fGuardQuality, P1.nInactionableMemory % 1000,
-			cP2Freeze, cP2CounterHit, P4.nPattern, P4.nState, nP2GravityHits, nP2Gravity % 10, P2.sUntechPenalty % 10, P2.nRedHealth, nP2GuardGauge, P2.fGuardQuality, P2.nInactionableMemory % 1000);
+		writeBuffer("\x1b[0m" "ex %2i" "\x1b[7m" "ch %c" "\x1b[0m" "partner %3i [%2i]" "\x1b[7m" "scaling %3i [%2i+%i]" "\x1b[0m" "rhp %5i" "\x1b[7m" "gg %5i [%.3f]" "\x1b[0m" "total %3i" "\x1b[0m\x1b[K\n"
+			"\x1b[0m" "ex %2i" "\x1b[7m" "ch %c" "\x1b[0m" "partner %3i [%2i]" "\x1b[7m" "scaling %3i [%2i+%i]" "\x1b[0m" "rhp %5i" "\x1b[7m" "gg %5i [%.3f]" "\x1b[0m" "total %3i"  "\x1b[0m\x1b[K\n",
+			cP1Freeze, cP1CounterHit, P3.nPattern, P3.nState, nP1GravityHits, nP1Gravity % 100, P1.sUntechPenalty % 10, P1.nRedHealth, nP1GuardGauge, P1.fGuardQuality, P1.nInactionableMemory % 1000,
+			cP2Freeze, cP2CounterHit, P4.nPattern, P4.nState, nP2GravityHits, nP2Gravity % 100, P2.sUntechPenalty % 10, P2.nRedHealth, nP2GuardGauge, P2.fGuardQuality, P2.nInactionableMemory % 1000);
 	}
 
 	if (bDisplayInputs)
@@ -1335,7 +1383,7 @@ void FrameDisplay(HANDLE hMBAAHandle)
 	if (cGameState != 1) //If not in game (any gamemode)
 	{
 		ClearAllSaves();
-        //std::cout << "\x1b[J";
+		std::cout << "\x1b[J";
 		return;
 	}
 
@@ -1345,7 +1393,7 @@ void FrameDisplay(HANDLE hMBAAHandle)
 	nBarDisplayRange = (screenBufferInfo.srWindow.Right - screenBufferInfo.srWindow.Left) / 2;
 	if (nBarDisplayRange != nLastBarDisplayRange)
 	{
-        //std::cout << "\x1b[J";
+		std::cout << "\x1b[J";
 	}
 
 	UpdateGlobals(hMBAAHandle);
@@ -1402,12 +1450,19 @@ void FrameDisplay(HANDLE hMBAAHandle)
 		Assist2 = &P2;
 	}
 
-	if (nLastTrueFrameCount != nTrueFrameCount)
+	if (nTrueFrameCount == 0)
+	{
+		ResetBars(hMBAAHandle);
+	}
+
+	if (nLastTrueFrameCount != nTrueFrameCount && nTrueFrameCount == nTimer)
 	{
 		UpdatePlayers(hMBAAHandle);
 		CheckProjectiles(hMBAAHandle);
 		
 		BarHandling(hMBAAHandle, *Main1, *Main2, *Assist1, *Assist2);
+		nLastFrameCount = nFrameCount;
+		nLastTrueFrameCount = nTrueFrameCount;
 
 		if (nTrueFrameCount == 1 && CheckSave(nSaveSlot) && bEnableFN2Load)
 		{
@@ -1421,7 +1476,7 @@ void FrameDisplay(HANDLE hMBAAHandle)
 		}
 		else
 		{
-            //PrintFrameDisplay(hMBAAHandle, *Main1, *Main2, *Assist1, *Assist2);
+			PrintFrameDisplay(hMBAAHandle, *Main1, *Main2, *Assist1, *Assist2);
 		}
 	}
 
@@ -1435,10 +1490,10 @@ void FrameDisplay(HANDLE hMBAAHandle)
 		}
 		else
 		{
-            //PrintFrameDisplay(hMBAAHandle, *Main1, *Main2, *Assist1, *Assist2);
+			PrintFrameDisplay(hMBAAHandle, *Main1, *Main2, *Assist1, *Assist2);
 		}
 	}
 
-	nPlayerAdvantage = (P1.nAdvantageCounter - P2.nAdvantageCounter) % 100;
+	nPlayerAdvantage = ((*Main1).nAdvantageCounter - (*Main2).nAdvantageCounter) % 100;
 
 }

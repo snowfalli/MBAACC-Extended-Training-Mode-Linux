@@ -6,11 +6,13 @@
 #include <format>
 #include <fstream>
 
-#include "..\Common\Common.h"
+//#include "../Common/Common.h"
 
+//#include "../Common/Common.h"
+
+static HANDLE m_hConsole;
 static std::string m_sLogFile;
 static std::ofstream m_fLogFile;
-static std::wofstream wm_fLogFile;
 static bool bLogOpen = false;
 
 static void LogInfo(std::string sInfo);
@@ -20,31 +22,19 @@ static std::string Time()
 	return std::format("{:%m-%d-%y_%OH-%OM-%OS}", std::chrono::zoned_time{ std::chrono::current_zone(), std::chrono::system_clock::now() });
 }
 
-static void ResetLog() {
-	if(m_fLogFile.is_open()) {
-		m_fLogFile.clear();
-	}
-}
-
-
-
-static void InitializeLogger(bool dll)
+static void InitializeLogger(HANDLE hConsole)
 {
 	if (bLogOpen)
 		return;
 
+	m_hConsole = hConsole;
 
 	std::string sTempPath = std::filesystem::temp_directory_path().string();
 	std::string sTime = Time();
 
-	m_sLogFile = sTempPath + "ExtendedTrainingMode";
-	m_sLogFile += (dll) ? "-dll" : "";
-	m_sLogFile += ".log";
+	m_sLogFile = sTempPath + "ExtendedTrainingMode__" + sTime + ".log";
 
-	wm_fLogFile.open(m_sLogFile);
 	m_fLogFile.open(m_sLogFile);
-
-	ResetLog();
 	
 	LogInfo(VERSION);
 
@@ -74,19 +64,6 @@ static void LogInfo(std::string sInfo)
 	m_fLogFile.flush();
 }
 
-static void LogInfo(std::wstring sInfo)
-{
-	if (!bLogOpen) return;
-
-	wm_fLogFile << L"\n";
-	wm_fLogFile << L"*** INFO *** Time: " << "" << L"\n";
-	wm_fLogFile << L"\n";
-	wm_fLogFile << L"\t" << sInfo << L"\n";
-	wm_fLogFile << L"\n";
-
-	wm_fLogFile.flush();
-}
-
 static void LogError(std::string sError)
 {
 	if (!bLogOpen) return;
@@ -100,3 +77,4 @@ static void LogError(std::string sError)
 
 	m_fLogFile.flush();
 }
+

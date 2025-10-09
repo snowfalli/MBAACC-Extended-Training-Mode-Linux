@@ -1,5 +1,3 @@
-#define UNICODE
-
 #pragma once
 #include "../Common/Common.h"
 #include "tlhelp32.h"
@@ -16,21 +14,20 @@
 #include <algorithm>
 #include <format>
 #include <regex>
-#include <chrono>
 #include <thread>
 #include <timeapi.h>
+#include <sstream>
+#include <iostream>
+#include "resource.h"
 #pragma comment(lib, "winmm.lib")
 
 #include "json.hpp"
 
-#include "..\Common\CharacterData.h"
+#include "../Common/CharacterData.h"
 #include "PointerManager.h"
 #include "FrameDisplay.h"
 #include "Injector.h"
 #include "Logger.h"
-
-
-
 
 HANDLE hMBAAHandle = 0x0;
 DWORD dwBaseAddress = 0;
@@ -48,7 +45,10 @@ uint8_t nFrameBarScrollRightKey = nDefaultFrameBarScrollRightKey;
 uint8_t nRNGIncKey = nDefaultRNGIncKey;
 uint8_t nRNGDecKey = nDefaultRNGIncKey;
 uint8_t nReversalKey = nDefaultReversalKey;
-uint8_t nSlowKey = nSlowKey;
+uint8_t nSlowKey = nDefaultSlowKey;
+uint8_t nNextFrameKey = nDefaultNextFrameKey;
+uint8_t nPrevFrameKey = nDefaultPrevFrameKey;
+uint8_t nResetKey = nDefaultResetKey;
 
 bool bFreezeKeySet = false;
 bool bFrameStepKeySet = false;
@@ -64,6 +64,9 @@ bool bRNGIncKeySet = false;
 bool bRNGDecKeySet = false;
 bool bReversalKeySet = false;
 bool bSlowKeySet = false;
+bool bNextFrameKeySet = false;
+bool bPrevFrameKeySet = false;
+bool bResetKeySet = false;
 
 std::string exec(const char* cmd) {
     std::array<char, 128> buffer;
@@ -80,7 +83,7 @@ std::string exec(const char* cmd) {
 
 std::string GetLatestVersion()
 {
-    return "latest";
+    return "";
     // char pcCommand[1024];
     // strcpy_s(pcCommand, ("curl -s " + GITHUB_LATEST).c_str());
     // std::string sOutputJSONBuffer = exec(pcCommand);
@@ -212,148 +215,6 @@ HANDLE GetProcessByName(const wchar_t* name)
     return nullptr;
 }
 
-void CreateRegistryKey()
-{
-    try
-    {
-        SECURITY_DESCRIPTOR SD;
-        SECURITY_ATTRIBUTES SA;
-        InitializeSecurityDescriptor(&SD, SECURITY_DESCRIPTOR_REVISION);
-        //SetSecurityDescriptorDacl(&SD, true, 0, false);
-        SA.nLength = sizeof(SA);
-        SA.lpSecurityDescriptor = &SD;
-        SA.bInheritHandle = false;
-
-        DWORD dwFunc;
-        HKEY hKey;
-        LPCTSTR sk = L"Software\\MBAACC-Extended-Training-Mode";
-        LONG openResult = RegCreateKeyExW(HKEY_CURRENT_USER, sk, 0, (LPTSTR)NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, &SA, &hKey, &dwFunc);
-        RegCloseKey(hKey);
-    }
-    catch (...)
-    {
-    }
-}
-
-LONG ReadFromRegistry(std::wstring sKey, uint8_t* nValue)
-{
-    LONG openResult = -1;
-
-    try
-    {
-        DWORD dwValue = NULL;
-        HKEY hKey;
-        LPCTSTR sk = L"Software\\MBAACC-Extended-Training-Mode";
-        DWORD dwType = REG_DWORD;
-        DWORD dwSize = sizeof(nValue);
-
-        openResult = RegOpenKeyEx(HKEY_CURRENT_USER, sk, 0, KEY_READ, &hKey);
-        if (openResult == 0)
-            openResult = RegQueryValueEx(hKey, sKey.c_str(), 0, &dwType, (LPBYTE)&dwValue, &dwSize);
-        if (openResult == 0)
-            *nValue = (int)dwValue;
-
-        RegCloseKey(hKey);
-    }
-    catch (...)
-    {
-    }
-
-    return openResult;
-}
-
-LONG ReadFromRegistry(std::wstring sKey, int* nValue)
-{
-    LONG openResult = -1;
-
-    try
-    {
-        DWORD dwValue = NULL;
-        HKEY hKey;
-        LPCTSTR sk = L"Software\\MBAACC-Extended-Training-Mode";
-        DWORD dwType = REG_DWORD;
-        DWORD dwSize = sizeof(nValue);
-
-        openResult = RegOpenKeyEx(HKEY_CURRENT_USER, sk, 0, KEY_READ, &hKey);
-        if (openResult == 0)
-            openResult = RegQueryValueEx(hKey, sKey.c_str(), 0, &dwType, (LPBYTE)&dwValue, &dwSize);
-        if (openResult == 0)
-            *nValue = (int)dwValue;
-
-        RegCloseKey(hKey);
-    }
-    catch (...)
-    {
-    }
-
-    return openResult;
-}
-
-LONG SetRegistryValue(std::wstring sKey, int nValue)
-{
-    LONG openResult = -1;
-
-    try
-    {
-        HKEY hKey;
-        LPCTSTR sk = L"Software\\MBAACC-Extended-Training-Mode\\";
-
-        openResult = RegOpenKeyEx(HKEY_CURRENT_USER, sk, 0, KEY_WRITE, &hKey);
-        if (openResult == 0)
-            openResult = RegSetValueEx(hKey, sKey.c_str(), 0, REG_DWORD, (unsigned char*)&nValue, sizeof(nValue));
-
-        RegCloseKey(hKey);
-    }
-    catch (...)
-    {
-    }
-    return openResult;
-}
-
-LONG SetRegistryValue(std::wstring sKey, bool bValue)
-{
-    return SetRegistryValue(sKey, bValue ? 1 : 0);
-}
-
-LONG ReadFromRegistry(std::wstring sKey, bool* bValue)
-{
-    uint8_t nValue = 0;
-    LONG openResult = ReadFromRegistry(sKey, &nValue);
-    if (openResult == 0)
-        *bValue = nValue > 0 ? true : false;
-    return openResult;
-}
-
-LONG DeleteRegistry()
-{
-    LONG openResult = -1;
-
-    try
-    {
-        HKEY hKey;
-        LPCTSTR sk = L"Software\\MBAACC-Extended-Training-Mode";
-
-        openResult = RegOpenKeyEx(HKEY_CURRENT_USER, sk, 0, KEY_ALL_ACCESS, &hKey);
-        if (openResult == ERROR_SUCCESS)
-        {
-            openResult = RegDeleteKeyW(HKEY_CURRENT_USER, sk);
-            if (openResult != ERROR_SUCCESS)
-                LogError("Unable to delete registry key");
-        }
-        else
-        {
-            LogError("Unable to open registry key");
-        }
-
-        RegCloseKey(hKey);
-    }
-    catch (...)
-    {
-    }
-
-    return openResult;
-}
-
 void WriteCharacterMemory(HANDLE hMBAAHandle, DWORD address, void* pData, uint8_t nSize, uint8_t nCharacter)
 {
     WriteProcessMemory(hMBAAHandle, (LPVOID)(address + nCharacter * 0xAFC), pData, nSize, 0);
@@ -464,23 +325,67 @@ void SetP4X(HANDLE hMBAAHandle, DWORD dwBaseAddress, int nValue)
     WriteCharacterMemory(hMBAAHandle, dwBaseAddress + dwP1X, &nValue, 4, 3);
 }
 
+void GetP1Guts(float* pP1Guts, uint8_t nCharacter)
+{
+    float f1, f2, f3, f4;
+
+    DWORD dwTempAddress = dwP1Struct + 0xAFC * nCharacter + 0x33C;
+    DWORD dwGutsAddress = 0;
+
+    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwTempAddress), &dwGutsAddress, 4, 0);
+    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwGutsAddress + 0x18), &f1, 4, 0);
+    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwGutsAddress + 0x1C), &f2, 4, 0);
+    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwGutsAddress + 0x20), &f3, 4, 0);
+    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwGutsAddress + 0x24), &f4, 4, 0);
+
+    pP1Guts[0] = f1;
+    pP1Guts[1] = f2 * (31.0f / 32.0f);
+    pP1Guts[2] = f3 * (30.0f / 32.0f);
+    pP1Guts[3] = f4 * (29.0f / 32.0f);
+}
+
+void GetP2Guts(float* pP2Guts, uint8_t nCharacter)
+{
+    float f1, f2, f3, f4;
+
+    DWORD dwTempAddress = dwP2Struct * nCharacter + 0x33C;
+    DWORD dwGutsAddress = 0;
+
+    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwTempAddress), &dwGutsAddress, 4, 0);
+    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwGutsAddress + 0x18), &f1, 4, 0);
+    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwGutsAddress + 0x1C), &f2, 4, 0);
+    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwGutsAddress + 0x20), &f3, 4, 0);
+    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwGutsAddress + 0x24), &f4, 4, 0);
+
+    pP2Guts[0] = f1;
+    pP2Guts[1] = f2 * (31.0f / 32.0f);
+    pP2Guts[2] = f3 * (30.0f / 32.0f);
+    pP2Guts[3] = f4 * (29.0f / 32.0f);
+}
+
 uint8_t arrKeysHeld[256] = { 0 };
 void ResetKeysHeld()
 {
     std::fill(std::begin(arrKeysHeld), std::end(arrKeysHeld), 1);
 }
 
-uint8_t KeyJustPressed()
+int KeyJustPressed()
 {
+
+    // check if any joy inputs are pressed
+    //short pressed = KeyState::pressedButtons();
+    //if (pressed) {
+        // this should change to support these keys, however i dont know how yall want to do that
+    //}
+
+
     //http://www.kbdedit.com/manual/low_level_vk_list.html
 
     // there're some weird collisions between keys
     // like numpad-/ and the arrow keys,
     // but all of the normal keys work as expected.
     // I'm fine with it, personally.
-    uint8_t i = 0;
-    do
-    {
+    for(int i=0; i<256; i++) {
         // key pressed AND key isn't garbage
         if (GetAsyncKeyState(i) & 0x8000 && MapVirtualKeyW(i, MAPVK_VK_TO_VSC) != 0)
         {
@@ -489,8 +394,7 @@ uint8_t KeyJustPressed()
         }
         else
             arrKeysHeld[i] = 0;
-        i++;
-    } while (i);
+    }
 
     return 0;
 }
@@ -502,91 +406,105 @@ void ReplaceKey(uint8_t nKey, int nKeyNameEnum)
     {
         nFreezeKey = nDefaultFreezeKey;
         bFreezeKeySet = false;
-        SetRegistryValue(L"FreezeKey", nFreezeKey);
+        //SetRegistryValue(L"FreezeKey", nFreezeKey);
         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFreezeKey), &nFreezeKey, 1, 0);
     }
     else if (nFrameStepKey == nKey && nKeyNameEnum != KEY_FRAMESTEP)
     {
         nFrameStepKey = nDefaultFrameStepKey;
         bFrameStepKeySet = false;
-        SetRegistryValue(L"FrameStepKey", nFrameStepKey);
+        //SetRegistryValue(L"FrameStepKey", nFrameStepKey);
         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFrameStepKey), &nFrameStepKey, 1, 0);
+    }
+    else if (nPrevFrameKey == nKey && nKeyNameEnum != KEY_PREVFRAME)
+    {
+        nPrevFrameKey = nDefaultPrevFrameKey;
+        bPrevFrameKeySet = false;
+        //SetRegistryValue(L"PrevFrameKey", nPrevFrameKey);
+        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedPrevFrameKey), &nPrevFrameKey, 1, 0);
+    }
+    else if (nResetKey == nKey && nKeyNameEnum != KEY_RESET)
+    {
+        nResetKey = nDefaultResetKey;
+        bResetKeySet = false;
+        //SetRegistryValue(L"ResetKey", nResetKey);
+        WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedResetKey), &nResetKey, 1, 0);
     }
     else if (nHitboxDisplayKey == nKey && nKeyNameEnum != KEY_HITBOX)
     {
         nHitboxDisplayKey = nDefaultHitboxDisplayKey;
         bHitboxDisplayKeySet = false;
-        SetRegistryValue(L"HitboxDisplayKey", nHitboxDisplayKey);
+        //SetRegistryValue(L"HitboxDisplayKey", nHitboxDisplayKey);
         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHitboxesDisplayKey), &nHitboxDisplayKey, 1, 0);
     }
     else if (nFrameDataDisplayKey == nKey && nKeyNameEnum != KEY_FRAMEDATA)
     {
         nFrameDataDisplayKey = nDefaultFrameDataDisplayKey;
         bFrameDataDisplayKeySet = false;
-        SetRegistryValue(L"FrameDataDisplayKey", nFrameDataDisplayKey);
+        //SetRegistryValue(L"FrameDataDisplayKey", nFrameDataDisplayKey);
         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFrameDataDisplayKey), &nFrameDataDisplayKey, 1, 0);
     }
     else if (nHighlightsOnKey == nKey && nKeyNameEnum != KEY_HIGHLIGHT)
     {
         nHighlightsOnKey = nDefaultHighlightsOnKey;
         bHighlightsOnKeySet = false;
-        SetRegistryValue(L"HighlightsOnKey", nHighlightsOnKey);
+        //SetRegistryValue(L"HighlightsOnKey", nHighlightsOnKey);
         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedHighlightsOnKey), &nHighlightsOnKey, 1, 0);
     }
     else if (nSaveStateKey == nKey && nKeyNameEnum != KEY_SAVESTATE)
     {
         nSaveStateKey = nDefaultSaveStateKey;
         bSaveStateKeySet = false;
-        SetRegistryValue(L"SaveStateKey", nSaveStateKey);
+        //SetRegistryValue(L"SaveStateKey", nSaveStateKey);
         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedSaveStateKey), &nSaveStateKey, 1, 0);
     }
     else if (nPrevSaveSlotKey == nKey && nKeyNameEnum != KEY_PREVSAVE)
     {
         nPrevSaveSlotKey = nDefaultPrevSaveSlotKey;
         bPrevSaveSlotKeySet = false;
-        SetRegistryValue(L"PrevSaveSlotKey", nPrevSaveSlotKey);
+        //SetRegistryValue(L"PrevSaveSlotKey", nPrevSaveSlotKey);
         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedPrevSaveSlotKey), &nPrevSaveSlotKey, 1, 0);
     }
     else if (nNextSaveSlotKey == nKey && nKeyNameEnum != KEY_NEXTSAVE)
     {
         nNextSaveSlotKey = nDefaultNextSaveSlotKey;
         bNextSaveSlotKeySet = false;
-        SetRegistryValue(L"NextSaveSlotKey", nNextSaveSlotKey);
+        //SetRegistryValue(L"NextSaveSlotKey", nNextSaveSlotKey);
         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedNextSaveSlotKey), &nNextSaveSlotKey, 1, 0);
     }
     else if (nFrameBarScrollLeftKey == nKey && nKeyNameEnum != KEY_FRAMEBARLEFT)
     {
         nFrameBarScrollLeftKey = nDefaultFrameBarScrollLeftKey;
         bFrameBarScrollLeftKeySet = false;
-        SetRegistryValue(L"FrameBarScrollLeftKey", nFrameBarScrollLeftKey);
+        //SetRegistryValue(L"FrameBarScrollLeftKey", nFrameBarScrollLeftKey);
         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFrameBarScrollLeftKey), &nFrameBarScrollLeftKey, 1, 0);
     }
     else if (nFrameBarScrollRightKey == nKey && nKeyNameEnum != KEY_FRAMEBARRIGHT)
     {
         nFrameBarScrollRightKey = nDefaultFrameBarScrollRightKey;
         bFrameBarScrollRightKeySet = false;
-        SetRegistryValue(L"FrameBarScrollRightKey", nFrameBarScrollRightKey);
+        //SetRegistryValue(L"FrameBarScrollRightKey", nFrameBarScrollRightKey);
         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFrameBarScrollRightKey), &nFrameBarScrollRightKey, 1, 0);
     }
     else if (nRNGIncKey == nKey && nKeyNameEnum != KEY_RNGINC)
     {
         nRNGIncKey = nDefaultRNGIncKey;
         bRNGIncKeySet = false;
-        SetRegistryValue(L"RNGIncKey", nRNGIncKey);
+        //SetRegistryValue(L"RNGIncKey", nRNGIncKey);
         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedRNGIncKey), &nRNGIncKey, 1, 0);
     }
     else if (nRNGDecKey == nKey && nKeyNameEnum != KEY_RNGDEC)
     {
         nRNGDecKey = nDefaultRNGDecKey;
         bRNGDecKeySet = false;
-        SetRegistryValue(L"RNGDecKey", nRNGDecKey);
+        //SetRegistryValue(L"RNGDecKey", nRNGDecKey);
         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedRNGDecKey), &nRNGDecKey, 1, 0);
     }
     else if (nReversalKey == nKey && nKeyNameEnum != KEY_REVERSAL)
     {
         nReversalKey = nDefaultReversalKey;
         bReversalKeySet = false;
-        SetRegistryValue(L"ReversalKey", nReversalKey);
+        //SetRegistryValue(L"ReversalKey", nReversalKey);
     }
 }
 
@@ -796,4 +714,51 @@ void __stdcall netlog(const char* format, ...) {
 
 long long getMicroSec() {
     return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+}
+
+std::wstring getDLLPath() {
+    return L"ETM-x86.dll";
+    /*wchar_t buffer[1024];
+    if (!GetTempPathW(1024, buffer)) {
+        printf(RED "Failed to get temp path\n" RESET);
+        return L"";
+    }
+    std::wstring dllPath = std::wstring(buffer) + std::wstring(L"\\ETM-x86.dll");
+    return dllPath;*/
+}
+
+bool writeDLL() {
+
+    std::wstring dllPath = getDLLPath();
+
+    HINSTANCE hInstance = GetModuleHandle(NULL);
+
+    HRSRC hRes = FindResource(hInstance, MAKEINTRESOURCE(IDR_DLL1), L"DLL");
+    if (!hRes) {
+        printf(RED "Failed to FindResource %d\n" RESET, GetLastError());
+        return false;
+    }
+
+    HGLOBAL hData = LoadResource(hInstance, hRes);
+    if (!hData) {
+        printf(RED "Failed to LoadResource\n" RESET);
+        return false;
+    }
+    void* pData = LockResource(hData);
+    if (!pData) {
+        printf(RED "Failed to LockResource\n" RESET);
+        return false;
+    }
+
+    DWORD dwSize = SizeofResource(hInstance, hRes);
+
+    std::ofstream outFile(dllPath, std::ios::binary);
+    if (outFile) {
+        outFile.write(reinterpret_cast<char*>(pData), dwSize);
+    } else {
+        printf(RED "Failed to open dll file\n" RESET);
+        return false;
+    }
+
+    return true;
 }
