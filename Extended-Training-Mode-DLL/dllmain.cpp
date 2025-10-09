@@ -510,9 +510,7 @@ void __stdcall drawTextWithBorder(int x, int y, int w, int h, const char* text)
 	}
 }
 
-int asmDrawRect(int screenXAddr, int screenYAddr, int width, int height, int A, int B, int C, int D, int layer) {
-    return 0;
-}
+extern "C" int asmDrawRect(int screenXAddr, int screenYAddr, int width, int height, int A, int B, int C, int D, int layer);
 
 void __stdcall drawRect(int x, int y, int w, int h, BYTE r, BYTE g, BYTE b, BYTE a, int layer = 0x2cc)
 {
@@ -1891,8 +1889,8 @@ void frameDoneCallback()
 
 	setAllKeys();
 
-	shouldDrawBackground = *(uint8_t*)(dwBaseAddress + adSharedBackgroundStyle) == BG_NORMAL;
-	shouldDrawHud = !*(bool*)(dwBaseAddress + adSharedDisableHUD);
+    shouldDrawBackground = *(uint8_t*)(dwBaseAddress + adSharedBackgroundStyle) == BG_NORMAL;
+    shouldDrawHud = !*(bool*)(dwBaseAddress + adSharedDisableHUD);
 	shouldDrawGroundLine = *(bool*)(dwBaseAddress + adSharedDrawGround);
 	shouldDrawShadow = !*(bool*)(dwBaseAddress + adSharedDisableShadow);
 	fastReversePenalty = *(bool*)(dwBaseAddress + adSharedFastReversePenalty);

@@ -725,36 +725,26 @@ int main(int argc, char* argv[])
                         try
                         {
                             DWORD dwReturnToMainMenuString = GetReturnToMainMenuStringAddress(hMBAAHandle, dwBaseAddress);
-                            if (bNeedToAnnounceNewVersion)
-                            {
-                                // assemble the string for the message
-                                std::string sNewVersionMessage = "             VERSION " + sOnlineVersion + " AVAILABLE NOW ON GITHUB";
-                                int nMessageLength = sNewVersionMessage.size();
-                                sNewVersionMessage += "             " + sNewVersionMessage;
 
-                                if (nStartingTime == 0 || nCurrentSubMenu != nOldCurrentSubMenu || nMovingMessageIndex >= nMessageLength + 16)
-                                    nStartingTime = std::time(nullptr);
+                            // assemble the string for the message
+                            std::string sScrollingMessage = "      SEND LINUX ISSUES TO notanumb ON DISCORD <3";
+                            int nMessageLength = sScrollingMessage.size();
+                            sScrollingMessage += "             " + sScrollingMessage;
 
-                                // move the index based on the timer
-                                int nCurrentTime = std::time(nullptr);
-                                nMovingMessageIndex = (nCurrentTime - nStartingTime) * 2;
+                            if (nStartingTime == 0 || nCurrentSubMenu != nOldCurrentSubMenu || nMovingMessageIndex >= nMessageLength + 16)
+                                nStartingTime = std::time(nullptr);
 
-                                // chop the string up
-                                std::string sTempNewVersionMessage = "[" + sNewVersionMessage.substr(nMovingMessageIndex, 16) + "]";
+                            // move the index based on the timer
+                            int nCurrentTime = std::time(nullptr);
+                            nMovingMessageIndex = (nCurrentTime - nStartingTime) * 2;
 
-                                //send it
-                                char pcNewVersionMessage[19];
-                                strcpy_s(pcNewVersionMessage, (sTempNewVersionMessage).c_str());
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwReturnToMainMenuString), &pcNewVersionMessage, 19, 0);
-                            }
-                            else if (sOnlineVersion != "")
-                            {
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwReturnToMainMenuString), &pcLatestVersion_19, 19, 0);
-                            }
-                            else
-                            {
-                                WriteProcessMemory(hMBAAHandle, (LPVOID)(dwReturnToMainMenuString), &pcOffline_8, 8, 0);
-                            }
+                            // chop the string up
+                            std::string sTempNewVersionMessage = sScrollingMessage.substr(nMovingMessageIndex, 22);
+
+                            //send it
+                            char pcNewVersionMessage[24];
+                            strcpy_s(pcNewVersionMessage, (sTempNewVersionMessage).c_str());
+                            WriteProcessMemory(hMBAAHandle, (LPVOID)(dwReturnToMainMenuString), &pcNewVersionMessage, 24, 0);
                         }
                         catch (...)
                         {

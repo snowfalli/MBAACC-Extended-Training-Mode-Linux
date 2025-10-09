@@ -90,6 +90,7 @@ We have a [Discord](https://discord.gg/6QUpZcThg7) where you can report bugs, ge
 - the provided docker file should then work.. (i highly doubt this)
 - Download the DirectX SDK and place the header files and .libs under Common/d3dx9
 - Download [resource hacker](https://www.angusj.com/resourcehacker/) and place the .exe in the same directory as the Dockerfile
+- Use MASM to compile the DLLAsmFuncs.asm into a .obj (or skip this and edit the docker file if you dont care about background colors)
 - Run the docker file, then run  wine ResourceHacker.exe -script script.txt
 - Should work from there hopefully..
 
