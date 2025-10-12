@@ -986,7 +986,10 @@ int main(int argc, char* argv[])
                                     {
                                         ClearSave(nSaveSlot);
 
-                                        char pcMessageBuffer[32] = "CLEARED SAVE";
+                                        char pcMessageBuffer[64] = "CLEARED SAVE ";
+                                        char pcSaveSlot[32]; sprintf(pcSaveSlot, "%d", nSaveSlot);
+                                        strcat(pcMessageBuffer, pcSaveSlot);
+
                                         WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMessageBuffer), &pcMessageBuffer, 32, 0);
                                     }
                                     else if (nEnemySettingsCursor == 2)
@@ -1000,7 +1003,9 @@ int main(int argc, char* argv[])
                                         {
                                             SaveState(hMBAAHandle, nSaveSlot);
 
-                                            char pcMessageBuffer[32] = "CREATED SAVE";
+                                            char pcMessageBuffer[64] = "CREATED SAVE ";
+                                            char pcSaveSlot[32]; sprintf(pcSaveSlot, "%d", nSaveSlot);
+                                            strcat(pcMessageBuffer, pcSaveSlot);
                                             WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedMessageBuffer), &pcMessageBuffer, 32, 0);
                                         }
                                     }

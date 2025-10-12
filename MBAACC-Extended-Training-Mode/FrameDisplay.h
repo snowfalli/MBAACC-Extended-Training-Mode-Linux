@@ -330,6 +330,114 @@ void UpdatePlayers(HANDLE hMBAAHandle)
 	}
 }
 
+bool CheckSave(int nSaveSlot)
+{
+    if (nSaveSlot > 0)
+    {
+        return Saves[nSaveSlot - 1].bSaved;
+    }
+    return false;
+}
+
+void BackupSaveState(HANDLE hMBAAHandle, int nSaveSlot) {
+    try {
+        if (nSaveSlot > 0 && CheckSave(nSaveSlot)) {
+            Save& S = Saves[nSaveSlot - 1];
+            std::ofstream SaveOutFile;
+            std::wstring wsFileName = std::to_wstring(nSaveSlot) + L"backup.sav";
+            SaveOutFile.open(wsFileName);
+            int nP1CharacterNumber;
+            int nP2CharacterNumber;
+            int nP1Moon;
+            int nP2Moon;
+            ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + dwP1CharNumber), &nP1CharacterNumber, 4, 0);
+            ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + dwP2CharNumber), &nP2CharacterNumber, 4, 0);
+            ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + dwP1CharMoon), &nP1Moon, 4, 0);
+            ReadProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + dwP2CharMoon), &nP2Moon, 4, 0);
+
+            int nP1CharacterID = 10 * nP1CharacterNumber + nP1Moon;
+            int nP2CharacterID = 10 * nP2CharacterNumber + nP2Moon;
+            SaveOutFile << nP1CharacterID << std::endl;
+            SaveOutFile << nP2CharacterID << std::endl;
+            for (int i = 0; i < SAVE_NUM_EFFECTS; i++)
+            {
+                for (int j = 0; j < ADJ_SAVE_EFFECTS_SIZE; j++)
+                {
+                    SaveOutFile << S.dwaSaveEffects[i][j] << std::endl;
+                }
+            }
+            for (int i = 0; i < ADJ_SAVE_STOP_SITUATION_SIZE; i++)
+            {
+                SaveOutFile << S.dwaSaveStopSituation[i] << std::endl;
+            }
+            SaveOutFile << S.dwSaveGlobalFreeze << std::endl;
+            for (int i = 0; i < ADJ_SAVE_ATTACK_DISPLAY_INFO_SIZE; i++)
+            {
+                SaveOutFile << S.dwaSaveAttackDisplayInfo[i] << std::endl;
+            }
+            for (int i = 0; i < ADJ_SAVE_ATTACK_DISPLAY_INFO_2_SIZE; i++)
+            {
+                SaveOutFile << S.dwaSaveAttackDisplayInfo2[i] << std::endl;
+            }
+            SaveOutFile << S.dwSaveDestinationCamX << std::endl;
+            SaveOutFile << S.dwSaveCurrentCamX << std::endl;
+            SaveOutFile << S.dwSaveCurrentCamXCopy << std::endl;
+            SaveOutFile << S.dwSaveDestinationCamY << std::endl;
+            SaveOutFile << S.dwSaveCurrentCamY << std::endl;
+            SaveOutFile << S.dwSaveCurrentCamYCopy << std::endl;
+            SaveOutFile << S.dwSaveCurrentCamZoom << std::endl;
+            SaveOutFile << S.dwSaveDestinationCamZoom << std::endl;
+            SaveOutFile << S.dwSaveP1ControlledCharacter << std::endl;
+            SaveOutFile << S.dwSaveP1NextControlledCharacter << std::endl;
+            SaveOutFile << S.dwSaveP2ControlledCharacter << std::endl;
+            SaveOutFile << S.dwSaveP2NextControlledCharacter << std::endl;
+            for (int i = 0; i < ADJ_SAVE_RNG_SIZE; i++)
+            {
+                SaveOutFile << S.dwaSaveRNG[i] << std::endl;
+            }
+            for (int i = 0; i < ADJ_SAVE_PLAYER_1_SIZE; i++)
+            {
+                SaveOutFile << S.dwaSave1P1[i] << std::endl;
+            }
+            for (int i = 0; i < ADJ_SAVE_PLAYER_2_SIZE; i++)
+            {
+                SaveOutFile << S.dwaSave2P1[i] << std::endl;
+            }
+            for (int i = 0; i < ADJ_SAVE_PLAYER_1_SIZE; i++)
+            {
+                SaveOutFile << S.dwaSave1P2[i] << std::endl;
+            }
+            for (int i = 0; i < ADJ_SAVE_PLAYER_2_SIZE; i++)
+            {
+                SaveOutFile << S.dwaSave2P2[i] << std::endl;
+            }
+            for (int i = 0; i < ADJ_SAVE_PLAYER_1_SIZE; i++)
+            {
+                SaveOutFile << S.dwaSave1P3[i] << std::endl;
+            }
+            for (int i = 0; i < ADJ_SAVE_PLAYER_2_SIZE; i++)
+            {
+                SaveOutFile << S.dwaSave2P3[i] << std::endl;
+            }
+            for (int i = 0; i < ADJ_SAVE_PLAYER_1_SIZE; i++)
+            {
+                SaveOutFile << S.dwaSave1P4[i] << std::endl;
+            }
+            for (int i = 0; i < ADJ_SAVE_PLAYER_2_SIZE; i++)
+            {
+                SaveOutFile << S.dwaSave2P4[i] << std::endl;
+            }
+            SaveOutFile.close();
+        }
+    }
+    catch (...)
+    {
+        std::string sErrorString = "UNABLE TO CREATE SAVE STATE FILE";
+        int nReturnVal = MessageBoxA(NULL, sErrorString.c_str(), "", MB_ICONWARNING);
+        LogError("UNABLE TO CREATE SAVE STATE FILE");
+    }
+}
+
 void SaveState(HANDLE hMBAAHandle, int nSaveSlot)
 {
 	if (nSaveSlot > 0)
@@ -369,6 +477,7 @@ void SaveState(HANDLE hMBAAHandle, int nSaveSlot)
 
 		S.bSaved = true;
 	}
+    BackupSaveState(hMBAAHandle, nSaveSlot);
 }
 
 void LoadState(HANDLE hMBAAHandle, int nSaveSlot, bool bLoadRNG = false)
@@ -412,8 +521,8 @@ void LoadState(HANDLE hMBAAHandle, int nSaveSlot, bool bLoadRNG = false)
 		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adSaveDestinationCamZoom), &S.dwSaveDestinationCamZoom, 4, 0);
 		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1ControlledCharacter), &S.dwSaveP1ControlledCharacter, 4, 0);
 		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1NextControlledCharacter), &S.dwSaveP1NextControlledCharacter, 4, 0);
-		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2ControlledCharacter), &S.dwSaveP2ControlledCharacter, 4, 0);
-		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2NextControlledCharacter), &S.dwSaveP2NextControlledCharacter, 4, 0);
+        WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2ControlledCharacter), &S.dwSaveP2ControlledCharacter, 4, 0);
+        WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP2NextControlledCharacter), &S.dwSaveP2NextControlledCharacter, 4, 0);
 
 		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1SubBase + adSave1Offset), &S.dwaSave1P1, SAVE_PLAYER_1_SIZE, 0);
 		WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adP1SubBase + adSave2Offset), &S.dwaSave2P1, SAVE_PLAYER_2_SIZE, 0);
@@ -429,15 +538,6 @@ void LoadState(HANDLE hMBAAHandle, int nSaveSlot, bool bLoadRNG = false)
 			WriteProcessMemory(hMBAAHandle, (LPVOID)(adMBAABase + adSaveRNG), &S.dwaSaveRNG, SAVE_RNG_SIZE, 0);
 		}
 	}
-}
-
-bool CheckSave(int nSaveSlot)
-{
-	if (nSaveSlot > 0)
-	{
-		return Saves[nSaveSlot - 1].bSaved;
-	}
-	return false;
 }
 
 void SaveStateToFile(HANDLE hMBAAHandle, int nSaveSlot)
@@ -663,6 +763,7 @@ void LoadStateFromFile(HANDLE hMBAAHandle, int nSaveSlot)
 		LogError("UNABLE TO PARSE SAVE STATE FILE");
 	}
 }
+
 
 void ClearSave(int nSaveSlot)
 {
