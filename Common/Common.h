@@ -768,7 +768,7 @@ static bool GetOpenSAVFileName(HANDLE hMBAAHandle, DWORD dwBaseAddress, std::wst
 	if (bResult)
 	{
 		//*pwsFileName = std::wstring (ofn.lpstrFile);
-		*pwsFileName = std::wstring (ofn.lpstrFile);
+		*pwsFileName = std::wstring(ofn.lpstrFile);
 		return true;
 	}
 	return false;

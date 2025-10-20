@@ -9,9 +9,10 @@ void dualInputDisplay();
 void BorderDraw(float x, float y, float w, float h, DWORD ARGB = 0x8042e5f4);
 void cursorDraw();
 unsigned directxFrameCount = 0;
+unsigned mouseHideFrameCount = 0;
 
 D3DXVECTOR2 mousePos; // no use getting this multiple times a frame
-
+D3DXVECTOR2 prevMousePos;
 typedef struct DragInfo {
 	float* dragPointX;
 	float* dragPointY;
@@ -1253,6 +1254,8 @@ void __stdcall backupRenderState() {
 				mousePos = { -100.0f, -100.0f };
 			}
 
+            prevMousePos = mousePos;
+
 			mousePos = D3DXVECTOR2((float)tempMousePos.x, (float)tempMousePos.y);
 
 			mousePos.x -= mouseTopLeft.x;
@@ -1906,6 +1909,15 @@ void joystickDraw(float x, float y, float size, DWORD ARGB) {
 }
 
 void cursorDraw() {
+
+    float xVel = mousePos.x - prevMousePos.x;
+    float yVel = mousePos.y - prevMousePos.y;
+
+    if (mouseHideFrameCount > 180 && (xVel+yVel) != 0) {
+        mouseHideFrameCount = 0;
+    } else if (mouseHideFrameCount > 180) return;
+
+    mouseHideFrameCount++;
 
 	D3DXVECTOR2 charTopLeft;
 	D3DXVECTOR2 charW;

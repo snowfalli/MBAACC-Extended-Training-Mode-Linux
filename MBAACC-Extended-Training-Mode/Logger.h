@@ -6,7 +6,7 @@
 #include <format>
 #include <fstream>
 
-#include "..\Common\Common.h"
+#include "../Common/Common.h"
 
 static std::string m_sLogFile;
 static std::ofstream m_fLogFile;
