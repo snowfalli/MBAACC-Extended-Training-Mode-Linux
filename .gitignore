@@ -94,3 +94,7 @@ ResourceHacker.log
 ResourceHacker.ini
 compile_flags.txt
 Extended-Training-Mode-Linux.pro
+/.vscode
+CMakeLists.txt
+build.sh
+/.idea
