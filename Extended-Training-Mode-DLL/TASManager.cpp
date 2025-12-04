@@ -1,6 +1,4 @@
-#ifndef UNICODE
-#define UNICODE
-#endif
+
 #include "DirectX.h"
 #include "TASManager.h"
 #include <fstream>
@@ -10,6 +8,7 @@
 #include <algorithm>
 #include <random> 
 #include "DebugInfo.h"
+#include "dllmain.h"
 
 bool enableTAS = false;
 bool randomTAS = false;
@@ -326,7 +325,7 @@ void TASManager::setInputs(int playerIndex) {
 
 		// dir
 		// if (*(BYTE*)(0x00555130 + 0x314) == 1) {
-		if(playerDataArr[playerIndex].facingLeft == 1) {
+		if(playerDataArr[playerIndex].subObj.isOpponentToLeft == 1) {
 			constexpr uint8_t dirLookup[10] = { 0, 3, 2, 1, 6, 5, 4, 9, 8, 7 };
 			*(BYTE*)(baseAddr + 0) = dirLookup[tasData[tasIndex].dir];
 		} else {
@@ -346,28 +345,28 @@ void TASManager::setInputs(int playerIndex) {
 	switch (tasData[tasIndex].command) {
 
 	case TASCommand::P1XPos:
-		playerDataArr[0].xPos = tasData[tasIndex].commandData;
+		playerDataArr[0].subObj.xPos = tasData[tasIndex].commandData;
 		break;
 	case TASCommand::P2XPos:
-		playerDataArr[1].xPos = tasData[tasIndex].commandData;
+		playerDataArr[1].subObj.xPos = tasData[tasIndex].commandData;
 		break;
 	case TASCommand::P3XPos:
-		playerDataArr[2].xPos = tasData[tasIndex].commandData;
+		playerDataArr[2].subObj.xPos = tasData[tasIndex].commandData;
 		break;
 	case TASCommand::P4XPos:
-		playerDataArr[3].xPos = tasData[tasIndex].commandData;
+		playerDataArr[3].subObj.xPos = tasData[tasIndex].commandData;
 		break;
 	case TASCommand::P1Meter:
-		playerDataArr[0].magicCircuit = tasData[tasIndex].commandData;
+		playerDataArr[0].subObj.magicCircuit = tasData[tasIndex].commandData;
 		break;
 	case TASCommand::P2Meter:
-		playerDataArr[1].magicCircuit = tasData[tasIndex].commandData;
+		playerDataArr[1].subObj.magicCircuit = tasData[tasIndex].commandData;
 		break;
 	case TASCommand::P3Meter:
-		playerDataArr[2].magicCircuit = tasData[tasIndex].commandData;
+		playerDataArr[2].subObj.magicCircuit = tasData[tasIndex].commandData;
 		break;
 	case TASCommand::P4Meter:
-		playerDataArr[3].magicCircuit = tasData[tasIndex].commandData;
+		playerDataArr[3].subObj.magicCircuit = tasData[tasIndex].commandData;
 		break;
 	case TASCommand::RNG:
 		SetSeed(tasData[tasIndex].commandDataU32);

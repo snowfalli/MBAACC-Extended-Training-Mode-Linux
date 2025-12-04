@@ -1,5 +1,5 @@
 #pragma once
-#include "../Common/Common.h"
+#include "..\Common\Common.h"
 
 static DWORD GetSubMenuEnumAddress(HANDLE hMBAAHandle, DWORD dwBaseAddress)
 {
@@ -1716,7 +1716,7 @@ static DWORD GetReturnToMainMenuStringAddress(HANDLE hMBAAHandle, DWORD dwBaseAd
     dwTempAddress = nReadResult;
     ReadProcessMemory(hMBAAHandle, (LPVOID)(dwTempAddress + 0x4C), &nReadResult, 4, 0);
     dwTempAddress = nReadResult;
-    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwTempAddress + 0x40), &nReadResult, 4, 0);
+    ReadProcessMemory(hMBAAHandle, (LPVOID)(dwTempAddress + 0x48), &nReadResult, 4, 0);
     dwTempAddress = nReadResult;
     ReadProcessMemory(hMBAAHandle, (LPVOID)(dwTempAddress + 0x24), &nReadResult, 4, 0);
     dwTempAddress = nReadResult;

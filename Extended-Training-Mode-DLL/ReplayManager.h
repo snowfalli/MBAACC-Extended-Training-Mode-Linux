@@ -1,19 +1,12 @@
 #pragma once
 
-
-#include <cstdio>
-#include <cstdint>
-#include <cstdlib>
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <string>
-#include <regex>
 #include <set>
 
 #include "FancyMenu.h"
 
-#include "DirectX.h"
+// forward decleration of menu class
+template <typename T>
+class Menu;
 
 #pragma pack(push,1)
 typedef struct InputItem {
@@ -159,7 +152,7 @@ public:
 	std::string getReplayList();
 
 	void drawMenu();
-		
+
 	int replayPage = 0;
 	int pageCount = 0;
 	int replaysPerPage = 25;

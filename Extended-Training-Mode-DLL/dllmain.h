@@ -1,9 +1,9 @@
 #pragma once
-#define UNICODE 1
-#include "../Common/Common.h"
+
 //#include <ws2tcpip.h>
 //#include <winsock2.h>
-//#include <windows.h>
+#include <Windows.h>
+
 #include <cstring> 
 #include <cstdio>
 #include <psapi.h>
@@ -23,7 +23,6 @@
 #include <thread>
 #include <wchar.h>
 
-#include "../Common/CharacterData.h"
 
 
 #include <d3d9.h>
@@ -46,9 +45,6 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define CLAMP(value, min_val, max_val) MAX(MIN((value), (max_val)), (min_val))
 #define SAFEMOD(a, b) (((b) + ((a) % (b))) % (b))
-
-#define asmCall(f) \
-__asm { call f }
 
 #define PUSH_CALLEE __asm \
 {                         \
@@ -153,7 +149,7 @@ extern DWORD fastReversePenalty;
 extern DWORD __frameDoneCount;
 extern DWORD unpausedFrameCount;
 
-extern ADDRESS dwCasterBaseAddress;
+extern DWORD dwCasterBaseAddress;
 
 extern bool logSaveState;
 
@@ -178,15 +174,6 @@ void __stdcall log(const char* format, ...);
 void __stdcall ___log(const wchar_t* msg);
 
 void __stdcall log(const wchar_t* format, ...);
-
-inline long long getMicroSec() {
-	return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-	//return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now()).count();
-}
-
-inline long long getNanoSec() {
-	return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-}
 
 bool __stdcall safeWrite();
 
@@ -312,12 +299,8 @@ constexpr DWORD hashString(const std::string_view& str) {
 	return hash;
 }
 
-
-
-
 void nakedFrameDoneCallback_RAW();
 
 void timeMeltyCall(DWORD patchAddr, const char* funcName = "???");
 
 extern bool needTrainingModeReset;
-

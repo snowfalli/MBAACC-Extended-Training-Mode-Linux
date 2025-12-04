@@ -120,3 +120,9 @@ bool GetD3D9Device(void** pTable, size_t Size)
     pD3D->Release();
     return true;
 }
+
+void DrawFilledRect(int x, int y, int w, int h, D3DCOLOR color, IDirect3DDevice9* dev)
+{
+    D3DRECT BarRect = { x, y, x + w, y + h };
+    dev->Clear(1, &BarRect, D3DCLEAR_TARGET | D3DCLEAR_TARGET, color, 0, 0);
+}

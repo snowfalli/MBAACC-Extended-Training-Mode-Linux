@@ -1,11 +1,24 @@
-#ifndef UNICODE
-#define UNICODE
-#endif
+
 #include "DirectX.h"
 #include "ReplayManager.h"
 #include "DebugInfo.h"
 
+
+#include <cstdio>
+#include <cstdint>
+#include <cstdlib>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <regex>
+//#include <set>
 #include <filesystem>
+
+
+
+
+//#include "DirectX.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -46,7 +59,7 @@ void InputItem::setMeltyInput(int playerIndex) {
 	DWORD baseAddr = 0x00771398 + (0x2C * playerIndex);
 
 	BYTE tempDir = dir;
-	BYTE facingLeft = playerDataArr[playerIndex].facingLeft;
+	BYTE facingLeft = playerDataArr[playerIndex].subObj.facingLeft;
 
 	if (facingLeft) {
 		constexpr int dirLookup[] = { 0, 3, 2, 1, 6, 5, 4, 9, 8, 7 };
@@ -219,7 +232,7 @@ bool Replay::load(const std::string& filePath_) {
 
 	std::ifstream file(filePath, std::ios::binary | std::ios::ate);
 	if (!file.good()) {
-        log("couldnt find replay file");
+		//log("couldnt find %s", filePath);
 		return false;
 	}
 
@@ -363,7 +376,7 @@ void ReplayManager::load(const std::string& filePath_) {
 
 	replays.insert(replay);
 	//activeReplay = replays.size() - 1;
-	
+
 	log("replay manager load succeeded");
 
 }
@@ -448,7 +461,7 @@ Replay* ReplayManager::getReplay(int index) {
 
 	auto it = std::next(replays.begin(), index);
 
-	return *it; 
+	return *it;
 
 }
 
@@ -519,7 +532,7 @@ std::string ReplayManager::getReplayList() {
 }
 
 void ReplayManager::initMenu() {
-	
+
 	if (wasMenuInit) {
 		return;
 	}

@@ -2,11 +2,33 @@
 #include <cstdio>
 #include <type_traits>
 #include <set>
-#include "dllmain.h"
+#include <map>
+//#include "dllmain.h"
 #include "resource.h"
-#include "version.h"
-#include "DirectXHook.h"
+//#include "..\Common\Common.h"
 //#include "FancyMenu.h"
+#include "..\Common\types.h"
+
+#include <string>
+#include <array>
+#include <vector>
+#include <functional>
+
+#include <d3d9.h>
+#include <d3dx9math.h>
+#include <d3d9types.h>
+
+#include "DirectXHook.h"
+
+void __stdcall ___log(const char* msg);
+
+void __stdcall log(const char* format, ...);
+
+void __stdcall ___log(const wchar_t* msg);
+
+void __stdcall log(const wchar_t* format, ...);
+
+extern IDirect3DDevice9* device;
 
 extern bool logPowerInfo;
 extern bool logVerboseFps;
@@ -20,231 +42,10 @@ extern int maxCrowdVel;
 
 extern int showRoaHiddenCharge;
 
+extern bool doSaveScreenshot;
+
 //extern IDirectInput8* inputDevice;
 
-template <typename T, int size>
-class CircularBuffer {
-public:
-
-	CircularBuffer() {}
-
-	void pushHead(const T& v) {
-		index++;
-		if (index >= size) {
-			index = 0;
-		}
-		data[index] = v;
-	}
-
-	void pushTail(const T& v) {
-		index--;
-		if (index < 0) {
-			index = size - 1;
-		}
-		data[index] = v;
-	}
-
-	void rollHead() {
-		index--;
-		if (index >= size) {
-			index = 0;
-		}
-	}
-
-	void rollTail() {
-		index++;
-		if (index < 0) {
-			index = size - 1;
-		}
-	}
-
-	T& front() {
-		return data[index];
-	}
-
-	int totalMemory() {
-		return sizeof(T) * size;
-	}
-
-	void clear() {
-		for (size_t i = 0; i < size; i++) {
-			data[i] = T();
-		}
-		index = 0;
-	}
-
-	T& operator [](int i) {
-		while (i < 0) {
-			i += size;
-		}
-		i += index;
-		return data[i % size];
-	}
-	
-	const T& operator [](int i) const {
-		while (i < 0) {
-			i += size;
-		}
-		i += index;
-		return data[i % size];
-	}
-
-	T data[size];
-	int index = 0; // index will be the head, index-1 will be the tail
-};
-
-typedef struct FreqTimerData {
-	float min;
-	float mean;
-	float max;
-	float stdev;
-} FreqTimerData;
-
-// meant to,,, assist in timing certain things/seeing how frequently something is called per frame
-extern float _freqTimerYVal; // template classes dont share statics
-template<int size>
-class FreqTimer {
-public:
-
-	void tick() {
-		long long time = getNanoSec();
-		float temp = (float)1000000000.0 / ((float)time - prevTime);
-		buffer.pushHead(temp);
-		prevTime = time;
-	}
-
-	FreqTimerData getData() {
-		FreqTimerData res;
-
-		res.min = buffer.data[0];
-		res.max = buffer.data[0];
-		res.mean = 0.0;
-		int tempSize = size;
-		for (int i = 0; i < size; i++) {
-			if (std::isnan(buffer.data[i]) || std::isinf(buffer.data[i])) {
-				tempSize--;
-				continue;	
-			}
-			res.mean += buffer.data[i];
-			res.min = MIN(res.min, buffer.data[i]);
-			res.max = MAX(res.max, buffer.data[i]);
-		}
-
-		if (tempSize != 0) {
-			res.mean /= ((float)tempSize);
-		} else {
-			res.mean = NAN;
-		}
-
-		res.stdev = 0.0f;
-		for (int i = 0; i < size; i++) {
-			if (std::isnan(buffer.data[i]) || std::isinf(buffer.data[i])) {
-				continue;
-			}
-			res.stdev += (buffer.data[i] - res.mean) * (buffer.data[i] - res.mean);
-		}
-
-		if (tempSize != 0) {
-			res.stdev /= ((float)tempSize - 1);
-			res.stdev = sqrtf(res.stdev);
-		} else {
-			res.stdev = NAN;
-		}
-
-		return res;
-	}
-
-	void log() {
-
-		FreqTimerData res = getData();
-
-		TextDraw(50.0f, 10.0 + (_freqTimerYVal  * 4), 4, 0xFFFFFFFF, "%5.2lf %5.2lf %5.2lf", res.mean, res.min, res.max);
-		_freqTimerYVal += 4;
-	}
-
-	long long prevTime = 0;
-	CircularBuffer<float, size> buffer;
-
-};
-
-template <typename T>
-class Vec {
-public:
-
-	Vec(int maxSize_ = 16) {
-		maxSize = maxSize_;
-		if(maxSize != 0) {
-			data = (T*)malloc(maxSize * sizeof(T));
-		}
-	}
-
-	~Vec() {
-		if (data != NULL) {
-			free(data);
-			data = NULL;
-		}
-	}
-
-	Vec(const Vec& other) = delete;
-	Vec& operator=(const Vec& other) = delete;
-
-	int totalMemory() {
-		return sizeof(T) * maxSize;
-	}
-
-	void resize() {
-		maxSize *= 2;
-		T* temp = (T*)realloc(data, maxSize * sizeof(T));
-		
-		if (temp == NULL) {
-			log("vec resize failed??!");
-			return;
-		}
-
-		data = temp;
-	}
-
-	void addCapacity(int n) {
-		maxSize += n;
-
-		T* temp = (T*)realloc(data, maxSize * sizeof(T));
-
-		if (temp == NULL) {
-			log("Vec realloc failed??!");
-			return;
-		}
-
-		data = temp;
-	}
-
-	void push_back(const T& newItem) {
-
-		if (size == maxSize) {
-			resize();
-		}
-
-		data[size] = newItem;
-		size++;
-	}
-
-	void emplace_back(const T&& newItem) {
-
-		if (size == maxSize) {
-			resize();
-		}
-
-		data[size] = std::forward<T>(newItem);
-		size++;
-	}
-	
-	T operator [](int i) const { return data[i]; }
-	T& operator [](int i) { return data[i]; }
-
-	T* data = NULL;
-	int size = 0;
-	int maxSize = 0;
-
-};
 
 void _naked_InitDirectXHooks();
 void dualInputDisplay();
@@ -263,76 +64,7 @@ extern bool kDown;
 extern bool lDown;
 extern bool mDown;
 
-// my inconsistent use of D3DXVECTOR2 vs point is bad. i should use point
-
-struct Rect;
-typedef struct Rect Rect;
-
-typedef struct Point {
-	float x = 0.0;
-	float y = 0.0;
-	Point() {}
-	Point(float x_, float y_) : x(x_), y(y_) {}
-	bool operator==(const Point const& rhs) { return x == rhs.x && y == rhs.y; }
-	bool operator!=(const Point const& rhs) { return x != rhs.x || y != rhs.y; }
-	Point operator+(const Point const& rhs) { return Point(x + rhs.x, y + rhs.y); }
-	Point operator-(const Point const& rhs) { return Point(x - rhs.x, y - rhs.y); }
-	Point& operator+=(const Point const& rhs) { x += rhs.x; y += rhs.y; return *this; }
-	Point& operator-=(const Point const& rhs) { x -= rhs.x; y -= rhs.y; return *this; }
-	Point& operator=(const Point const& rhs) { if (this != &rhs) { x = rhs.x; y = rhs.y; } return *this; }
-
-	bool inside(const Rect& rect) const;
-
-	bool outside(const Rect& rect) const;
-
-} Point;
-
-typedef struct Rect {
-
-	// there is specifically not a 4 float constructor due to ambiguity between if its 2 points, or 1 point, and width, height
-	Rect() {}
-
-	Rect(const Point& a, const Point& b) {
-		x1 = a.x;
-		y1 = a.y;
-		x2 = b.x;
-		y2 = b.y;
-	}
-
-	Rect(const Point& a, float w, float h) {
-		x1 = a.x;
-		y1 = a.y;
-		x2 = a.x + w; 
-		y2 = a.y + h;
-	}
-
-	union {
-		struct {
-			float x1;
-			float y1;
-		};
-		Point p1;
-	};
-	
-	union {
-		struct {
-			float x2;
-			float y2;
-		};
-		Point p2;
-	};
-
-	bool inside(const Point& p) const {
-		return (p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2);
-	}
-
-	bool outside(const Point& p) const {
-		return !inside(p);
-	}
-	
-	Rect& operator=(const Rect const& rhs) { if (this != &rhs) { p1 = rhs.p1; p2 = rhs.p2; } return *this; }
-
-} Rect;
+// my inconsistent use of D3DXVECTOR2 vs point is bad. i should use poin
 
 typedef struct DragInfo {
 	float* dragPointX;
@@ -358,7 +90,7 @@ typedef struct DragInfo {
 		};
 		Rect bounds;
 	};
-	
+
 	bool enable = false;
 
 	DragInfo() {}
@@ -436,9 +168,9 @@ public:
 };
 
 template <typename T>
-class Quad { 
+class Quad {
 public:
-	// really should have made this class more complex to allow for easier texture usage, and also i need to make my point class better. but i also need to actually use that class 
+	// really should have made this class more complex to allow for easier texture usage, and also i need to make my point class better. but i also need to actually use that class
 	Quad() {}
 
 	Quad(const T& v1_, const T& v2_, const T& v3_, const T& v4_) {
@@ -461,7 +193,7 @@ public:
 	}
 
 	Quad(const Rect& pos, const Rect& texPos = Rect({ 0.0f, 0.0f }, { 0.0f, 0.0f }), DWORD col = 0xFF42E5F4) {
-		v1 = T(pos.x1, pos.y1, 0.0f, 1.0f, texPos.x1, texPos.y1, col); 
+		v1 = T(pos.x1, pos.y1, 0.0f, 1.0f, texPos.x1, texPos.y1, col);
 		v2 = T(pos.x2, pos.y1, 0.0f, 1.0f, texPos.x2, texPos.y1, col);
 		v3 = T(pos.x1, pos.y2, 0.0f, 1.0f, texPos.x1, texPos.y2, col);
 		v4 = T(pos.x2, pos.y2, 0.0f, 1.0f, texPos.x2, texPos.y2, col);
@@ -492,7 +224,8 @@ public:
 
 	void alloc() {
 		if (vertexBuffer == NULL) {
-            if (FAILED(pD3DDevice->CreateVertexBuffer(vertexCount * sizeof(T), 0, vertexFormat, D3DPOOL_MANAGED, &vertexBuffer, NULL))) {
+			if (FAILED(pD3DDevice->CreateVertexBuffer(vertexCount * sizeof(T), 0, vertexFormat, D3DPOOL_MANAGED, &vertexBuffer, NULL))) {
+				MessageBoxA(NULL, "failed to alloc a vertex buffer!", "failed to alloc a vertex buffer!", MB_ICONERROR);
 				log("failed to alloc a vertex buffer!");
 				vertexBuffer = NULL;
 			}
@@ -557,7 +290,7 @@ public:
 			// this log call was getting called to often, and would fuck things up
 			return;
 		}
-		
+
 		vertexData[vertexIndex++] = v1;
 		vertexData[vertexIndex++] = v2;
 		vertexData[vertexIndex++] = v3;
@@ -588,7 +321,7 @@ public:
 		}
 
 		if (texture != NULL && *texture != NULL) {
-            pD3DDevice->SetTexture(0, *texture);
+			pD3DDevice->SetTexture(0, *texture);
 		}
 
 		// ideally i should be scaling the vertices in here, but is it worth it?
@@ -609,9 +342,9 @@ public:
 			primCount /= 2;
 		}
 
-        pD3DDevice->SetStreamSource(0, vertexBuffer, 0, sizeof(T));
-        pD3DDevice->SetFVF(vertexFormat);
-        pD3DDevice->DrawPrimitive(primType, 0, primCount);
+		pD3DDevice->SetStreamSource(0, vertexBuffer, 0, sizeof(T));
+		pD3DDevice->SetFVF(vertexFormat);
+		pD3DDevice->DrawPrimitive(primType, 0, primCount);
 
 		// i could use DrawIndexedPrimitive here? check if faster.
 		// would be super nice, esp for text drawing at the minimum
@@ -620,7 +353,7 @@ public:
 		vertexIndex = 0;
 
 		if (texture != NULL && *texture != NULL) {
-            pD3DDevice->SetTexture(0, NULL);
+			pD3DDevice->SetTexture(0, NULL);
 		}
 	}
 
@@ -655,7 +388,7 @@ typedef struct PosColTexVert {
 } PosColTexVert;
 
 typedef struct MeltyVert { // if having all these initializers causes slowdown, ill cry
-	
+
 	union {
 		D3DVECTOR position = D3DVECTOR(0.0f, 0.0f, 0.0f);
 		struct {
@@ -673,7 +406,7 @@ typedef struct MeltyVert { // if having all these initializers causes slowdown, 
 			float v;
 		};
 	};
-	
+
 	MeltyVert() {}
 
 	MeltyVert(float x, float y, D3DXVECTOR2 uv_, DWORD col = 0xFFFFFFFF) {
@@ -709,7 +442,7 @@ extern size_t fontBufferMeltySize;
 extern IDirect3DTexture9* fontTextureMelty;
 
 extern VertexData<PosColVert, 3 * 2048> posColVertData;//(D3DFVF_XYZ | D3DFVF_DIFFUSE);
-extern VertexData<PosTexVert, 3 * 2048> posTexVertData;//(D3DFVF_XYZ | D3DFVF_TEX1, &fontTexture);
+extern VertexData<PosTexVert, 3 * 4096> posTexVertData;//(D3DFVF_XYZ | D3DFVF_TEX1, &fontTexture);
 // need to rework font rendering, 4096 is just horrid
 //extern VertexData<PosColTexVert, 3 * 4096 * 2> posColTexVertData;// (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1, &fontTextureMelty);
 extern VertexData<PosColTexVert, 3 * 4096 * 16 * 2> posColTexVertData;// (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1, &fontTextureMelty);
@@ -773,7 +506,7 @@ enum class BoxType {
 	Clash, // yellow
 	Blue, // what is this
 	Shield, // Purple, also like,,, vaki??
-	Reflect, // 
+	Reflect, //
 	Throw,
 
 	_Count, // dont use
@@ -881,19 +614,19 @@ inline void scaleVertex(D3DVECTOR& v) {
 
     ret;
 
-	might be faster, 
-	but would require the struct to be alignas(16) 
-	at the very least, it is not slower, despite doing 
+	might be faster,
+	but would require the struct to be alignas(16)
+	at the very least, it is not slower, despite doing
 	2x mults.
 	very weird
-	
+
 	*/
 }
 
 inline void scaleVertex(MeltyVert& v) {
 	v.position.x += topLeftPos.x;
 	v.position.y += topLeftPos.y;
-	
+
 	v.position.x *= renderModificationFactor.x;
 	v.position.y *= renderModificationFactor.y;
 }
@@ -996,7 +729,7 @@ void HitboxBatchDrawNoBlend(const BoxObjects* b);
 
 void HitboxBatchDrawBlend(const BoxObjects* b);
 
-// ----- horrid Profiler, as a treat 
+// ----- horrid Profiler, as a treat
 
 extern std::vector<std::function<void(void)>> drawCalls;
 typedef struct ProfileInfo {
@@ -1039,7 +772,8 @@ public:
 
 void DrawHitboxes(BoxObjects* b);
 
-constexpr int logHistorySize = 32;
+//constexpr int logHistorySize = 32; // this number should really be gotten dynamically. why did i.. what was i, why. why am i like this
+constexpr int logHistorySize = 48;
 extern char* logHistory[logHistorySize];
 extern int logHistoryIndex;
 void DrawLog(char* s);
@@ -1058,6 +792,17 @@ void _drawLog();
 
 extern bool debugMode;
 extern bool verboseMode;
+
+extern int verboseShowPlayers;
+extern int verboseShowEffects;
+extern int verboseShowUnknown;
+extern int verboseShowPatternState;
+extern int verboseShowPos;
+extern int verboseShowVel;
+extern int verboseShowAccel;
+extern int verboseShowUntech;
+extern int verboseShowDamage;
+
 extern bool overkillVerboseMode;
 extern bool doDrawProfiler;
 extern bool doDrawVertexInfo;
