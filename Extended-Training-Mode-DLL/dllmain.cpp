@@ -88,7 +88,7 @@ bool bHighlightsOn = true;
 DWORD shouldDrawBackground = 1;
 DWORD shouldDrawHud = 1;
 DWORD shouldDrawGroundLine = 0;
-DWORD backgroundColor = 0xFFFFFFFF;
+DWORD backgroundColor = 0xFF000000;
 DWORD shouldDrawShadow = 0;
 DWORD fastReversePenalty = 0;
 DWORD shouldDrawMeter = 1;
@@ -2418,43 +2418,43 @@ void frameDoneCallback()
 	switch (nBACKGROUND)
 	{
 	case BG_NORMAL:
-		shouldDrawBackground = true;
-		break;
-	case BG_RED:
-		shouldDrawBackground = false;
-		backgroundColor = 0xFFFF0000;
-		break;
-	case BG_GREEN:
-		shouldDrawBackground = false;
-		backgroundColor = 0xFF00FF00;
-		break;
-	case BG_BLUE:
-		shouldDrawBackground = false;
-		backgroundColor = 0xFF0000FF;
-		break;
-	case BG_WHITE:
-		shouldDrawBackground = false;
-		backgroundColor = 0xFFFFFFFF;
-		break;
-	case BG_BLACK:
-		shouldDrawBackground = false;
-		backgroundColor = 0xFF000000;
-		break;
-	case BG_GRAY:
-		shouldDrawBackground = false;
-		backgroundColor = 0xFF888888;
-		break;
-	case BG_YELLOW:
-		shouldDrawBackground = false;
-		backgroundColor = 0xFFFFFF00;
-		break;
-	case BG_PURPLE:
-		shouldDrawBackground = false;
-		backgroundColor = 0xFFFF00FF;
-		break;
-	default:
-		break;
-	}
+        shouldDrawBackground = 1;
+        break;
+    case BG_RED:
+        shouldDrawBackground = 0;
+        backgroundColor = 0xFFFF0000;
+        break;
+    case BG_GREEN:
+        shouldDrawBackground = 0;
+        backgroundColor = 0xFF00FF00;
+        break;
+    case BG_BLUE:
+        shouldDrawBackground = 0;
+        backgroundColor = 0xFF0000FF;
+        break;
+    case BG_WHITE:
+        shouldDrawBackground = 0;
+        backgroundColor = 0xFFFFFFFF;
+        break;
+    case BG_BLACK:
+        shouldDrawBackground = 0;
+        backgroundColor = 0xFF000000;
+        break;
+    case BG_GRAY:
+        shouldDrawBackground = 0;
+        backgroundColor = 0xFF888888;
+        break;
+    case BG_YELLOW:
+        shouldDrawBackground = 0;
+        backgroundColor = 0xFFFFFF00;
+        break;
+    case BG_PURPLE:
+        shouldDrawBackground = 0;
+        backgroundColor = 0xFFFF00FF;
+        break;
+    default:
+        break;
+    }
 
 	bool ok = true;
 	MSG msg;
@@ -3671,7 +3671,7 @@ __declspec(naked) void _naked_preventPauseReset() {
 
 void drawSolidBackground() {
 
-	if (backgroundColor == 0xFF000000) {
+	if (shouldDrawBackground == 1) {
 		return;
 	}
 
@@ -3716,6 +3716,14 @@ void drawBackgroundLine() {
 
 }
 
+void shouldDrawBackgroundAndGround() {
+	drawSolidBackground();
+
+	if (shouldDrawGroundLine == 1) {
+		drawBackgroundLine();
+	}
+}
+
 DWORD _naked_DrawBackground_FuncAddr = 0x004b9540;
 __declspec(naked) void _naked_DrawBackground() {
 
@@ -3731,16 +3739,10 @@ __declspec(naked) void _naked_DrawBackground() {
 
 	}
 
-	PUSH_ALL;
-	//TODO
-	/*if (shouldDrawBackground == 0) {
-		drawSolidBackground();
-	}
+	PUSH_ALL
+	asmCall(shouldDrawBackgroundAndGround)
+	POP_ALL
 
-	if (shouldDrawGroundLine == 1) {
-		drawBackgroundLine();
-	}*/
-	POP_ALL;
 
 	__asm {
 		push 004238c5h
