@@ -5740,12 +5740,50 @@ __declspec(naked) void _naked_TrainingMenuSwitch() {
 
 		_DOEXTENDEDSETTINGS:
 			mov mainWindow, ebp;
+			push esp //PUSH_ALL
+			push ebp
+			push edi
+			push esi
+			push edx
+			push ecx
+			push ebx
+			push eax
+			push ebp
+			mov  ebp, esp
 			call HandleExtendedMenu;
+			pop ebp //POP_ALL
+			pop eax
+			pop ebx
+			pop ecx
+			pop edx
+			pop esi
+			pop edi
+			pop ebp
+			pop esp
 			jmp _BREAKSWITCH;
 
 		_DOHOTKEYSETTINGS:
 			mov mainWindow, ebp;
+			push esp //PUSH_ALL
+			push ebp
+			push edi
+			push esi
+			push edx
+			push ecx
+			push ebx
+			push eax
+			push ebp
+			mov  ebp, esp
 			call HandleHotkeyMenu;
+			pop ebp //POP_ALL
+			pop eax
+			pop ebx
+			pop ecx
+			pop edx
+			pop esi
+			pop edi
+			pop ebp
+			pop esp
 			jmp _BREAKSWITCH;
 
 		_BREAKSWITCH:
@@ -5840,8 +5878,26 @@ __declspec(naked) void _naked_UpdateMenus() {
 		mov eax, dword ptr[esp + 0x64];
 		push eax;
 		call edx; //u_InitSubmenus
-
+		push esp //PUSH_ALL
+		push ebp
+		push edi
+		push esi
+		push edx
+		push ecx
+		push ebx
+		push eax
+		push ebp
+		mov  ebp, esp
 		call ExtendedMenuInputChecking;
+		pop ebp //POP_ALL
+		pop eax
+		pop ebx
+		pop ecx
+		pop edx
+		pop esi
+		pop edi
+		pop ebp
+		pop esp
 		jmp _EXIT_CHAIN;
 
 		_EXIT_CHAIN:
@@ -5859,7 +5915,27 @@ __declspec(naked) void _naked_UpdateMenus() {
 			mov eax, dword ptr[esp + 0x64];
 			push eax;
 			call edx; //u_InitSubmenus
-			call HotkeyMenuInputChecking
+			push esp //PUSH_ALL
+			push ebp
+			push edi
+			push esi
+			push edx
+			push ecx
+			push ebx
+			push eax
+			push ebp
+			mov  ebp, esp
+			call HotkeyMenuInputChecking;
+			pop ebp //POP_ALL
+			pop eax
+			pop ebx
+			pop ecx
+			pop edx
+			pop esi
+			pop edi
+			pop ebp
+			pop esp
+			jmp _EXIT_CHAIN;
 
 		_CHECK_ENEMY:
 			push 0x0047e1fb;
@@ -6943,7 +7019,7 @@ HRESULT APIENTRY hkBeginScene(LPDIRECT3DDEVICE9 pDevice)
 		initFont();
 	}
 
-	DrawFilledRect(22, 22, 20, 20, D3DCOLOR_ARGB(128, 0, 255, 0), pDevice);
+	//DrawFilledRect(22, 22, 20, 20, D3DCOLOR_ARGB(128, 0, 255, 0), pDevice);
 
 	return oBeginScene(pDevice);
 }
@@ -6958,6 +7034,8 @@ HRESULT APIENTRY hkPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pScourceRect, 
 	//do draw calls in present
 
 	//TextDraw(500, 0.0, 9, 0xFFbd1a0b, "THIS IS A DEBUG BUILD", 0.0);
+
+	//logFPS();
 
 	_doDrawCalls();
 
@@ -6975,6 +7053,8 @@ HRESULT APIENTRY hkPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pScourceRect, 
 void threadFunc()
 {
 	srand(time(NULL));
+
+	patchByte(0x00554128, 0x00);
 
 	// make sure that caster has time to hook at the start
 	Sleep(32);
@@ -7040,7 +7120,6 @@ void threadFunc()
 
 	if (GetD3D9Device(d3d9Device, sizeof(d3d9Device)))
 	{
-		writeLog("test");
 		//https://stackoverflow.com/a/61052959 basically stolen tbh
 		oEndScene = (tEndScene)TrampHook((char*)d3d9Device[42], (char*)hkEndScene, 7);
 		oBeginScene = (tBeginScene)TrampHook((char*)d3d9Device[41], (char*)hkBeginScene, 7);

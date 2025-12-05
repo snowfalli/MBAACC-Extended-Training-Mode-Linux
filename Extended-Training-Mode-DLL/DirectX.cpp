@@ -692,7 +692,7 @@ void _initMeltyFont() {
 		// textOutlineVertexShader->Release();
 	//
 	// meltyTex->Release();
-	MessageBoxA(NULL, "finished __initMeltyFont", "finished __initMeltyFont", MB_ICONERROR);
+	//MessageBoxA(NULL, "finished __initMeltyFont", "finished __initMeltyFont", MB_ICONERROR);
 }
 
 void _initFontFirstLoad() {
@@ -726,7 +726,7 @@ void _initFontFirstLoad() {
 	_initMeltyFont();
 
 	//fontTex->Release();
-	MessageBoxA(NULL, "loaded font buffer", "loaded font buffer", MB_ICONERROR);
+	//MessageBoxA(NULL, "loaded font buffer", "loaded font buffer", MB_ICONERROR);
 	log("loaded font BUFFER!!!");
 	pD3DDevice->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, antiAliasBackup);
 }
@@ -2850,6 +2850,58 @@ void drawRoaHiddenCharge() {
 
 }
 
+void logFPS() {
+
+	constexpr int timerSize = 60;
+	static FreqTimer<timerSize> fpsTimer;
+	fpsTimer.tick();
+
+	for (int i = 0; i < timerSize; i++) {
+		//DWORD col = (i == fpsTimer.buffer.index) ? 0xFF42e5f4 : 0xFFbd1a0b;
+		//DWORD col = (i == fpsTimer.buffer.index) ? 0xFF42e5f4 : 0xFFbd1a0b;
+		DWORD col = 0xFF00FF00;
+		if (fpsTimer.buffer.data[i] > 61.0f) {
+			col = 0xFF0000FF;
+		}
+		else if (fpsTimer.buffer.data[i] < 59.0f) {
+			col = 0xFFFF0000;
+		}
+
+		const char* errorMsg = "";
+		if (fabsf(fpsTimer.buffer.data[i] - 60.0f) > 30.0f) {
+			errorMsg = "WHAT HAPPENED HERE";
+		}
+
+		if (logVerboseFps) {
+			TextDraw(0.0, 10.0 + (i * 7), 7, col, "%5.2lf %c %s", fpsTimer.buffer.data[i], (i == fpsTimer.buffer.index) ? '<' : ' ', errorMsg);
+		}
+	}
+
+	const char* fpsMethod = "CASTER";
+	if (maintainFPSState == 1) {
+		fpsMethod = "BEFORE";
+	}
+	else if (maintainFPSState == 2) {
+		fpsMethod = "AFTER";
+	}
+
+	FreqTimerData timerData = fpsTimer.getData();
+
+	if (nHIDE_EXTRAS) return;
+
+	if (logVerboseFps) {
+		TextDraw(0.0, 0.0, 10, 0xFF42e5f4, "avg:%6.2lf min:%6.2lf max:%6.2lf stdev:%6.2lf maintainfps: %s", timerData.mean, timerData.min, timerData.max, timerData.stdev, fpsMethod);
+	} else {
+		if (shouldDrawHud) {
+			TextDraw(0.0, 0.0, 10, 0xFF42e5f4, "%5.2lf", timerData.mean);
+		}
+	}
+
+	// this better not make it into a release
+	//log("fps: %5.2lf", timerData.mean);
+
+}
+
 bool doSaveScreenshot = false; // add a menu option for this lest i murder everyones pcs
 void saveScreenshot() {
 
@@ -3001,30 +3053,12 @@ void __stdcall _doDrawCalls() {
 	static KeyState lShiftKey(VK_LSHIFT);
 	static KeyState tKey('T');
 
-	static long long startTime = 0.0;
-	static long long endTime = 0.0;
-	const int timeBufferLen = 64;
-	static double timeBuffer[timeBufferLen];
-	static int timeBufferIndex = 0;
-
-	endTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-
-	timeBuffer[timeBufferIndex] = (double)1000000.0 / ((double)endTime - startTime);
-
-	timeBufferIndex = (timeBufferIndex + 1) & (timeBufferLen - 1);
-
-	double res = 0.0;
-	for (int i = 0; i < timeBufferLen; i++) {
-		res += timeBuffer[i];
-	}
-	res /= ((double)timeBufferLen);
 	if (true) {
 		#ifdef NDEBUG
 		//TextDraw(631, 0.0, 9, 0xFF42e5f4, "REL", res);
 		#else
-		TextDraw(500, 0.0, 9, 0xFFbd1a0b, "THIS IS A DEBUG BUILD", res);
+		TextDraw(500, 0.0, 9, 0xFFbd1a0b, "THIS IS A DEBUG BUILD", 0);
 		#endif
-		TextDraw(0.0, 0.0, 10, 0xFF42e5f4, "%5.2lf", res);
 	}
 
 	if (lShiftKey.keyHeld() && tKey.keyDown()) {
@@ -3084,6 +3118,7 @@ void __stdcall _doDrawCalls() {
 	if (logPowerInfo) {
 		drawPowerInfo();
 	}
+	logFPS();
 	drawFindWhisk();
 	drawRoaHiddenCharge();
 	drawFancyInputDisplay();
@@ -3116,57 +3151,7 @@ void __stdcall _doDrawCalls() {
 
 // -----
 
-void logFPS() {
 
-	constexpr int timerSize = 60;
-	static FreqTimer<timerSize> fpsTimer;
-	fpsTimer.tick();
-
-	for (int i = 0; i < timerSize; i++) {
-		//DWORD col = (i == fpsTimer.buffer.index) ? 0xFF42e5f4 : 0xFFbd1a0b;
-		//DWORD col = (i == fpsTimer.buffer.index) ? 0xFF42e5f4 : 0xFFbd1a0b;
-		DWORD col = 0xFF00FF00;
-		if (fpsTimer.buffer.data[i] > 61.0f) {
-			col = 0xFF0000FF;
-		}
-		else if (fpsTimer.buffer.data[i] < 59.0f) {
-			col = 0xFFFF0000;
-		}
-
-		const char* errorMsg = "";
-		if (fabsf(fpsTimer.buffer.data[i] - 60.0f) > 30.0f) {
-			errorMsg = "WHAT HAPPENED HERE";
-		}
-
-		if (logVerboseFps) {
-			TextDraw(0.0, 10.0 + (i * 7), 7, col, "%5.2lf %c %s", fpsTimer.buffer.data[i], (i == fpsTimer.buffer.index) ? '<' : ' ', errorMsg);
-		}
-	}
-
-	const char* fpsMethod = "CASTER";
-	if (maintainFPSState == 1) {
-		fpsMethod = "BEFORE";
-	}
-	else if (maintainFPSState == 2) {
-		fpsMethod = "AFTER";
-	}
-
-	FreqTimerData timerData = fpsTimer.getData();
-
-	if (nHIDE_EXTRAS) return;
-
-	if (logVerboseFps) {
-		TextDraw(0.0, 0.0, 10, 0xFF42e5f4, "avg:%6.2lf min:%6.2lf max:%6.2lf stdev:%6.2lf maintainfps: %s", timerData.mean, timerData.min, timerData.max, timerData.stdev, fpsMethod);
-	} else {
-		if (shouldDrawHud) {
-			TextDraw(0.0, 0.0, 10, 0xFF42e5f4, "%5.2lf", timerData.mean);
-		}
-	}
-
-	// this better not make it into a release
-	//log("fps: %5.2lf", timerData.mean);
-
-}
 
 __declspec(naked) void _naked_PresentHook() {
 	// just in case, im only hooking this one present call
