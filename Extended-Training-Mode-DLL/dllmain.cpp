@@ -7006,46 +7006,14 @@ void init2v2Hack() {
 	patchJump(0x0040e3ab, _naked_init2v2Hack);
 }
 
-HRESULT APIENTRY hkEndScene(LPDIRECT3DDEVICE9 pDevice)
-{
-	//DrawFilledRect(2, 2, 20, 20, D3DCOLOR_ARGB(128, 0, 255, 0), pDevice);
-	return oEndScene(pDevice);
-}
-
-HRESULT APIENTRY hkBeginScene(LPDIRECT3DDEVICE9 pDevice)
-{
-	if (bInit == false) {
-		pD3DDevice = pDevice;
-		bInit = true;
-		//initialize fonts after getting device
-		initFont();
-	}
-
-	//DrawFilledRect(22, 22, 20, 20, D3DCOLOR_ARGB(128, 0, 255, 0), pDevice);
-
-	return oBeginScene(pDevice);
-}
-HRESULT APIENTRY hkReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters)
-{
-	//cleanForDirectXReset();
-	//reInitAfterDirectXReset();
-	return oReset(pDevice, pPresentationParameters);
-}
 HRESULT APIENTRY hkPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pScourceRect, const RECT *pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion)
 {
-	//do draw calls in present
-
-	//TextDraw(500, 0.0, 9, 0xFFbd1a0b, "THIS IS A DEBUG BUILD", 0.0);
-
-	//logFPS();
-
+	if(!bInit) {
+		pD3DDevice = pDevice;
+		bInit = true;
+		initFont();
+	}
 	_doDrawCalls();
-
-
-	//run the callback for frame start
-	//frameStartCallback();
-
-	//DrawFilledRect(200, 200, 400, 400, D3DCOLOR_ARGB(128, 0, 255, 255), pDevice);
 
 	return oPresent(pDevice, pScourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
 }
@@ -7118,33 +7086,24 @@ void threadFunc()
 	init2v2Hack();
 
 
-	//ReadFromRegistry(L"ShowDebugMenu", &showDebugMenu);
 
-	if (GetD3D9Device(d3d9Device, sizeof(d3d9Device)))
-	{
-		//https://stackoverflow.com/a/61052959 basically stolen tbh
-		oEndScene = (tEndScene)TrampHook((char*)d3d9Device[42], (char*)hkEndScene, 7);
-		oBeginScene = (tBeginScene)TrampHook((char*)d3d9Device[41], (char*)hkBeginScene, 7);
-		oReset = (tReset)TrampHook((char*)d3d9Device[16], (char*)hkReset, 7);
-		oPresent = (tPresent)TrampHook((char*)d3d9Device[17], (char*)hkPresent, 7);
-	}
 
-	//timeMeltyCall(0x0040d350, "GoesToGameLoop0");
+	D3DPRESENT_PARAMETERS d3dpp;
+	ZeroMemory(&d3dpp, sizeof(d3dpp));
+	d3dpp.Windowed = TRUE;
+	d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+	d3dpp.hDeviceWindow = getProcessWindow();
 
-	//timeMeltyCall(0x0040e410, "FUN_0048e0a0");
-	//timeMeltyCall(0x0040e438, "linkedListAppend_MAYBE???");
-	//timeMeltyCall(0x0040e471, "GoesToGameLoop1");
-	//timeMeltyCall(0x0040e483, "FUN_0043b8d0");
-	//timeMeltyCall(0x0040e494, "callsTheFpsAndEverything");
-	//timeMeltyCall(0x0040e499, "callsImportantDraw1");
-	//timeMeltyCall(0x0040e49e, "callsDirectXPresent2");
-	//timeMeltyCall(0x0040e4a3, "somethingTimeRelated");
-	//timeMeltyCall(0x0040e4a8, "FUN_004bf970");
-	//timeMeltyCall(0x0040e4bd, "FUN_004151f0");
-	//timeMeltyCall(0x0040e4fb, "FUN_00406680");
-	//timeMeltyCall(0x0040e500, "FUN_004be8b0");
-	//timeMeltyCall(0x0040e505, "FUN_0040e220");
-}
+	IDirect3DDevice9* dummyPDevice = nullptr;
+	IDirect3D9* dummy_pD3D = Direct3DCreate9(D3D_SDK_VERSION);
+	HRESULT hrCreateDevice = dummy_pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, d3dpp.hDeviceWindow, D3DCREATE_SOFTWARE_VERTEXPROCESSING, &d3dpp, &dummyPDevice);
+
+
+	//77F329E8
+	//pD3DDevice = *(IDirect3DDevice9**)(0x0076e7d4);
+	memcpy(pTable, *reinterpret_cast<void***>(dummyPDevice), sizeof(pTable));
+	oPresent = (tPresent)trampolineHook((char*)pTable[17], (char*)hkPresent, 7);
+};
 
 BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 {
