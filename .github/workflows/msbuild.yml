@@ -3,25 +3,21 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
+#todo, this could automatically release a tagged build as a release. have it do that
+
 name: MSBuild
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 env:
-  # Path to the solution file relative to the root of the project.
   SOLUTION_FILE_PATH: .
-
-  # Configuration type to build.
-  # You can convert this to a build matrix if you need coverage of multiple configuration types.
-  # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
   BUILD_CONFIGURATION: Release
+  BLEEDING: 1
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -32,13 +28,34 @@ jobs:
 
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v1.0.2
-
-    - name: Restore NuGet packages
-      working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: nuget restore ${{env.SOLUTION_FILE_PATH}}
-
+      
+    - name: Install DirectX SDK
+      run: |
+        choco install directx-sdk -y
+        echo "C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Lib\x64" >> $Env:LIB
+        echo "C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include" >> $Env:INCLUDE
     - name: Build
       working-directory: ${{env.GITHUB_WORKSPACE}}
-      # Add additional options to the MSBuild command line here (like platform or verbosity level).
-      # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
-      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}}
+      run: msbuild /m /p:Platform="x86" /p:Configuration=${{env.BUILD_CONFIGURATION}} /t:MBAACC-Extended-Training-Mode-Launcher ${{env.SOLUTION_FILE_PATH}}
+
+    - name: Delete tag and release
+      uses: dev-drprasad/delete-tag-and-release@v1.1
+      with:
+        delete_release: true 
+        tag_name: bleeding-edge 
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload files
+      uses: softprops/action-gh-release@v2.2.1
+      with:
+        tag_name: bleeding-edge
+        name: Bleeding Edge
+        prerelease: true
+        fail_on_unmatched_files: true
+        files: |
+          ./Release/MBAACC-Extended-Training-Mode-Launcher.exe
+        body: | 
+          This is a bleeding edge release. The main v2.1 release is below this.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
