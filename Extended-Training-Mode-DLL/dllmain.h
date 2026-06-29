@@ -4,7 +4,7 @@
 //#include <winsock2.h>
 #include <Windows.h>
 
-#include <cstring>
+#include <cstring> 
 #include <cstdio>
 #include <psapi.h>
 #include <time.h>
@@ -34,7 +34,7 @@
 
 #pragma comment(lib, "winmm.lib")
 
-#pragma comment(lib, "d3d9.lib")
+#pragma comment(lib, "d3d9.lib") 
 #pragma comment(lib, "d3dx9.lib")
 #pragma comment(lib, "dxerr.lib")
 #pragma comment(lib, "dsound.lib")
@@ -98,24 +98,24 @@ __asm pop ebp		   \
 __asm pop esp		   \
 }
 
-
+#define ASM_RET __asm ret;
 
 // this was needed due to the preprocessor being a bitch and not accepting multiple emits on the same line
 // i have had so many issues with the way this compiler works
 #define emitByte(b) __asm _emit b;
 #define emitWord(b) \
     __asm { _emit b & 0xFF } \
-    __asm { _emit b >> 8 }
+    __asm { _emit b >> 8 } 
 #define emitDword(b) \
     __asm { _emit b & 0xFF } \
     __asm { _emit (b & 0xFF00) >> 8 } \
     __asm { _emit (b & 0xFF0000) >> 16 } \
-    __asm { _emit (b & 0xFF000000) >> 24 }
+    __asm { _emit (b & 0xFF000000) >> 24 } 
 // if i wanted to make tolerable jump things that didnt use a variable, i would have to use a dummy call, and read the EIP from there, just to do one fucking call
-// wait. i can only jump from reads from addresses, not addresses.
+// wait. i can only jump from reads from addresses, not addresses. 
 // can i use eip as a addr?
 // or tbh, i can just use pushes and be real weird about it
-// ugh
+// ugh 
 
 #define CONCATENATE_DETAIL(x, y) x##y
 #define CONCATENATE(x, y) CONCATENATE_DETAIL(x, y)
@@ -159,6 +159,7 @@ extern bool disableFPSLimit;
 extern bool bFreeze;
 
 extern int showDebugMenu;
+extern int showReplayMenu;
 
 extern DWORD showCSS;
 
@@ -166,6 +167,11 @@ class TASManager;
 extern TASManager TASManagerObj[4];
 
 extern bool fn1Press2v2[4];
+
+extern DWORD didHitboxConnect;
+
+typedef void (*setDesiredFPSType)(double);
+extern void (*setDesiredFPS)(double);
 
 // -----
 
@@ -305,4 +311,3 @@ void nakedFrameDoneCallback_RAW();
 
 void timeMeltyCall(DWORD patchAddr, const char* funcName = "???");
 
-extern bool needTrainingModeReset;

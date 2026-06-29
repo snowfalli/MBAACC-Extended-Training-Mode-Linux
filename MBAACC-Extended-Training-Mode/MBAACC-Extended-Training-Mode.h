@@ -31,6 +31,8 @@
 #include "Logger.h"
 
 #include "..\Common\types.h"
+#include <windows.h>
+
 
 HANDLE hMBAAHandle = 0x0;
 DWORD dwBaseAddress = 0;
@@ -50,21 +52,20 @@ std::string exec(const char* cmd) {
 
 std::string GetLatestVersion()
 {
-    return "latest";
-    // char pcCommand[1024];
-    // strcpy_s(pcCommand, ("curl -s " + GITHUB_LATEST).c_str());
-    // std::string sOutputJSONBuffer = exec(pcCommand);
-    // auto json = nlohmann::json::parse(sOutputJSONBuffer);
-    // std::string sVersion = "";
-    // try
-    // {
-    //     sVersion = json["tag_name"];
-    // }
-    // catch (...)
-    // {
-    // }
+    char pcCommand[1024];
+    strcpy_s(pcCommand, ("curl -s " + GITHUB_LATEST).c_str());
+    std::string sOutputJSONBuffer = exec(pcCommand);
+    auto json = nlohmann::json::parse(sOutputJSONBuffer);
+    std::string sVersion = "";
+    try
+    {
+        sVersion = json["tag_name"];
+    }
+    catch (...)
+    {
+    }
 
-    // return sVersion;
+    return sVersion;
 }
 
 DWORD GetBaseAddressByName(HANDLE pHandle, const wchar_t* name)
@@ -132,18 +133,18 @@ std::string GetProcessPath(HANDLE hMBAAHandle)
     const int nPathSize = 256;
     DWORD dwPathSize = nPathSize;
     char path[nPathSize];
-
-    if (QueryFullProcessImageNameA(hMBAAHandle, 0, path, &dwPathSize))
+   
+    if (QueryFullProcessImageNameA(hMBAAHandle, 0, path, &dwPathSize)) 
         {
         std::string sTempPathString = std::string(path);
         size_t lastBackslash = sTempPathString.find_last_of("\\/");
-        if (lastBackslash != std::string::npos)
+        if (lastBackslash != std::string::npos) 
         {
             return sTempPathString.substr(0, lastBackslash) + "\\";
         }
         return "";
     }
-
+    
     return "";
 }
 
@@ -157,6 +158,8 @@ HANDLE GetProcessByName(const wchar_t* name)
     ZeroMemory(&process, sizeof(process));
     process.dwSize = sizeof(process);
 
+    std::wstring goal(name);
+
     // Walkthrough all processes.
     if (Process32First(snapshot, &process))
     {
@@ -164,6 +167,7 @@ HANDLE GetProcessByName(const wchar_t* name)
         {
             // Compare process.szExeFile based on format of name, i.e., trim file path
             // trim .exe if necessary, etc.
+            
             if (std::wcscmp((process.szExeFile), name) == 0)
             {
                 pid = process.th32ProcessID;
@@ -174,9 +178,22 @@ HANDLE GetProcessByName(const wchar_t* name)
 
     CloseHandle(snapshot);
 
+    //std::cout << "PID WAS " << pid << std::endl;
+
     if (pid != 0)
     {
-        return OpenProcess(PROCESS_ALL_ACCESS, false, pid);
+
+        HANDLE res = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
+
+        if (res == NULL) {
+            
+            DWORD temp = GetLastError();
+            std::cout << "OpenProcess errored, error: " << temp << std::endl;
+            std::cout << "Please restart your caster and try again" << std::endl;
+            
+        }
+
+        return res;
     }
 
     return nullptr;
@@ -364,7 +381,7 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
         {
             bool bGoodInput = true;
             char buffer[256];
-
+            
             GetWindowTextA(hEdit, buffer, 256);
             std::string sBuffer = std::string(buffer);
 
@@ -377,7 +394,7 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
                 MessageBox(NULL, L"Number is too large.  Value should be between 0 and FFFFFFFF.", L"", NULL);
                 break;
             }
-
+            
             std::regex hexRegex("[0-9A-Fa-f]+$");
             if (!std::regex_match(sBuffer, hexRegex))
             {
@@ -390,7 +407,7 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
             bSubmitPressed = true;
             PostMessage(hwnd, WM_CLOSE, 0, 0);
         }
-
+        
         break;
     }
 
@@ -446,7 +463,7 @@ std::wstring getDLLPath() {
         printf(RED "Failed to get temp path\n" RESET);
         return L"";
     }
-    std::wstring dllPath = std::wstring(buffer) + std::wstring(L"\\ETM-x86.dll");
+    std::wstring dllPath = std::wstring(buffer) + std::wstring(L"\\Extended-Training-Mode-DLL.dll");
     return dllPath;
 }
 

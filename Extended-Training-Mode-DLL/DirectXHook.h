@@ -8,7 +8,7 @@ extern HWND window;
 extern bool bInit;
 
 extern void* pTable[119];
-extern LPDIRECT3DDEVICE9 pD3DDevice;
+extern LPDIRECT3DDEVICE9 device;
 
 char* trampolineHook(char* src, char* dst, int len);
 

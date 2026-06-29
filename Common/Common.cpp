@@ -1,8 +1,4 @@
 
-#ifndef UNICODE
-#define UNICODE
-#endif
-#define NDEBUG
 
 #include <ws2tcpip.h>
 #include <winsock2.h>
@@ -22,8 +18,6 @@
 
 #include "..\MBAACC-Extended-Training-Mode\Logger.h"
 
-#define UNICODE 1
-
 #ifdef ISDLL
 void DrawLog(char* s);
 #endif
@@ -35,7 +29,7 @@ IDirectInput8* inputDevice = NULL;
 void __stdcall ___log(const char* msg) {
 	const char* ipAddress = "127.0.0.1";
 	unsigned short port = 17474;
-
+	
 	int msgLen = strlen(msg);
 
 	const char* message = msg;
@@ -75,7 +69,6 @@ void __stdcall ___log(const char* msg) {
 void __stdcall log(const char* format, ...) {
 
 #ifdef ISDLL
-
 	//static char buffer[1024]; // no more random char buffers everywhere.
 	char* buffer = (char*)malloc(1024);
 	va_list args;
@@ -83,7 +76,6 @@ void __stdcall log(const char* format, ...) {
 	vsnprintf(buffer, 1024, format, args);
 	___log(buffer);
 	va_end(args);
-	MessageBoxA(NULL, "Number is too large.  Value should be between 0 and FFFFFFFF.",buffer, NULL);
 	DrawLog(buffer);
 	#ifdef ENABLEFILELOG
 		writeLog(buffer);
@@ -151,10 +143,10 @@ void __stdcall log(const wchar_t* format, ...) {
 }
 
 void printDirectXError(HRESULT hr) {
-	//const char* errorStr = DXGetErrorStringA(hr);
-	//const char* errorDesc = DXGetErrorDescriptionA(hr);
+	const char* errorStr = DXGetErrorStringA(hr);
+	const char* errorDesc = DXGetErrorDescriptionA(hr);
 
-	//log("err: %s\n    %s", errorStr, errorDesc);
+	log("err: %s\n    %s", errorStr, errorDesc);
 }
 
 void printDIJOYSTATE2(const DIJOYSTATE2& state) {
@@ -234,69 +226,64 @@ void printDIJOYSTATE2(const DIJOYSTATE2& state) {
 
 // -----
 
-static bool GetOpenSAVFileName(HANDLE hMBAAHandle, DWORD dwBaseAddress, std::wstring* pwsFileName)
+bool GetOpenSAVFileName(HANDLE hMBAAHandle, DWORD dwBaseAddress, std::wstring* pwsFileName)
 {
 	const uint8_t nOne = 1;
 	const uint8_t nZero = 0;
 	WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFreezeOverride), &nOne, 1, 0);
 
-	LPWSTR pcFileName[MAX_PATH];
+	char pcFileName[MAX_PATH];
 
 	OPENFILENAME ofn;
 	ZeroMemory(pcFileName, sizeof(pcFileName));
 	ZeroMemory(&ofn, sizeof(ofn));
 	ofn.lStructSize = sizeof(ofn);
 	ofn.hwndOwner = NULL;
-	ofn.lpstrFilter = L"Save State\0*.sav\0";
+	ofn.lpstrFilter = (LPWSTR)L"Save State\0*.sav\0";
 	ofn.lpstrFile = (LPWSTR)pcFileName;
 	ofn.nMaxFile = MAX_PATH;
-	ofn.lpstrTitle = L"Open Save State";
+	ofn.lpstrTitle = (LPWSTR)L"Open Save State";
 	ofn.Flags = OFN_DONTADDTORECENT | OFN_FILEMUSTEXIST;
 
-	//TODO
-	/*bool bResult = GetOpenFileNameW((LPOPENFILENAMEW)&ofn);
+	bool bResult = GetOpenFileNameW(&ofn);
 	WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFreezeOverride), &nZero, 1, 0);
 	if (bResult)
 	{
-		//*pwsFileName = std::wstring (ofn.lpstrFile);
 		*pwsFileName = std::wstring(ofn.lpstrFile);
 		return true;
-	}*/
+	}
 	return false;
 }
 
-static bool GetSaveSAVFileName(HANDLE hMBAAHandle, DWORD dwBaseAddress, std::wstring* pwsFileName)
+bool GetSaveSAVFileName(HANDLE hMBAAHandle, DWORD dwBaseAddress, std::wstring* pwsFileName)
 {
 	const uint8_t nOne = 1;
 	const uint8_t nZero = 0;
 	WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFreezeOverride), &nOne, 1, 0);
 
-	LPWSTR pcFileName[MAX_PATH];
+	char pcFileName[MAX_PATH];
 
 	OPENFILENAME ofn;
 	ZeroMemory(pcFileName, sizeof(pcFileName));
 	ZeroMemory(&ofn, sizeof(ofn));
 	ofn.lStructSize = sizeof(ofn);
 	ofn.hwndOwner = NULL;
-	ofn.lpstrFilter = L"Save State\0*.sav\0";
+	ofn.lpstrFilter = (LPWSTR)L"Save State\0*.sav\0";
 	ofn.lpstrFile = (LPWSTR)pcFileName;
 	ofn.nMaxFile = MAX_PATH;
-	ofn.lpstrTitle = L"Create Save State";
+	ofn.lpstrTitle = (LPWSTR)L"Create Save State";
 	ofn.lpstrDefExt = L"sav";
 	ofn.Flags = OFN_DONTADDTORECENT | OFN_OVERWRITEPROMPT;
 
-	//TODO
-	/*
-	bool bResult = GetSaveFileNameW((LPOPENFILENAMEW)&ofn);
+	bool bResult = GetSaveFileNameW(&ofn);
 	WriteProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + adSharedFreezeOverride), &nZero, 1, 0);
 	if (bResult)
 	{
-		*pwsFileName = std::wstring (ofn.lpstrFile);
+		*pwsFileName = std::wstring(ofn.lpstrFile);
 		return true;
-	}*/
+	}
 	return false;
 }
-
 
 void CreateRegistryKey()
 {

@@ -5,10 +5,12 @@ extern float effectColorHue;
 #include "RendererModifications.h"
 #include <string>
 #include <functional>
-#include "dllmain.h"
+#include "dllmain.h" 
 
 bool useCustomShaders = false;
 bool useDeerMode = false;
+bool arePaletteTexturesLoaded = false;
+IDirect3DTexture9* paletteTexture = NULL;
 
 typedef struct {
 	const WORD charID;
@@ -118,7 +120,7 @@ constexpr const CharPattern blacklist[] = {
 	{ nanaID, 206 }, // AAD
 	{ nanaID, 501 }, // H 623C
 
-	// hime
+	// hime 
 
 	// TODO, FINISH THIS UP
 	{ himeID, 143 }, // 214C
@@ -143,6 +145,8 @@ constexpr const CharPattern blacklist[] = {
 	{ himeID, 166 }, // 236a, rocks on the ground
 	{ himeID, 168 }, // more rocks
 	{ himeID, 167 }, // more rocks
+
+	{ himeID, 182 }, // hime kick wallbounce thingy
 
 	{ himeID, 298 }, // AAD
 	{ himeID, 302 }, // AAD
@@ -189,7 +193,7 @@ constexpr const CharPattern blacklist[] = {
 
 	{ ceilID, 201 }, // AD/AAD, her cape shouldnt change color
 	{ ceilID, 202 }, // AD/AAD, her cape shouldnt change color
-	{ ceilID, 207 }, // what is this? more needs to be looked into
+	{ ceilID, 207 }, // what is this? more needs to be looked into 
 
 	// ries
 
@@ -232,7 +236,7 @@ constexpr const CharPattern blacklist[] = {
 
 	{ waraID, 156 }, // AD
 
-	// roa
+	// roa 
 
 	{ roaID, 198 }, // last arc bg
 	{ roaID, 196 }, // last arc
@@ -360,7 +364,7 @@ constexpr const CharPattern blacklist[] = {
 	// the things for each koha could probs/should be copied to each maid
 
 
-	// hisui
+	// hisui 
 
 	{ hisuID, 202 }, // arms
 	{ hisuID, 201 }, // arms
@@ -442,7 +446,7 @@ constexpr const CharPattern blacklist[] = {
 
 	{ mechID, 45 }, // chainsaw on floor, its dark so doesnt show but still
 
-	{ mechID, 544 }, // fmech 22a bomb thing
+	{ mechID, 544 }, // fmech 22a bomb thing 
 	{ mechID, 422 },
 	{ mechID, 428 },
 	{ mechID, 541 }, // mech,,, bomb countdown
@@ -482,9 +486,9 @@ constexpr const CharPattern blacklist[] = {
 
 	{ roogID, 20 }, // blinker
 	{ roogID, 608 }, // last arc bg
-	{ roogID, 640 }, // last arc
+	{ roogID, 640 }, // last arc 
 
-	// nero
+	// nero 
 
 	{ neroID, 202 }, // last arc
 	{ neroID, 203 }, // last arc
@@ -504,6 +508,9 @@ constexpr const CharPattern blacklist[] = {
 	{ nacID, 235 }, // AD
 	{ nacID, 236 }, // AD
 	{ nacID, 237 }, // AAD
+
+	//{ nacID, 191 }, // weird thing which summons the neros
+	//{ nacID, 186 },
 
 	// nec
 
@@ -537,7 +544,7 @@ constexpr auto textureModificationData = []() constexpr -> auto {
 	for (size_t i = 0; i < blacklistLen; ++i) {
 		if (blacklist[i].pattern >= 1000) {
 			throw std::logic_error("???");
-			// visual studio doesnt actually display the throw here, and just says it couldnt be evaled at constexpr.
+			// visual studio doesnt actually display the throw here, and just says it couldnt be evaled at constexpr. 
 			// but this at least works while static_assert didnt
 		}
 	}
@@ -621,25 +628,25 @@ bool shouldThisBeColored(BYTE charID, DWORD pattern) {
 void renderModificationsFrameDone() {
 	//textureAddrs.clear();
 
-	if (pD3DDevice == NULL) {
+	if (device == NULL) {
 		return;
 	}
 
 	static D3DXVECTOR4 frameFloatOffset(0.0f, 0.0f, 0.0f, 0.0f);
-	frameFloatOffset.x += (1.0f / 60.0f);
-	if (frameFloatOffset.x > 1.0f) {
-		frameFloatOffset.x = 0.0f;
-	}
+	frameFloatOffset.x = fmod((frameFloatOffset.x + (1.0f / 60.0f)) , 1.0f);
+	frameFloatOffset.y = fmod((frameFloatOffset.y + (1.0f / 120.0f)), 1.0f);
+	frameFloatOffset.z = fmod((frameFloatOffset.z + (1.0f / 240.0f)), 1.0f);
+	frameFloatOffset.w = fmod((frameFloatOffset.w + (1.0f / 480.0f)), 1.0f);
 
-	pD3DDevice->SetPixelShaderConstantF(223, (float*)&frameFloatOffset, 1);
+	device->SetPixelShaderConstantF(223, (float*)&frameFloatOffset, 1);
 
-	if (!enableEffectColors) {
+	/*if (!enableEffectColors) {
 		return;
-	}
+	}*/
 
 	D3DXVECTOR4 temp(effectColorHue, 0.0f, 0.0f, 0.0f);
 
-	pD3DDevice->SetPixelShaderConstantF(221, (float*)&temp, 1); // calling this every frame kinda sucks, but im tired
+	device->SetPixelShaderConstantF(221, (float*)&temp, 1); // calling this every frame kinda sucks, but im tired
 }
 
 void describeObject(char* buffer, size_t buflen, const LinkedListData& info) {
@@ -683,7 +690,7 @@ void describeObject(char* buffer, size_t buflen, const LinkedListData& info) {
 		if (verboseShowPlayers) {
 			playerDataArr[playerIndex].describe(buffer, buflen);
 		}
-
+		
 		return;
 	}
 
@@ -697,7 +704,7 @@ void describeObject(char* buffer, size_t buflen, const LinkedListData& info) {
 		if (verboseShowEffects) {
 			effectDataArr[effectIndex].describe(buffer, buflen);
 		}
-
+		
 		return;
 	}
 
@@ -706,18 +713,31 @@ void describeObject(char* buffer, size_t buflen, const LinkedListData& info) {
 	if (verboseShowUnknown) {
 		snprintf(buffer, buflen, "???: %08X ", info.object);
 	}
-
+	
 
 }
 
 // -----
 
-void drawLoopHook() {
+D3DMATRIX stupidTransformMatrix = { 0 };
+
+float vertDist(const RawMeltyVert& a, const RawMeltyVert& b) {
+
+
+	// this  shouldnt be needed, right?
+
+	float x = (a.x - b.x);// * renderModificationFactor.x;
+	float y = (a.y - b.y);// * renderModificationFactor.y;
+
+	return sqrt((x * x) + (y * y));
+}
+
+void drawLoopHook() { // patched at 0x004be46e
 
 	/*
-	if (!debugMode) {
-		return;
-	}
+	
+	this code draws the renderer debugger (enable with F9)
+
 	*/
 
 
@@ -800,7 +820,7 @@ void drawLoopHook() {
 
 	// 004be296 // vertex data pointer???
 	DWORD unknown2 = *(DWORD*)(_naked_drawCallHook_ebx + 0x14);
-	// 004be2a4
+	// 004be2a4 
 	unknown2 = *(DWORD*)(unknown2 + 0x8);
 
 	// FVF vert format?
@@ -879,7 +899,7 @@ void drawLoopHook() {
 	// ugh
 	D3DVIEWPORT9 view;
 
-	pD3DDevice->GetViewport(&view);
+	device->GetViewport(&view);
 
 	DWORD X = view.X;
 	DWORD Y = view.Y;
@@ -958,6 +978,20 @@ void drawLoopHook() {
 			meltyLineData.add(outVerts[0], outVerts[2]);
 			meltyLineData.add(outVerts[1], outVerts[2]);
 
+			if (j == 0) {
+
+				RawMeltyVert v0 = *(RawMeltyVert*)&ptrVertexStreamZeroData[ptrIndexData[0 + (j * 3)]];
+				RawMeltyVert v1 = *(RawMeltyVert*)&ptrVertexStreamZeroData[ptrIndexData[1 + (j * 3)]];
+				RawMeltyVert v2 = *(RawMeltyVert*)&ptrVertexStreamZeroData[ptrIndexData[2 + (j * 3)]];
+				float width = vertDist(v0, v1);
+				float height = vertDist(v0, v2);
+
+				//log("omfg %f %f", width, height);
+
+				D3DXVECTOR4 temp(width, height, 0, 0);
+				device->SetPixelShaderConstantF(217, (float*)&temp, 1);
+			}
+
 			//meltyLineData.add(outVerts[1], outVerts[2]);
 			//meltyLineData.add(outVerts[1], outVerts[3]);
 			//meltyLineData.add(outVerts[2], outVerts[3]);
@@ -1025,8 +1059,6 @@ void drawLoopHook() {
 
 	//TextDraw(0, drawY, 6, 0xFFFFFFFF, "%4d %08X %08X %08X %08X %08X", linkedListLength, _naked_drawCallHook_ebx, unknown1, unknown2, unknown3, unknown4);
 
-
-
 	if (hasExtraDetail && verboseMode) {
 		TextDraw(firstOutVert.x, firstOutVert.y, 6, lineCol, extraDetail);
 	}
@@ -1044,7 +1076,11 @@ void drawLoopHook() {
 
 }
 
-void listAppendHook() { // for the life of me, why didnt i just not append this thing to the list??? i feel like that would have been better
+void listAppendHook() { // patched at 0x004c026b
+	
+	// for the life of me, why didnt i just not append this thing to the list??? i feel like that would have been better
+
+	// drawtexture has the texturewidth, and height, and i need that in here!!!!
 
 	if (listAppendHook_effectRetAddr_pat == 0x0045410F) {
 		listAppendHook_objAddr = listAppendHook_objAddr_pat;
@@ -1060,9 +1096,67 @@ void listAppendHook() { // for the life of me, why didnt i just not append this 
 
 		if (listAppendHook_objAddr >= 0x0067BDE8) { // effect
 
-			char source = *(char*)(listAppendHook_objAddr - 8);
-			DWORD pattern = *(DWORD*)(listAppendHook_objAddr + 0x0);
-			DWORD state = *(DWORD*)(listAppendHook_objAddr + 0x4);
+
+			/*
+			
+			listAppendHook_newElement
+			should be a ... god
+			there HAS to be a easy solution to get the width/height of the texture. not the power of 2 bs
+			i know there is. i did it in the past
+			this sucks but
+			its the best i have
+
+			i could get it from before this data is calculated but god im so tired
+			
+
+			*/
+
+			LinkedListRenderData* renderData = (LinkedListRenderData*)listAppendHook_newElement;
+			// ok, i have the verts here, i just need to calc the distance, AND PRAY THAT SCALING DOESNT BONE ME and that they are all squards.
+			// wow i really wrote squares and quads at the same time
+			// i hate this 
+
+			//log("%08X", (DWORD) & renderData->verts[0]);
+
+			float width = vertDist(renderData->verts[0], renderData->verts[1]);
+			float height = vertDist(renderData->verts[0], renderData->verts[2]);
+
+			// this  shouldnt be needed, right?
+			//width *= renderModificationFactor.x;
+			//height *= renderModificationFactor.y;
+			/*
+			MeltyVert outVerts[4];
+
+			for (int i = 0; i < 4; i++) {
+				outVerts[i].x = renderData->verts[i].x;
+				outVerts[i].y = renderData->verts[i].y;
+
+				outVerts[i].color = 0xFF00FF00;
+
+				outVerts[i].position.x += topLeftPos.x;
+				outVerts[i].position.y += topLeftPos.y;
+
+				outVerts[i].position.x *= renderModificationFactor.x;
+				outVerts[i].position.y *= renderModificationFactor.y;
+
+			}
+
+			meltyLineData.add(outVerts[0], outVerts[1]);
+			meltyLineData.add(outVerts[0], outVerts[2]);
+			*/
+			ActorData* actor = (ActorData*)(listAppendHook_objAddr - 12);
+
+			//char source = *(char*)(listAppendHook_objAddr - 8);
+			//DWORD pattern = *(DWORD*)(listAppendHook_objAddr + 0x0);
+			//DWORD state = *(DWORD*)(listAppendHook_objAddr + 0x4);
+			//DWORD numFrameAndPatternTransitions = *(DWORD*)(listAppendHook_objAddr + )
+			
+			char source = actor->source;
+			DWORD pattern = actor->pattern;
+			DWORD state = actor->state;
+			//DWORD numFrameAndPatternTransitions = actor->numFrameAndPatternTransitions;
+
+			//log("pattern: %d", pattern);
 
 			// what the hell is this doing??? is this doing something??? when did i write this????
 			// ok maddy thanks for the shit comments
@@ -1096,7 +1190,7 @@ void listAppendHook() { // for the life of me, why didnt i just not append this 
 				return;
 			}
 
-			if (enableEffectColors) {
+			if (enableEffectColors || useCustomShaders) {
 
 				BYTE owner = *(BYTE*)(listAppendHook_objAddr - 0x10 + 0x02F4);
 
@@ -1110,6 +1204,29 @@ void listAppendHook() { // for the life of me, why didnt i just not append this 
 
 				if (*(DWORD*)(listAppendHook_objAddr - 0x10 + 0x20) != 0x00000101) { // mystery heat detection thingy
 					textureToObject[listAppendHook_texAddr].shouldColor = shouldThisBeColored(charID, pattern); // tbh would having a seperate map for things to be colored be ideal.
+					textureToObject[listAppendHook_texAddr].charID = charID;
+					textureToObject[listAppendHook_texAddr].pattern = pattern;
+					textureToObject[listAppendHook_texAddr].state = state;
+					textureToObject[listAppendHook_texAddr].owner = owner;
+
+					textureToObject[listAppendHook_texAddr].width = width;
+					textureToObject[listAppendHook_texAddr].height = height;
+
+					textureToObject[listAppendHook_texAddr].xScale = actor->animationDataPtr->xScale;
+					textureToObject[listAppendHook_texAddr].yScale = actor->animationDataPtr->yScale;
+
+					textureToObject[listAppendHook_texAddr].stateDuration = actor->animationDataPtr->stateDuration;
+
+					textureToObject[listAppendHook_texAddr].interp = actor->animationDataPtr->interp;
+
+					for (int i = 0; i < 4; i++) {
+						for (int j = 0; j < 4; j++) {
+							textureToObject[listAppendHook_texAddr].matrix.m[i][j] = stupidTransformMatrix.m[i][j];
+							stupidTransformMatrix.m[i][j] = 0.0f;
+						}
+					}
+
+					//textureToObject[listAppendHook_texAddr].numFrameAndPatternTransitions = numFrameAndPatternTransitions;
 				}
 			}
 
@@ -1128,7 +1245,9 @@ void listAppendHook() { // for the life of me, why didnt i just not append this 
 	}
 }
 
-void drawPrimHook() {
+void drawPrimHook() { // patched at 0x004be290
+
+	
 
 	if (leadToDrawPrimHook_ret != 0x004331D9) {
 		skipTextureAddrs.clear(); // calling this repeatedly is wasteful!
@@ -1136,39 +1255,202 @@ void drawPrimHook() {
 		return;
 	}
 
+	if (paletteTexture == NULL) {
+		//setupPaletteTexture();
+	}
+
 
 
 	// set lookups are trash. there has to be some way of,, getting the index of this texture or something??
+	// also i swear like, does this solution somehow work better than what i have in 2v2?
 	if (skipTextureAddrs.contains(drawPrimHook_texAddr)) {
 		skipTextureDraw = 1;
 	} else if (textureToObject.contains(drawPrimHook_texAddr)) {
 
 		if (textureToObject[drawPrimHook_texAddr].isDeer) {
-			pD3DDevice->GetPixelShader(&pPixelShader_backup); // does this inc a refcount?
+			device->GetPixelShader(&pPixelShader_backup); // does this inc a refcount?
+			device->GetVertexShader(&vertexShaderBackup);
+			device->GetTexture(1, &pTextureStage1Backup);
+			device->GetTexture(2, &pTextureStage2Backup);
 
 			pixelShaderNeedsReset = true;
-			pD3DDevice->SetPixelShader(pCustomShader);
+			device->SetPixelShader(pCustomShader);
 		} else if (textureToObject[drawPrimHook_texAddr].shouldColor) {
-			pD3DDevice->GetPixelShader(&pPixelShader_backup); // does this inc a refcount?
+			device->GetPixelShader(&pPixelShader_backup); // does this inc a refcount?
+			device->GetVertexShader(&vertexShaderBackup);
+			device->GetTexture(1, &pTextureStage1Backup);
+			device->GetTexture(2, &pTextureStage2Backup);
 
 			pixelShaderNeedsReset = true;
-			pD3DDevice->SetPixelShader(pPixelShader);
+
+			if (useCustomShaders) {
+				pixelShaderNeedsReset = true;
+				device->SetPixelShader(pCustomShader);
+				
+				device->SetVertexShader(pCustomVertexShader);
+
+				// this gets the palette color (for the display palette, not the whole chars palette) 
+				// would be better for me to find the whole palette, but this is here as a test
+				// ok so this works. i need to now go find the palette texture and pass that in instead
+
+				// ideally, different shaders would be loaded, and there wouldnt be a ton of branching in shaders, but i could also set... char and pattern as registers.
+				// is the palette texture thrown away after applying it to a char?
+				// the texture is wiped between css and ingame
+				// and i dont believe it reloads the palettes ingame, right?
+				// the issue is if someone attaches training mode to this shit, after loading into battle,,, it wouldnt work
+				// ppl want this as a caster thing, but should it be? 
+				// ive had some issues still with flickering caused by my shaders
+				// its doable tho
+				// i could switch and make this a caster mod.
+				// that was the goal right? 
+				// and then i could.... oh god 
+				// i could either have textures per char, or per palette per char
+				// tbh naw i think that branching based on what pattern is being run is enough branching, and shouldnt fuck the gpu up to much?
+				// so then, shader per character.
+				// for testing purposes i could play around with this more right here? 
+				// the issue is that putting shaders in caster feels,,, like too much? 
+
+				// i know nothing
+				// i have 2 different extremely unreadable texture systems in 2 different programs
+
+				IDirect3DBaseTexture9* tempTex = NULL;
+				__try {
+					DWORD** temp = (DWORD**)0x005642cc;
+					DWORD testVal = **temp + 8;
+					DWORD omfg = *(DWORD*)testVal;
+					tempTex = (IDirect3DTexture9*)omfg;
+				} __except (EXCEPTION_EXECUTE_HANDLER) {
+				
+				}
+
+				DWORD pattern = textureToObject[drawPrimHook_texAddr].pattern;
+				DWORD owner = textureToObject[drawPrimHook_texAddr].owner;
+				DWORD state = textureToObject[drawPrimHook_texAddr].state;
+
+				// i despise this. why does dx9 work this way
+				float width = textureToObject[drawPrimHook_texAddr].width;
+				float height = textureToObject[drawPrimHook_texAddr].height;
+
+				float xScale = textureToObject[drawPrimHook_texAddr].xScale;
+				float yScale = textureToObject[drawPrimHook_texAddr].yScale;
+
+				float healthPercent = (float)playerDataArr[owner].subObj.health / 11000.0;
+
+				DWORD stateDuration = textureToObject[drawPrimHook_texAddr].stateDuration;
+
+				//DWORD numPatternTransitions = textureToObject[drawPrimHook_texAddr].numFrameAndPatternTransitions;
+
+				//log("%d %d", state,  numPatternTransitions);
+				D3DXVECTOR4 temp(pattern, state, healthPercent, owner);
+				device->SetPixelShaderConstantF(218, (float*)&temp, 1);
+
+				//temp = D3DXVECTOR4(numPatternTransitions, 0.0, 0.0, 0.0);
+				//device->SetPixelShaderConstantF(217, (float*)&temp, 1);
+
+				device->SetTexture(1, tempTex);
+
+				// the following sets the palette texture (for all the palette colors)
+
+				device->SetTexture(2, paletteTexture);
+
+
+
+				// so shit wasnt being mapped from (0,0) -> (1,1) this whole time. i swear i fixed this
+				// ok so, ideas.
+				// my bullshit isnt always... 
+				// the shit being put on the screen isnt always a power of 2, but dx is sorta clipping its bullshit to make it that?
+				// for example, a texture would have 128 width, but if it only had 100, its still only going to display that 100, but the texcoord wont be updated for this
+				// i need to pass in some bullshit to fix this
+				// i have the dims of the texture (sorta, well i do
+				// i need the dims of whats actually underneath the directx abstraction
+				
+				IDirect3DTexture9* pTex = (IDirect3DTexture9*)drawPrimHook_texAddr;
+				if (isAddrValid(drawPrimHook_texAddr)) {
+					D3DSURFACE_DESC desc;
+					pTex->GetLevelDesc(0, &desc);
+
+					D3DXVECTOR4 textureSize((float)desc.Width, (float)desc.Height, width, height);
+					device->SetPixelShaderConstantF(210, (float*)&textureSize, 1);
+
+
+					float cameraZoom = *(float*)0x0054eb70;
+
+					D3DXVECTOR4 scaleStuff(xScale, yScale, cameraZoom, 0);
+					device->SetPixelShaderConstantF(216, (float*)&scaleStuff, 1);
+
+					// 00419c00
+					// theres some "interp" thingy which is used in the matrix calcs
+					// takes framesintostate, and state duration
+
+					D3DXVECTOR4 stateStuff(0, 0, 0, 0);
+					device->SetPixelShaderConstantF(215, (float*)&stateStuff, 1);
+					
+
+					//log("%5.2f %5.2f %5.2f %5.2f", textureSize.x, textureSize.y, textureSize.z, textureSize.w);
+
+					if (!textureToObject[drawPrimHook_texAddr].interp) {
+						
+						textureToObject[drawPrimHook_texAddr].matrix.m[0][0] = 2.0f;
+						textureToObject[drawPrimHook_texAddr].matrix.m[1][1] = 2.0f;
+					}
+
+					device->SetPixelShaderConstantF(211, (float*)textureToObject[drawPrimHook_texAddr].matrix.m, 4);
+					
+	
+					
+
+					//device->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
+
+				}
+
+			
+
+			} else {
+				device->SetPixelShader(pPixelShader);
+			}
+			
 		}
 	}
 
 	if (useCustomShaders && !enableEffectColors && !useDeerMode) {
 		pixelShaderNeedsReset = true;
-		pD3DDevice->SetPixelShader(pCustomShader);
+		device->SetPixelShader(pCustomShader);
 	}
+
+
 
 }
 
 void drawPrimCallback() {
 	if (pixelShaderNeedsReset) {
 		pixelShaderNeedsReset = false;
-		pD3DDevice->SetPixelShader(pPixelShader_backup);
+		device->SetPixelShader(pPixelShader_backup);
+		device->SetTexture(1, pTextureStage1Backup);
+		device->SetTexture(2, pTextureStage2Backup);
+		device->SetVertexShader(vertexShaderBackup);
 		pPixelShader_backup = NULL;
+		pTextureStage1Backup = NULL;
+		pTextureStage2Backup = NULL;
+		vertexShaderBackup = NULL;
 	}
+}
+
+void __stdcall matrixGrabber(DWORD eax) {
+
+	// 0x004076bd
+
+	D3DMATRIX* matrix = (D3DMATRIX*)eax;
+
+	for (int i = 0; i < 4; i++) {
+		//log("%6.2f %6.2f %6.2f %6.2f", matrix->m[i][0], matrix->m[i][1], matrix->m[i][2], matrix->m[i][3]);
+		for (int j = 0; j < 4; j++) {
+			stupidTransformMatrix.m[i][j] = matrix->m[i][j];
+		}
+	}
+	//log("-");
+
+
+
 }
 
 // -----
@@ -1182,7 +1464,7 @@ void drawPrimCallback() {
 
 __declspec(naked) void _naked_drawPrimCallback() {
 	PUSH_ALL;
-	asmCall(drawPrimCallback)
+	drawPrimCallback();
 	POP_ALL;
 	__asm {
 		ret;
@@ -1190,12 +1472,15 @@ __declspec(naked) void _naked_drawPrimCallback() {
 }
 
 __declspec(naked) void _naked_drawIndexPrimHook() {
+
+	// patched at 0x004be46e
+
 	__asm {
 		mov _naked_drawCallHook_ebx, ebx;
 	}
 
 	PUSH_ALL;
-	asmCall(drawLoopHook)
+	drawLoopHook();
 	POP_ALL;
 
 	__asm {
@@ -1239,12 +1524,13 @@ __declspec(naked) void _naked_listAppendHook() { // at 0x004c026b
 		mov eax, [esp + 1ECh];
 		mov listAppendHook_objAddr_hit, eax;
 
+		mov listAppendHook_newElement, esi; 
 
 		mov eax, listAppendHook_texAddr;
 	};
 
 	// sorta smarter approach here
-	// checking the direct caller of the func
+	// checking the direct caller of the func 
 	__asm {
 
 		mov _naked_listAppendHook_reg, eax;
@@ -1265,11 +1551,11 @@ __declspec(naked) void _naked_listAppendHook() { // at 0x004c026b
 	__asm _emit 0x51;
 	__asm _emit 0x04;
 
-	// push eax
+	// push eax 
 	__asm _emit 0x50;
 
 	PUSH_ALL;
-	asmCall(listAppendHook)
+	listAppendHook();
 	POP_ALL;
 
 	__asm {
@@ -1285,6 +1571,8 @@ __declspec(naked) void _naked_listAppendHook() { // at 0x004c026b
 DWORD _naked_drawPrimHook_reg;
 DWORD _naked_drawPrimHook_jmp = 0x004be296;
 __declspec(naked) void _naked_drawPrimHook() {
+
+	// patched at 0x004be290
 	__asm {
 		mov _naked_drawPrimHook_reg, eax;
 
@@ -1296,7 +1584,7 @@ __declspec(naked) void _naked_drawPrimHook() {
 		mov eax, _naked_drawPrimHook_reg;
 	};
 	PUSH_ALL;
-	asmCall(drawPrimHook)
+	drawPrimHook();
 	POP_ALL;
 	__asm {
 
@@ -1317,7 +1605,7 @@ __declspec(naked) void _naked_drawPrimHook() {
 	}
 }
 
-__declspec(naked) void _naked_leadToDrawPrimHook() {
+__declspec(naked) void _naked_leadToDrawPrimHook() { // patched at 0x004c0380
 	__asm {
 		mov eax, [esp + 8h];
 		mov leadToDrawPrimHook_ret, eax;
@@ -1336,6 +1624,35 @@ __declspec(naked) void _naked_leadToDrawPrimHook() {
 
 }
 
+__declspec(naked) void _naked_matrixGrabber() {
+
+	// patched at 0x004076bd
+
+	// eax is about to be overwritten by the asm, so ill be using that, as a treat
+	_asm {
+		lea eax, [esp + 0x80];
+	}
+
+	PUSH_ALL;
+	_asm {
+		push eax;
+	}
+	emitCall(matrixGrabber);
+
+	POP_ALL;
+
+	// overwritten asm
+	emitByte(0x0F);
+	emitByte(0xBF);
+	emitByte(0x06);
+
+	emitByte(0x83);
+	emitByte(0xE8);
+	emitByte(0x00);
+
+	emitJump(0x004076c3);
+
+}
 // -----
 
 
@@ -1354,15 +1671,25 @@ void initEffectSelector() {
 
 }
 
+void initMatrixGrabber() {
+
+	// some bs at 004076bd. the matrix is at esp+80
+	// i could maybe do a stack lookback for this, but honestly i am just not in the mood.
+
+	patchJump(0x004076bd, _naked_matrixGrabber);
+}
+
 bool initRenderModifications() {
 
-	if (pD3DDevice == NULL) {
+	if (device == NULL) {
 		return false;
 	}
 
 	initDrawIndexPrimHook();
 
 	initEffectSelector();
+
+	initMatrixGrabber();
 
 	pPixelShader = createPixelShader(R"(
 
@@ -1401,14 +1728,14 @@ float3 HSVtoRGB(float3 hsv)
 
 float4 main(float2 texCoord : TEXCOORD0) : COLOR
 {
-
-
+		
+	
 	float4 orig = tex2D(textureSampler, texCoord);
 	float3 hsvVal = RGBtoHSV(orig.rgb);
 	hsvVal.x = Hue.x; // input hue from register.
 	orig.rgb = HSVtoRGB(hsvVal);
 	return orig;
-
+	
 
 
 }
@@ -1433,4 +1760,191 @@ void loadCustomShader() {
 
 	pCustomShader = loadPixelShaderFromFile(L"testShader.hlsl");
 
+	pCustomVertexShader = loadVertexShaderFromFile(L"testVertexShader.hlsl");
+
+}
+
+int paletteDataIndex = 0;
+DWORD* paletteData = NULL;
+
+void initPaletteStorage() {
+
+	arePaletteTexturesLoaded = false;
+
+	if (paletteTexture != NULL) {
+		paletteTexture->Release();
+		paletteTexture = NULL;
+	}
+
+	if (paletteData != NULL) {
+		free(paletteData);
+		paletteData = NULL;
+	}
+
+	log("setting up palette bs");
+
+	DWORD paletteDataSize = sizeof(DWORD) * 256 * 4; // 256 * sizeof(DWORD) is the size of a palette, 4 bc 4 chars
+	paletteData = (DWORD*)malloc(paletteDataSize);
+	memset(paletteData, 0xFF, paletteDataSize);
+	paletteDataIndex = 0;
+
+}
+
+void loadCharacterPalettes() {
+
+	// patching at 00485e9f means that if someone hooks etm during battle, not css, they wont have the palettes saved. i could do the loading manually? but idk
+	// ugh. tbh i have 2 options, once of which involves more asm, and more restrictions on the user, and one which will cause slight slowdown.
+	// hell i could even figure out threading and... yea
+	// but idefk
+	// my other option is... the reloadallchar thing? 
+	// i think that loads palettes, check out 00448b96
+
+	// ok well 00448bdd has the palette data
+	// i can call FullCharacterReload to... sidetrack this more easily rather than calling the texture loads directly
+	// but that function also calls the texture loads so maybe i should hook there?
+	// i now need to also turn said data into a texture. ugh.
+
+	if ((*(uint8_t*)0x0054EEE8) == 0x01 && !arePaletteTexturesLoaded) { // we are in game, and dont have the bullshit
+		FullCharacterReload();
+	}
+
+	// we arent in css, but dont have the palette textures. load them
+	//; // fullcharacter reload will call my hook defined in initpalettewhatever, and set the arePaletteTexturesLoaded flag.
+
+}
+
+void __stdcall capturePalettes(DWORD ebx, DWORD esi) {
+
+	DWORD* colors = (DWORD*)(ebx + 4 + (esi * 256 * 4));
+
+	//log("first color: %08X palindex is %d", *colors, paletteDataIndex);
+
+	DWORD size = 256;
+	DWORD offset = paletteDataIndex * size;
+	memcpy(paletteData + offset, colors, size * sizeof(DWORD));
+
+	paletteDataIndex++;
+}
+
+void createPaletteTexture() {
+
+	if (!arePaletteTexturesLoaded) {
+		return;
+	}
+
+	HRESULT res;
+
+	device->CreateTexture(256, 4, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &paletteTexture, NULL);
+
+	D3DLOCKED_RECT rect;
+	res = paletteTexture->LockRect(0, &rect, nullptr, 0);
+
+	//log("lockrect was %d", res);
+
+	DWORD* dest = (DWORD*)rect.pBits;
+	memset(dest, 0xFF, sizeof(DWORD) * 256 * 4);
+
+	if (paletteData == NULL) {
+		return;
+	}
+
+	for (int i = 0; i < 256 * 4; i++) {
+		//DWORD ugh = _byteswap_ulong(paletteData[i]);
+		//ugh = (i & 1) ? 0xFF00FF00 : 0xFF0000FF;
+		D3DCOLOR ugh = paletteData[i];
+
+		BYTE a = (ugh & 0xFF000000) >> 24;
+		BYTE r = (ugh & 0x00FF0000) >> 16;
+		BYTE g = (ugh & 0x0000FF00) >> 8;
+		BYTE b = (ugh & 0x000000FF) >> 0;
+
+		if (a) {
+			a = 0xFF;
+		}
+
+		ugh = (a << 24) | (b << 16) | (g << 8) | (r << 0);
+
+		dest[i] = ugh;
+		//log("%08X %08X", i, ugh);
+		//dest[i] = paletteData[i] | 0x000000FF;
+		//dest[i] = (i & 1) ? 0xFF00FF00 : 0x00FF00FF;
+	}
+	paletteTexture->UnlockRect(0);
+
+	
+}
+
+void setupPaletteTexture() {
+
+	// take the stored data from the capture, and put it in one texture. 
+	// pass the char slot id in as a float in order to have the user determine which horiz slot they should use for palette.
+
+	log("attempting to load palette textures");
+
+	arePaletteTexturesLoaded = true;
+	createPaletteTexture();
+	
+
+	//D3DXSaveTextureToFile(L"temp.png", D3DXIFF_PNG, paletteTexture, NULL);
+
+	log("setup palette texture successfully");
+	//log("paletteDataIndex was %d", paletteDataIndex);
+}
+
+__declspec(naked, noinline) void _naked_capturePalettes() {
+	
+	// patched at 0x00448bbc
+
+	PUSH_ALL;
+
+	__asm {
+		push esi; // palette index
+		push ebx; // palette data
+	}
+	emitCall(capturePalettes);
+
+	POP_ALL;
+
+	// overwritten asm
+	emitByte(0x68);
+	emitByte(0x00);
+	emitByte(0x04);
+	emitByte(0x00);
+	emitByte(0x00);
+
+	emitJump(0x00448bc1);
+}
+
+__declspec(naked, noinline) void _naked_setupPaletteTexture() {
+
+	// patched at 0x00448eb5
+
+	PUSH_ALL;
+	setupPaletteTexture();
+	POP_ALL;
+
+	ASM_RET;
+}
+
+__declspec(naked, noinline) void _naked_initPaletteStorage() {
+
+	// patched at 0x004489e0
+
+	PUSH_ALL;
+	initPaletteStorage();
+	POP_ALL;
+
+	// overwritten asm
+	__asm {
+		sub esp, 024ch;
+	}
+
+	emitJump(0x004489e6);
+
+}
+
+void initPaletteLoadPatches() {
+	patchJump(0x00448bbc, _naked_capturePalettes);
+	patchJump(0x00448eb5, _naked_setupPaletteTexture);
+	patchJump(0x004489e0, _naked_initPaletteStorage);
 }

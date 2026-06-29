@@ -10,10 +10,70 @@
 #include "DebugInfo.h"
 #include "dllmain.h"
 
+// these should probs be in dllmain.h, but then id have to include debuginfo there, which would mess with compile time 
+void setBufferCmd(PlayerData* playerData, WORD dir, WORD buttons);
+
+bool tryBufferCmd(PlayerData* playerData);
+
+void tryNormalsAndMovement(ActorData* actorData, byte inputButton, byte inputDirection);
+
+AnimationData* predictNextAnim(int playerIndex) {
+
+	// this looks ahead one frame (to the best of its ability) to see what state the char will be in 
+
+	AnimationData* res = NULL; // should i set this to null or what the player is currently in?
+
+	__try {
+
+		if (playerDataArr[playerIndex].subObj.animationDataPtr == NULL) {
+			return NULL;
+		}
+
+		BYTE stateDuration = playerDataArr[playerIndex].subObj.animationDataPtr->stateDuration;
+		DWORD framesInCurrentState = playerDataArr[playerIndex].subObj.framesInCurrentState;
+		short goToData = playerDataArr[playerIndex].subObj.animationDataPtr->goToData; // this can be negative, and is fucking weird about it
+
+		if (playerDataArr[playerIndex].subObj.animationDataPtr->gotoRelativeOffset) {
+			goToData = playerDataArr[playerIndex].subObj.state + goToData;
+		}
+
+		if (framesInCurrentState + 1 != stateDuration) {
+			return playerDataArr[playerIndex].subObj.animationDataPtr; // we arent switching state/pattern, so return the current one
+		}
+
+		switch (playerDataArr[playerIndex].subObj.animationDataPtr->animationType) {
+		case 0: // goto pattern
+			res = playerDataArr[playerIndex].getAnimationDataPtr(goToData, 0);
+			break;
+		case 1: // goto next frame
+			res = playerDataArr[playerIndex].getAnimationDataPtr(playerDataArr[playerIndex].subObj.pattern, playerDataArr[playerIndex].subObj.state + 1);
+			break;
+		case 2: // goto frame. does this.. perform addition on the state??? im so confused. 
+			// warc arc drive does a -2 for... looping, warc jump, if canceled into jb after 3 frames, jumps from state 2 to 5 of the jump
+			// should i have this thing like,,, subtract if negative and set if positive?
+			// or is it the "end of loop" flag?
+			// or maybe its the "gotoRelativeOffset" flag?
+			// is that only used for this?
+			res = playerDataArr[playerIndex].getAnimationDataPtr(playerDataArr[playerIndex].subObj.pattern, goToData);
+			break;
+		default:
+			break;
+		}
+
+	} __except (EXCEPTION_EXECUTE_HANDLER) {
+		log("tas predictNextAnim fucked up horribly. P:%d S:%d", playerDataArr[playerIndex].subObj.pattern, playerDataArr[playerIndex].subObj.state);
+		return NULL;
+	}
+
+	return res;
+}
+
 bool enableTAS = false;
 bool randomTAS = false;
 bool regenTAS = true;
 bool fixTAS2v2 = false;
+bool enableRevTAS = false;
+byte revTasDoTrainingActionMem = 1;
 
 unsigned getRand() {
 
@@ -63,6 +123,11 @@ float TASManager::buttonMutationRate = 0.05f;
 float TASManager::directionMutationRate = 0.05f;
 float TASManager::lengthMutationRate = 0.10f;
 
+void addTasData(std::vector<TASItem>& tasArray, TASItem& item) {
+	item.logItem();
+	tasArray.push_back(item);
+};
+
 void TASManager::parseLine(const std::string& l) {
 
 	std::string s = l;
@@ -77,103 +142,175 @@ void TASManager::parseLine(const std::string& l) {
 	// the format of this map is key(string hash), val is the rest of the string not containing the command
 	// constexpr doesnt like maps, which is why im using an array, the size is small enough that it will probs be better that way
 	#ifdef _DEBUG
-		std::array<std::pair<DWORD, void(*)(TASManager* t, const std::string&)>, 14> parseArr = {{
+		std::array<std::pair<DWORD, void(*)(TASManager* t, const std::string&)>, 21> parseArr = {{
 	#else
-		constexpr std::array<std::pair<DWORD, void(*)(TASManager* t, const std::string&)>, 14> parseArr = {{
+		constexpr std::array<std::pair<DWORD, void(*)(TASManager* t, const std::string&)>, 21> parseArr = {{
 	#endif
 	
 		{ hashString("pause"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::Pause;
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("unpause"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::Unpause;
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("p1pos"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::P1XPos;
 			res.commandData = safeStoi(data);
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("p2pos"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::P2XPos;
 			res.commandData = safeStoi(data);
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("p3pos"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::P3XPos;
 			res.commandData = safeStoi(data);
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("p4pos"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::P4XPos;
 			res.commandData = safeStoi(data);
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("p1meter"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::P1Meter;
 			res.commandData = safeStoi(data);
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("p2meter"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::P2Meter;
 			res.commandData = safeStoi(data);
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("p3meter"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::P3Meter;
 			res.commandData = safeStoi(data);
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("p4meter"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::P4Meter;
 			res.commandData = safeStoi(data);
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("startff"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::StartFF;
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("stopff"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::StopFF;
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("fn1"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.command = TASCommand::FN1;
-			t->tasData.push_back(res);
+			addTasData(t->tasData, res);
 		}},
 
 		{ hashString("dl"), [](TASManager* t, const std::string& data) -> void {
 			TASItem res;
 			res.length = safeStoi(data);
-			t->tasData.push_back(res);
-		}}
+			addTasData(t->tasData, res);
+		}},
 
+
+		{ hashString("waitcancel"), [](TASManager* t, const std::string& data) -> void { // dont use this
+			TASItem res; 
+			res.command = TASCommand::WaitCancel;
+			addTasData(t->tasData, res);
+		}},
+
+		// these waits arent the best/fastest/frame 1, but can be helpful to get a general ideal of timings
+		{ hashString("waithitbox"), [](TASManager* t, const std::string& data) -> void { // while this and waitcanmove work, for specials, you can probs get them sooner. makes prototyping easier tho
+			
+			// i need to add an option to hold a direction for all these wait commands
+			// maybe w should be its own ccommand, just like s, and x
+			// you must use this after every hit to clear its flag!
+			// also, this is one frame delayed
+
+			TASItem res;
+			res.command = TASCommand::HitboxFlagClear;
+			addTasData(t->tasData, res);
+
+			// im not sure why im putting this here
+			res.command = TASCommand::Nothing;
+			res.length = 1;
+			addTasData(t->tasData, res);
+			
+			res.command = TASCommand::WaitHitbox;
+			addTasData(t->tasData, res);
+		}},
+
+		{ hashString("waitcanmove"), [](TASManager* t, const std::string& data) -> void {
+			// im not sure why im putting this here
+			TASItem res;
+			res.command = TASCommand::Nothing;
+			res.length = 1;
+			addTasData(t->tasData, res);
+
+			res.command = TASCommand::WaitCanMove;
+			addTasData(t->tasData, res);
+		}},
+
+		{ hashString("waitnormalcancel"), [](TASManager* t, const std::string& data) -> void {
+			// im not sure why im putting this here
+			TASItem res;
+			res.command = TASCommand::Nothing;
+			res.length = 1;
+			addTasData(t->tasData, res);
+
+			res.command = TASCommand::WaitNormalCancel;
+			addTasData(t->tasData, res);
+		}},
+		
+		{ hashString("waitspecialcancel"), [](TASManager* t, const std::string& data) -> void {
+			// im not sure why im putting this here
+			TASItem res;
+			res.command = TASCommand::Nothing;
+			res.length = 1;
+			addTasData(t->tasData, res);
+
+			res.command = TASCommand::WaitSpecialCancel;
+			addTasData(t->tasData, res);
+		}},
+
+		{ hashString("waitair"), [](TASManager* t, const std::string& data) -> void {
+			TASItem res;
+			res.command = TASCommand::WaitAir;
+			addTasData(t->tasData, res);
+		}},
+
+		{ hashString("waitground"), [](TASManager* t, const std::string& data) -> void {
+			TASItem res;
+			res.command = TASCommand::WaitGround;
+			addTasData(t->tasData, res);
+		}}
 
 	}};
 
@@ -206,20 +343,58 @@ void TASManager::parseLine(const std::string& l) {
 				instr = "1";
 			}
 
+			std::string temp = " ";
 			if (data[0] == 's') { // parse sequence
-				std::string temp = " ";
 				for (size_t i = 1; i < data.size(); i++) {
 					TASItem res;
 					res.length = 1;
 					temp[0] = data[i];
 					res.setData(temp);
-					tasData.push_back(res);
+					//tasData.push_back(res);
+					addTasData(tasData, res);
 				}
+			} else if (data[0] == 'x') { // parse a reversal sequence
+				TASItem res;
+				res.command = TASCommand::SetBuffer;
+				res.commandData = 0;
+				// i can store the direction in commandData, and buttons in buttons
+				for (size_t i = 1; i < data.size(); i++) {
+					if (data[i] >= '0' && data[i] <= '9') { // add the direction to the commandData
+						res.commandData *= 10;
+						res.commandData += data[i] - '0';
+					} else { // set a button
+						temp[0] = data[i];
+						res.setData(temp);
+					}
+				}
+				//tasData.push_back(res);
+				addTasData(tasData, res);
+			} else if(data[0] == 'w') { // wait for an input to be... doable? and then do it? the second number is what direction should be held, for, reasons beyond my knowing
+				
+				// this shouldnt be used
+
+				TASItem res;
+				
+
+				// a delay of 1 is needed here. or maybe more? not sure at all. i should probs document this somewhere better than here
+				temp[0] = data[1];
+				res.length = 1;
+				res.setData(temp); // the direction to hold, prevents things like 22 coming out
+				//tasData.push_back(res);
+				addTasData(tasData, res);
+				
+				res.length = 0;
+				res.command = TASCommand::WaitCancel;
+				res.waitCommand = data.substr(2); // remove the w, and the hold direction take all else
+				
+				//tasData.push_back(res);
+				addTasData(tasData, res);
 			} else { // parse a normal input
 				TASItem res;
 				res.setLength(instr);
 				res.setData(data);
-				tasData.push_back(res);
+				//tasData.push_back(res);
+				addTasData(tasData, res);
 			}
 
 		} else {
@@ -301,6 +476,77 @@ void TASManager::reset() {
 
 }
 
+bool canMove(int playerIndex) {
+	
+	if (playerDataArr[playerIndex].subObj.animationDataPtr->stateData->canMove) {
+		return true;
+	}
+
+	__try {
+		AnimationData* temp = predictNextAnim(playerIndex);
+		if (temp != NULL && temp->stateData->canMove) {
+			return true;
+		}
+	} __except (EXCEPTION_EXECUTE_HANDLER) {
+		log("canmove fucked up horribly. P:%d S:%d", playerDataArr[playerIndex].subObj.pattern, playerDataArr[playerIndex].subObj.state);
+		return false;
+	}
+	
+	return false;
+}
+
+bool canNormalCancel(int playerIndex) {
+
+	if (playerDataArr[playerIndex].subObj.animationDataPtr->stateData->cancelNormal == 2) {
+		return true;
+	}
+
+	/*
+	for both normal and special cancel, the values are as such:
+	0: never
+	1: on hit
+	2: always
+	3: on successful hit (what does this exactly mean?)
+
+	basically tho, it would be helpful to change a normal/special cancel command to a hitbox command? 
+	but that would maybe cause issues with the hitbox flag needing to be reset
+
+	or i could just,... have this flag only work on 2.
+
+	*/
+
+	__try {
+		AnimationData* temp = predictNextAnim(playerIndex);
+		if (temp != NULL && temp->stateData->cancelNormal == 2) {
+			return true;
+		}
+	} __except (EXCEPTION_EXECUTE_HANDLER) {
+		log("canNormalCancel fucked up horribly. P:%d S:%d", playerDataArr[playerIndex].subObj.pattern, playerDataArr[playerIndex].subObj.state);
+		return false;
+	}
+
+	return false;
+}
+
+bool canSpecialCancel(int playerIndex) {
+
+	if (playerDataArr[playerIndex].subObj.animationDataPtr->stateData->cancelSpecial == 2) {
+		return true;
+	}
+
+	__try {
+		AnimationData* temp = predictNextAnim(playerIndex);
+		if (temp != NULL && temp->stateData->cancelSpecial == 2) {
+			return true;
+		}
+	} __except (EXCEPTION_EXECUTE_HANDLER) {
+		log("canSpecialCancel fucked up horribly. P:%d S:%d", playerDataArr[playerIndex].subObj.pattern, playerDataArr[playerIndex].subObj.state);
+		return false;
+	}
+
+	return false;
+}
+
 void TASManager::setInputs(int playerIndex) {
 
 	if (!enableTAS) {
@@ -310,7 +556,11 @@ void TASManager::setInputs(int playerIndex) {
 	if (tasIndex >= tasData.size()) {
 		if (!tasDone && tasData.size() != 0) {
 			tasDone = true;
-			log("TAS fitness %f", fitness);
+			if (enableRevTAS) {
+				enableRevTAS = false;
+				enableTAS = false;
+				playerDataArr[playerIndex].subObj.doTrainingAction = revTasDoTrainingActionMem;
+			}
 		}
 		return;
 	}
@@ -318,10 +568,11 @@ void TASManager::setInputs(int playerIndex) {
 	//fitness = MAX(fitness, 11400.0f - playerDataArr[1].health);
 	fitness = MAX(fitness, getComboCount());
 
+	DWORD baseAddr;
 	if (tasData[tasIndex].command == TASCommand::Nothing) {
 
 		//int playerIndex = 0;
-		DWORD baseAddr = 0x00771398 + (0x2C * playerIndex);
+		baseAddr = 0x00771398 + (0x2C * playerIndex);
 
 		// dir
 		// if (*(BYTE*)(0x00555130 + 0x314) == 1) {
@@ -341,6 +592,11 @@ void TASManager::setInputs(int playerIndex) {
 
 		return;
 	}
+
+
+	DWORD res;
+	static int waitCancelOmfg = 0;
+	DWORD temp;
 
 	switch (tasData[tasIndex].command) {
 
@@ -380,7 +636,7 @@ void TASManager::setInputs(int playerIndex) {
 		needPause = 0;
 		_naked_newPauseCallback2_IsPaused = 0;
 		break;
-	case TASCommand::StartFF:
+	case TASCommand::StartFF: // i should probs expose the fps variable in caster so it can just set this. 
 		setFPSLimiter(true);
 		break;
 	case TASCommand::StopFF:
@@ -392,15 +648,110 @@ void TASManager::setInputs(int playerIndex) {
 		// due to stupid reasons, this needs to be changed at a different point in the code, so that 2v2 can interact with it
 		fn1Press2v2[playerIndex] = true;
 		break;
+	case TASCommand::SetBuffer:
+		setBufferCmd(&playerDataArr[playerIndex], tasData[tasIndex].commandData, tasData[tasIndex].buttons);
+
+		if (tryBufferCmd(&playerDataArr[playerIndex])) {
+			if (tasData[tasIndex].commandData < 10) {
+				playerDataArr[playerIndex].subObj.correctedDirInput = tasData[tasIndex].commandData == 5 ? 0 : tasData[tasIndex].commandData;
+				playerDataArr[playerIndex].subObj.buttonInputs = tasData[tasIndex].buttons + (tasData[tasIndex].buttons << 12);
+				tryNormalsAndMovement(&playerDataArr[playerIndex].subObj, playerDataArr[playerIndex].subObj.buttonInputs, playerDataArr[playerIndex].subObj.correctedDirInput);
+			}
+		}
+		break;
+	case TASCommand::WaitCancel:
+		// this is real stupid, and has a high chance of being 1f late.
+		// this also might explode rewinding, but that hasnt been right since my 2 forward button thing got fucked up
+
+		res = getCancelStatus(playerIndex, tasData[tasIndex].waitCommand.c_str());
+		log("cancel status for %s --> %d", tasData[tasIndex].waitCommand.c_str(), res);
+		if (res == -1) {
+			break;
+		}
+
+		// this is copied code, and a shit idea
+		baseAddr = 0x00771398 + (0x2C * playerIndex);
+		if (playerDataArr[playerIndex].subObj.isOpponentToLeft == 1) {
+			constexpr uint8_t dirLookup[10] = { 0, 3, 2, 1, 6, 5, 4, 9, 8, 7 };
+			*(BYTE*)(baseAddr + 0) = dirLookup[tasData[tasIndex].dir];
+		} else {
+			*(BYTE*)(baseAddr + 0) = tasData[tasIndex].dir;
+		}
+
+		// i should also wait for hitstop to be done? maybe? 
+
+		// if cant cancel, just,,, dont?? idek what im doing here
+		/*if (!playerDataArr[playerIndex].subObj.animationDataPtr->stateData->cancelNormal && !playerDataArr[playerIndex].subObj.animationDataPtr->stateData->cancelSpecial) {
+			return;
+		}*/
+
+		/*if (playerDataArr[playerIndex].subObj.hitstop) {
+			log("leaving early bc hitstop");
+			return;
+		}*/
+		
+		if (res) {
+			
+			} else {
+				//it was 0 when no cancels were possible
+			return;
+		}
+		break;
+	case TASCommand::WaitHitbox:
+		if (!didHitboxConnect) {
+			return;
+		}
+		didHitboxConnect = 0;
+		break;
+	case TASCommand::WaitCanMove:
+		if (!canMove(playerIndex)) {
+			return;
+		}
+		break;
+	case TASCommand::WaitNormalCancel:
+		if (!canNormalCancel(playerIndex)) {
+			return;
+		}
+		break;
+	case TASCommand::WaitSpecialCancel:
+		if (!canSpecialCancel(playerIndex)) {
+			return;
+		}
+		break;
+	case TASCommand::WaitAir:
+		if (playerDataArr[playerIndex].subObj.animationDataPtr != NULL && 
+			playerDataArr[playerIndex].subObj.animationDataPtr->stateData != NULL &&
+			playerDataArr[playerIndex].subObj.animationDataPtr->stateData->stance != 1) {// &&
+			//playerDataArr[playerIndex].subObj.animationDataPtr->stateData->canMove) {
+			return;
+		}
+		break;
+	case TASCommand::WaitGround:
+		if (playerDataArr[playerIndex].subObj.animationDataPtr != NULL &&
+			playerDataArr[playerIndex].subObj.animationDataPtr->stateData != NULL &&
+			playerDataArr[playerIndex].subObj.animationDataPtr->stateData->stance == 1) {// &&
+			//playerDataArr[playerIndex].subObj.animationDataPtr->stateData->canMove) {
+			return;
+		}
+		break;
+	case TASCommand::HitboxFlagClear:
+		didHitboxConnect = 0;
+		break;
 	default: 
 		break;
 	}
+
+	// something to wait until a char can perform an action, and then perform it would be nice
+	// and/or landing
+	// 0046cea0 has some hope, but only for specials
+	// 0046cc40 has some hope,, but also only specials
+	// 00463330 getCancelability,,?
 
 	// i do not want TAS commands to take up a frame, so i will inc the thing and go from there
 	// additionally, i will sometimes be using the length variable/button data for other things, so i need to inc the index custom here
 	tasIndex++;
 	tasCurrentLen = 1; 
-	setInputs();
+	setInputs(playerIndex);
 		
 }
 
@@ -412,6 +763,19 @@ void TASManager::incInputs() {
 
 	if (tasIndex >= tasData.size()) {
 		return;
+	}
+
+	switch (tasData[tasIndex].command) {
+		case TASCommand::WaitCancel:
+		case TASCommand::WaitHitbox:
+		case TASCommand::WaitCanMove:
+		case TASCommand::WaitAir:
+		case TASCommand::WaitGround:
+		case TASCommand::WaitNormalCancel:
+		case TASCommand::WaitSpecialCancel:
+			return;
+		default: 
+			break;
 	}
 		
 	if (tasCurrentLen >= tasData[tasIndex].length) {

@@ -3,7 +3,6 @@
 #endif
 #include "DirectXHook.h"
 
-LPDIRECT3DDEVICE9 pD3DDevice = nullptr;
 void* pTable[119];
 tPresent oPresent = nullptr;
 

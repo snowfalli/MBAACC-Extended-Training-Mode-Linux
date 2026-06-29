@@ -4,8 +4,22 @@
 #include "DebugInfo.h"
 #include "dllmain.h"
 #include "..\Common\Common.h"
+#include <shobjidl.h> 
+#include <fstream>
+#include <filesystem>
 
 #include "TrainingMenu.h"
+
+/*
+
+this code gives me psychic damage every time i look back on it
+what was i smoking;
+i seriously just ended a sentance with a semicolon. wow
+
+*/
+
+#include "FrameBar.h"
+
 extern bool shouldDisplayDebugInfo;
 extern bool shouldDisplayLinkedListInfo;
 extern bool shouldDebugImportantDraw;
@@ -30,6 +44,94 @@ Menu<int>* disableFpsMenuOption = NULL;
 bool enableEffectColors = false;
 float effectColorHue = 0.0f;
 bool enableCursor = true;
+bool displayComboTimer = false;
+bool displayHitstunBar = false;
+
+int p1LoadMoon = 0;
+int p1LoadChar = 0;
+int p1LoadPal = 1;
+
+int p2LoadMoon = 0;
+int p2LoadChar = 0;
+int p2LoadPal = 1;
+
+bool reloadCheckFile = false;
+
+int dummyTechDelay = 0;
+int dummyBurstChance = 100;
+int dummyDelayBurstChance = 100;
+int dummyBunkerChance = 100;
+int dummyDelayBunkerChance = 100;
+
+bool freezeCamera = false;
+float customCameraZoom = 1.0;
+int customCameraZoomInterval = 1;
+int customCameraX = 0;
+int customCameraY = 0;
+int customCameraCoordInterval = 1;
+
+bool compactView = false;
+int bgAlpha = 0x00;
+float menuFontSize = 10.0f;
+
+int autoAdvanceFrames = 60;
+bool doAutoAdvance = false;
+
+bool customLoadReplay = false;
+char customLoadReplayPath[256] = "";
+char* customLoadReplayPathPtr = customLoadReplayPath;
+
+bool wikiBoxMode = false;
+
+int enableMouseControls = 0;
+
+static bool LoadFileExplorer(std::wstring& filePath)
+{
+	IFileOpenDialog* pFileOpen;
+	HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
+
+	if (SUCCEEDED(hr))
+	{
+		hr = pFileOpen->Show(NULL); // Display the dialog
+		if (SUCCEEDED(hr))
+		{
+			IShellItem* pItem;
+			hr = pFileOpen->GetResult(&pItem);
+			if (SUCCEEDED(hr))
+			{
+				PWSTR pszFilePath;
+				hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+				if (SUCCEEDED(hr))
+				{
+					filePath = pszFilePath;
+					CoTaskMemFree(pszFilePath);
+					pItem->Release();
+					pFileOpen->Release();
+					return true;
+				}
+				pItem->Release();
+			}
+		}
+		pFileOpen->Release();
+	}
+	return false;
+}
+
+void LoadReplayFromExplorer() {
+	try
+	{
+		std::wstring wsFileName;
+		if (LoadFileExplorer(wsFileName))
+		{
+			size_t c;
+			wcstombs_s(&c, customLoadReplayPath, 255, wsFileName.c_str(), wcslen(wsFileName.c_str()));
+		}
+	}
+	catch (...)
+	{
+
+	}
+}
 
 template <typename T>
 struct always_false : std::false_type { };
@@ -56,6 +158,22 @@ std::function<std::string(float)> defaultSliderNameFunc = [](float opt) -> std::
 	static char buffer[256]; // is this buffer shared between lambdas,, tbh hopefully it is, it is overwritten every time
 	snprintf(buffer, 256, "%5.2f", opt);
 	return std::string(buffer);
+	};
+
+std::function<std::string(float*)> pointerSliderNameFunc = [](float* opt) -> std::string {
+	static char buffer[256]; // is this buffer shared between lambdas,, tbh hopefully it is, it is overwritten every time
+	snprintf(buffer, 256, "%5.2f", *opt);
+	return std::string(buffer);
+	};
+
+std::function<std::string(int*)> pointerIntSliderNameFunc = [](int* opt) -> std::string {
+	static char buffer[256]; // is this buffer shared between lambdas,, tbh hopefully it is, it is overwritten every time
+	snprintf(buffer, 256, "%i", *opt);
+	return std::string(buffer);
+	};
+
+std::function<std::string(int)> buttonNameFunc = [](int opt) -> std::string {
+	return "";
 	};
 
 // returns a func which modifies the variable passed in
@@ -151,10 +269,19 @@ void Menu<T>::draw(Point& p) {
 	bool inside = false;
 	DWORD col = 0xFFFFFFFF;
 
-	if (items.size() == 0) {
+	int subUnfolded = -1;
+	for (int i = 0; i < items.size(); i++) {
+		if (std::visit([](auto& m) -> bool { return m.unfolded; }, items[i])) subUnfolded = i;
+	}
 
-		bounds = TextDraw(p, 10, 0xFFFFFFFF, "%s %s", name.c_str(), nameFunc(optionState).c_str());
-		inside = bounds.inside(mousePos);
+	if (subUnfolded > -1 && compactView) {
+		p -= Point(10.0f, 0.0f);
+		std::visit([&p](auto& m) { m.draw(p); }, items[subUnfolded]);
+	}
+	else if (items.size() == 0) {
+
+		bounds = TextDraw(p, menuFontSize, 0xFFFFFFFF, "%s %s", name.c_str(), nameFunc(optionState).c_str());
+		inside = bounds.isInside(mousePos);
 
 		if (lClick && inside) {
 			optionFunc(1, optionState);
@@ -177,12 +304,12 @@ void Menu<T>::draw(Point& p) {
 		}
 
 	} else {
-		bounds = TextDraw(p, 10, 0xFFFFFFFF, "%s", name.c_str());
-		inside = bounds.inside(mousePos);
+		bounds = TextDraw(p, menuFontSize, 0xFFFFFFFF, "%s", name.c_str());
+		inside = bounds.isInside(mousePos);
 
 		if (unfolded) {
 			for (int i = 0; i < items.size(); i++) {
-				p += Point(0.0f, 10.0f);
+				p += Point(0.0f, menuFontSize);
 				//items[i].draw(p);
 				std::visit([&p](auto& m) { m.draw(p); }, items[i]);
 			}
@@ -195,11 +322,12 @@ void Menu<T>::draw(Point& p) {
 	p -= Point(10.0f, 0.0f);
 
 	if (inside) {
-		col = 0xFF00FFFF;
+		col = 0xFF42E5F4;
 	}
 
 	//log("%s %f %f %f %f", name.c_str(), bounds.x1, bounds.y1, bounds.x2, bounds.y2);
-
+	if (subUnfolded > -1 && compactView) return;
+	if (bgAlpha > 0) RectDraw(bounds, bgAlpha << 24);
 	BorderDraw(bounds, col);
 }
 
@@ -218,7 +346,7 @@ void initUISubmenu() {
 			opt += inc;
 			opt = CLAMP(opt, INPUT_OFF, INPUT_BOTH);
 
-			nP1_INPUT_DISPLAY = opt;
+			XS_p1InputDisplay = opt;
 		},
 		[](int opt) mutable -> std::string {
 
@@ -245,7 +373,7 @@ void initUISubmenu() {
 			opt += inc;
 			opt = CLAMP(opt, INPUT_OFF, INPUT_BOTH);
 
-			nP2_INPUT_DISPLAY = opt;
+			XS_p2InputDisplay = opt;
 		},
 		[](int opt) -> std::string {
 
@@ -267,41 +395,40 @@ void initUISubmenu() {
 		sP2_INPUT_DISPLAY
 	);
 
-	ui.add<int>("Show Framebar",
-		[](int inc, int& opt) {
-			opt += inc;
-			opt &= 0b1;
-
-			nIN_GAME_FRAME_DISPLAY = opt;
-		},
-		defaultOnOffNameFunc,
-		sFRAME_DISPLAY
-	);
-
-	ui.add<int>("Framebar Y",
-		[](int inc, int& opt) {
-			opt += (inc * 10.0f);
-			opt = CLAMP(opt, 10.0f, 440.0f);
-
-			nTRUE_FRAME_DISPLAY_Y = opt;
-			if (nTRUE_FRAME_DISPLAY_Y == 440) nFRAME_DISPLAY_Y = 2;
-			else if (nTRUE_FRAME_DISPLAY_Y == 10) nFRAME_DISPLAY_Y = 0;
-			else nFRAME_DISPLAY_Y = 1;
-		},
-		defaultSliderNameFunc,
-		sFRAME_BAR_Y
-	);
-
 	ui.add<int>("Show Stats",
 		[](int inc, int& opt) {
 			opt += inc;
 			opt &= 0b1;
 
-			nSHOW_STATS = opt;
+			XS_showStats = opt;
 		},
 		defaultOnOffNameFunc,
 		L"",
 		1
+	);
+
+	ui.add<int>("Show Combo Timer",
+		[](int inc, int& opt) {
+			opt += inc;
+			opt &= 0b1;
+
+			displayComboTimer = opt;
+		},
+		defaultOnOffNameFunc,
+		L"",
+		0
+	);
+
+	ui.add<int>("Show Hitstun Bar",
+		[](int inc, int& opt) {
+			opt += inc;
+			opt &= 0b1;
+
+			displayHitstunBar = opt;
+		},
+		defaultOnOffNameFunc,
+		L"",
+		0
 	);
 
 	ui.add<int>("Hide Extras",
@@ -309,7 +436,7 @@ void initUISubmenu() {
 			opt += inc;
 			opt &= 0b1;
 
-			nHIDE_EXTRAS = opt;
+			XS_hideExtras = opt;
 		},
 		defaultOnOffNameFunc
 	);
@@ -322,7 +449,7 @@ void initUISubmenu() {
 			enableCursor = opt;
 		},
 		defaultOnOffNameFunc,
-		L"",
+		sDISPLAY_CURSOR,
 		true
 	);
 
@@ -341,7 +468,7 @@ void initHitboxSubmenu() {
 			opt += inc;
 			opt &= 0b1;
 
-			nHITBOX_STYLE = opt;
+			XS_hitboxStyle = opt;
 		},
 		[](int opt) -> std::string {
 
@@ -364,25 +491,198 @@ void initHitboxSubmenu() {
 			opt += inc;
 			opt &= 0b1;
 
-			nCOLOR_BLIND_MODE = opt;
+			XS_colorBlindMode = opt;
 		},
 		defaultOnOffNameFunc
 	);
 
-	hitboxes.add<float>("Opacity",
-		std::function<void(int, float&)>([](int inc, float& opt) -> void {
-			opt += (inc * 0.1f);
-			opt = CLAMP(opt, 0.0f, 1.0f);
+	hitboxes.add<float*>("Opacity",
+		[](int inc, float*& opt) -> void {
+			*opt += (inc * 0.05f);
+			*opt = CLAMP(*opt, 0.0f, 1.0f);
+		},
+		pointerSliderNameFunc,
+		L"",
+		& hitboxOpacity
+	);
 
-			hitboxOpacity = opt;
-			}),
-		defaultSliderNameFunc
+	hitboxes.add<float*>("Border Opacity",
+		[](int inc, float*& opt) -> void {
+			*opt += (inc * 0.05f);
+			*opt = CLAMP(*opt, 0.0f, 1.0f);
+		},
+		pointerSliderNameFunc,
+		L"",
+		&hitboxBorderOpacity
+	);
+
+	hitboxes.add<int>("Wiki Box Mode",
+		[](int inc, int& opt) {
+			opt += inc;
+			opt &= 0b1;
+
+			wikiBoxMode = opt != 0;
+			if (opt != 0) {
+				hitboxOpacity = 0.35f;
+				hitboxBorderOpacity = 1.0f;
+				XS_hideHUD = 1;
+				XS_background = 1;
+				XS_hideShadows = 1;
+			}
+		},
+		defaultOnOffNameFunc,
+		L"",
+		0
+	);
+
+	hitboxes.add<int*>(" > BG",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0, 8);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		& XS_background
+	);
+
+	hitboxes.add<int>(" > Hide enemy",
+		[](int inc, int& opt) {
+			opt += inc;
+			opt &= 0b1;
+
+			if (opt != 0) {
+				*(byte*)(adMBAABase + 0x00155C2C) = 0;
+				*(byte*)(adMBAABase + 0x00157224) = 0;
+			}
+		},
+		defaultOnOffNameFunc,
+		L"",
+		0
 	);
 
 	// wow thats some syntax
-	std::get<Menu<float>>(hitboxes.items[hitboxes.items.size() - 1]).optionState = 0.20f;
+	//std::get<Menu<float>>(hitboxes.items[hitboxes.items.size() - 1]).optionState = 0.20f;
 
 	baseMenu.add(hitboxes);
+
+}
+
+void initFramebarSubmenu() {
+
+	// -----
+
+	Menu Framebar("Framebar");
+
+	Framebar.add<int>("Show Framebar",
+		[](int inc, int& opt) {
+			opt += inc;
+			opt &= 0b1;
+
+			XS_inGameFrameDisplay = opt;
+		},
+		defaultOnOffNameFunc,
+		sFRAME_DISPLAY
+	);
+
+	Framebar.add<float*>("X-Position",
+		[](int inc, float*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0.0f, 640.0f);
+		},
+		pointerSliderNameFunc,
+		sFRAME_BAR_X,
+		&(frameBar.x)
+	);
+
+	Framebar.add<float*>("Y-Position",
+		[](float inc, float*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0.0f, 480.0f);
+		},
+		pointerSliderNameFunc,
+		sFRAME_BAR_Y,
+		&frameBar.y
+	);
+
+	Framebar.add<float*>("Width",
+		[](float inc, float*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 1.0f, 640.0f);
+		},
+		pointerSliderNameFunc,
+		sFRAME_BAR_W,
+		&frameBar.w
+	);
+
+	Framebar.add<float*>("Height",
+		[](float inc, float*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 1.0f, 480.0f);
+		},
+		pointerSliderNameFunc,
+		sFRAME_BAR_H,
+		&frameBar.h
+	);
+
+	Framebar.add<int*>("Number of Frames Displayed",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 1, 400);
+		},
+		pointerIntSliderNameFunc,
+		sFRAME_BAR_NUMCELLS,
+		&frameBar.numCells
+	);
+
+	Framebar.add<float*>("Cell Width Ratio",
+		[](float inc, float*& opt) {
+			*opt += inc * 0.01;
+			*opt = CLAMP(*opt, 0.50f, 1.00f);
+		},
+		pointerSliderNameFunc,
+		sFRAME_BAR_CELLWIDTH,
+		&frameBar.cellWidth
+	);
+
+	Framebar.add<int*>("Display Numbers",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt &= 0b1;
+		},
+		[](int* opt) -> std::string {
+			if (*opt == 0) return "OFF";
+			return "ON";
+		},
+		L"",
+		&displayNumbers
+	);
+
+	Framebar.add<int*>("Adjust Numbers for Type 2 Freeze",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt &= 0b1;
+		},
+		[](int* opt) -> std::string {
+			if (*opt == 0) return "OFF";
+			return "ON";
+		},
+		L"",
+		&nAdjustNumbersForFreeze
+	);
+
+	Framebar.add<int>("Default Settings",
+		[](int inc, int& opt) {
+			frameBar.x = 320.0f;
+			frameBar.y = 410.0f;
+			frameBar.w = 600.0f;
+			frameBar.h = 26.0f;
+			frameBar.numCells = 75;
+			frameBar.cellWidth = 0.90f;
+		},
+		buttonNameFunc
+	);
+
+	baseMenu.add(Framebar);
 
 }
 
@@ -391,6 +691,18 @@ void initMiscSubmenu() {
 	Menu misc("Misc");
 
 	Menu miscMenu("Misc Options");
+
+	miscMenu.add<int*>("Show Roa hidden charge",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0, 1);
+		},
+		[](int* opt) -> std::string {
+			return *opt ? "ON" : "OFF";
+		},
+		L"SHOWROAHIDDENCHARGE",
+		&showRoaHiddenCharge
+	);
 
 	miscMenu.add<int*>("Show Roa hidden charge",
 		[](int inc, int*& opt) {
@@ -450,6 +762,7 @@ void initMiscSubmenu() {
 		defaultOnOffNameFunc,
 		L"ENABLEEFFECTHUECOLOR"
 	);
+	enableEffectColors = subColorMenu.getLastItem<int>().optionState;
 
 	subColorMenu.add<float>("effect hue",
 		std::function<void(int, float&)>([](int inc, float& opt) -> void {
@@ -571,6 +884,110 @@ void initMiscSubmenu() {
 
 	misc.add(windMenu);
 
+	misc.add<int*>("Dummy Delay Tech Frames",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0, 3);
+		},
+		[](int* opt) -> std::string {
+			if (*opt == 3)
+			{
+				return "RANDOM";
+			}
+			return std::to_string(*opt);
+		},
+		L"",
+		&dummyTechDelay
+	);
+
+	misc.add<int*>("Dummy Burst Chance",
+		[](int inc, int*& opt) {
+			*opt += 10 * inc;
+			*opt = CLAMP(*opt, 0, 100);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		& dummyBurstChance
+	);
+
+	misc.add<int*>(" >Delay Burst Chance / Frame",
+		[](int inc, int*& opt) {
+			*opt += 10 * inc;
+			*opt = CLAMP(*opt, 0, 100);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		&dummyDelayBurstChance
+	);
+
+	misc.add<int*>("Dummy Bunker Chance",
+		[](int inc, int*& opt) {
+			*opt += 10 * inc;
+			*opt = CLAMP(*opt, 0, 100);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		& dummyBunkerChance
+	);
+
+	misc.add<int*>(" >Delay Bunker Chance / Frame",
+		[](int inc, int*& opt) {
+			*opt += 10 * inc;
+			*opt = CLAMP(*opt, 0, 100);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		& dummyDelayBunkerChance
+	);
+
+	misc.add<int>("Framestep on held input",
+		[](int inc, int& opt) {
+			opt += inc;
+			opt &= 0b1;
+
+			doAutoAdvance = opt != 0;
+		},
+		defaultOnOffNameFunc,
+		sDO_FRAMESTEP_AUTO_ADVANCE,
+		0
+	);
+
+	misc.add<int*>(" >Number of frames",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0, 120);
+		},
+		pointerIntSliderNameFunc,
+		sFRAMESTEP_AUTO_ADVANCE_FRAMES,
+		& autoAdvanceFrames
+	);
+
+	misc.add<int>("Load Replay",
+		[](int inc, int& opt) {
+			if (*(int*)(adMBAABase + 0x0015d1d0) != 26) return;
+			LoadReplayFromExplorer();
+			customLoadReplay = true;
+			*(int*)(adMBAABase + 0x0014f97c) = 2;
+			DWORD replayData = *(DWORD*)(adMBAABase + 0x0014f980);
+			*(int*)(replayData + 0x4) = 3;
+			ReadDataFile((void*)(adMBAABase + 0x0014f984), customLoadReplayPathPtr, strlen(customLoadReplayPathPtr));
+		},
+		buttonNameFunc
+	);
+
+	misc.add<int*>("Enable Mouse Controls",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt &= 0b1;
+		},
+		[](int* opt) -> std::string {
+			if (*opt == 0) return "OFF";
+			return "ON";
+		},
+		L"",
+		&enableMouseControls
+	);
+
 	baseMenu.add(misc);
 }
 
@@ -611,9 +1028,30 @@ void initObjViewSubmenu() {
 	objInfo.addSimpleOnOff<int*>("Show Untech", L"verboseShowUntech", &verboseShowUntech);
 	objInfo.addSimpleOnOff<int*>("Show Damage", L"verboseShowDamage", &verboseShowDamage);
 
+	objInfo.addSimpleOnOff<int*>("Show Jump Cancel", L"verboseShowJumpcancel", &verboseShowJumpcancel);
+
+	objInfo.addSimpleOnOff<int*>("Show Gravity", L"verboseShowGravity", &verboseShowGravity);
+
+	objInfo.addSimpleOnOff<int*>("Show Variables", L"verboseShowVars", &verboseShowVars);
+
 
 	// tbh i could reduce this further to just a name and a variable. but id have to do some stringified bs, or maybe just take the name of the setting. actually,,, that sounds kinda nice. 
 	// ima just do that. can these things have spaces in reg keys?
+
+	Menu HA6ViewSubmenu("HA6 Data");
+
+	HA6ViewSubmenu.addSimpleOnOff<int*>("Show Player HA6", L"verboseShowPlayerHA6", &verboseShowPlayerHA6);
+	HA6ViewSubmenu.addSimpleOnOff<int*>("Show Effect HA6", L"verboseShowEffectHA6", &verboseShowEffectHA6);
+	HA6ViewSubmenu.addSimpleOnOff<int*>("Show Pattern Data", L"verboseShowPatternData", &verboseShowPatternData);
+	HA6ViewSubmenu.addSimpleOnOff<int*>("Show State Data", L"verboseShowStateData", &verboseShowStateData);
+	HA6ViewSubmenu.addSimpleOnOff<int*>("Show Movement Data", L"verboseShowMovementData", &verboseShowMovementData);
+	HA6ViewSubmenu.addSimpleOnOff<int*>("Show Sine Data", L"verboseShowSineData", &verboseShowSineData);
+	HA6ViewSubmenu.addSimpleOnOff<int*>("Show Animation Data", L"verboseShowAnimationData", &verboseShowAnimationData);
+	HA6ViewSubmenu.addSimpleOnOff<int*>("Show Attack Data", L"verboseShowAttackData", &verboseShowAttackData);
+	HA6ViewSubmenu.addSimpleOnOff<int*>("Show Effects", L"verboseShowEFs", &verboseShowEFs);
+	HA6ViewSubmenu.addSimpleOnOff<int*>("Show Conditions", L"verboseShowIFs", &verboseShowIFs);
+
+	objInfo.add(HA6ViewSubmenu);
 
 	baseMenu.add(objInfo);
 	
@@ -750,17 +1188,550 @@ void initDebugSubmenu() {
 
 }
 
+void initReloadSubmenu() {
+
+	Menu reload("Reload");
+
+	reload.add<int*>("P1 Moon :",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0, 9);
+			while (MoonMap[*opt].at(0) == '_') *opt += inc;
+		},
+		[](int* opt) -> std::string {
+			switch (*opt)
+			{
+			case 0:
+				return "CRESCENT";
+			case 1:
+				return "FULL";
+			case 2:
+				return "HALF";
+			case 8:
+				return "BOSS HALF";
+			case 9:
+				return "ECLIPSE";
+			}
+		},
+		L"",
+		&p1LoadMoon
+	);
+
+	reload.add<int*>("P1 Char :",
+		[](int inc, int*& opt) {
+			int optMem = *opt;
+			*opt += inc;
+			ArrayContainer<CSSData*> cssArray = **(ArrayContainer<CSSData*>**)(0x0055df18);
+			*opt = CLAMP(*opt, 0, cssArray.count - 1);
+			while (cssArray.array[*opt] == 0x0)
+			{
+				*opt += inc;
+				if (*opt > (cssArray.count - 1))
+				{
+					*opt = optMem;
+					break;
+				}
+				if (*opt < 0)
+				{
+					*opt = optMem;
+					break;
+				}
+			}
+		},
+		[](int* opt) -> std::string {
+			ArrayContainer<CSSData*> cssArray = **(ArrayContainer<CSSData*>**)(0x0055df18);
+			if (cssArray.array[*opt] == 0x0)
+			{
+				static char buffer[256];
+				snprintf(buffer, 256, "NULL %i", *opt);
+				return std::string(buffer);
+			}
+			return cssArray.array[*opt]->Name;
+		},
+		L"",
+		&p1LoadChar
+	);
+
+	reload.add<int*>("P1 Pal  :",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 1, 36);
+		},
+		[](int* opt) -> std::string {
+			static char buffer[256];
+			snprintf(buffer, 256, "%i", *opt);
+			return std::string(buffer);
+		},
+		L"",
+		&p1LoadPal
+	);
+
+	reload.add<int*>("P2 Moon :",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0, 9);
+			while (MoonMap[*opt].at(0) == '_') *opt += inc;
+		},
+		[](int* opt) -> std::string {
+			switch (*opt)
+			{
+			case 0:
+				return "CRESCENT";
+			case 1:
+				return "FULL";
+			case 2:
+				return "HALF";
+			case 8:
+				return "BOSS HALF";
+			case 9:
+				return "ECLIPSE";
+			}
+		},
+		L"",
+		&p2LoadMoon
+	);
+
+	reload.add<int*>("P2 Char :",
+		[](int inc, int*& opt) {
+			int optMem = *opt;
+			*opt += inc;
+			ArrayContainer<CSSData*> cssArray = **(ArrayContainer<CSSData*>**)(0x0055df18);
+			*opt = CLAMP(*opt, 0, cssArray.count - 1);
+			while (cssArray.array[*opt] == 0x0)
+			{
+				*opt += inc;
+				if (*opt > (cssArray.count - 1))
+				{
+					*opt = optMem;
+					break;
+				}
+				if (*opt < 0)
+				{
+					*opt = optMem;
+					break;
+				}
+			}
+		},
+		[](int* opt) -> std::string {
+			ArrayContainer<CSSData*> cssArray = **(ArrayContainer<CSSData*>**)(0x0055df18);
+			if (cssArray.array[*opt] == 0x0)
+			{
+				static char buffer[256];
+				snprintf(buffer, 256, "NULL %i", *opt);
+				return std::string(buffer);
+			}
+			return cssArray.array[*opt]->Name;
+		},
+		L"",
+		&p2LoadChar
+	);
+
+	reload.add<int*>("P2 Pal  :",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 1, 36);
+		},
+		[](int* opt) -> std::string {
+			static char buffer[256];
+			snprintf(buffer, 256, "%i", *opt);
+			return std::string(buffer);
+		},
+		L"",
+		&p2LoadPal
+	);
+
+	reload.add<int>("Do File Check (requires extracted 0002.p)",
+		[](int inc, int& opt) {
+			opt += inc;
+			opt &= 0b1;
+
+			reloadCheckFile = opt != 0;
+		},
+		defaultOnOffNameFunc,
+		L"",
+		0
+	);
+
+	reload.add<int>("Reset Selection to Current",
+		[](int inc, int& opt) {
+			PlayerData* pd = (PlayerData*)(adMBAABase + adP1Base);
+			p1LoadChar = pd->subObj.charID;
+			p1LoadMoon = pd->subObj.moon;
+			p1LoadPal = pd->subObj.palette + 1;
+
+			pd = (PlayerData*)(adMBAABase + adP2Base);
+			p2LoadChar = pd->subObj.charID;
+			p2LoadMoon = pd->subObj.moon;
+			p2LoadPal = pd->subObj.palette + 1;
+		},
+		buttonNameFunc
+	);
+
+	baseMenu.add(reload);
+
+}
+
+void initCameraSubmenu() {
+
+	Menu camera("Camera");
+
+	camera.add<int>("Custom Camera",
+		[](int inc, int& opt) {
+			opt += inc;
+			opt &= 0b1;
+
+			freezeCamera = opt != 0;
+		},
+		defaultOnOffNameFunc,
+		L"",
+		0
+	);
+
+	camera.add<float*>("Custom Zoom",
+		[](int inc, float*& opt) {
+			*opt += (inc * 0.01f * customCameraZoomInterval);
+			*opt = (float)(int(round(*opt * 100)) / 100.0f);
+			*opt = CLAMP(*opt, 0.0f, 10.0f);
+		},
+		pointerSliderNameFunc,
+		L"",
+		&customCameraZoom
+	);
+
+	camera.add<int*>(" > Interval",
+		[](int inc, int*& opt) {
+			if (inc > 0) {
+				*opt *= 10;
+			}
+			else {
+				*opt /= 10;
+			}
+			*opt = CLAMP(*opt, 1, 100);
+		},
+		[](int* opt) -> std::string {
+			static char buffer[256];
+			snprintf(buffer, 256, "%.02f", (float)*opt / 100.0f);
+			return std::string(buffer);
+		},
+		L"",
+		&customCameraZoomInterval
+	);
+
+	camera.add<int*>("Custom X",
+		[](int inc, int*& opt) {
+			*opt += inc * customCameraCoordInterval;
+			*opt = CLAMP(*opt, -65536, 65536);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		&customCameraX
+	);
+
+	camera.add<int*>("Custom Y",
+		[](int inc, int*& opt) {
+			*opt += inc * customCameraCoordInterval;
+			*opt = CLAMP(*opt, -65536, 65536);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		&customCameraY
+	);
+
+	camera.add<int*>(" > Interval",
+		[](int inc, int*& opt) {
+			if (inc > 0) {
+				*opt *= 10;
+			}
+			else {
+				*opt /= 10;
+			}
+			*opt = CLAMP(*opt, 1, 10000);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		&customCameraCoordInterval
+	);
+
+	camera.add<int>("Set to current",
+		[](int inc, int& opt) {
+			customCameraZoom = *(float*)(adMBAABase + 0x0014eb70);
+			customCameraX = *(int*)(adMBAABase + 0x00155124);
+			customCameraY = *(int*)(adMBAABase + 0x00155128);
+		},
+		buttonNameFunc,
+		L"",
+		0
+	);
+
+	camera.add<int>("Try Click and Drag!",
+		[](int inc, int& opt) {},
+		buttonNameFunc,
+		L"",
+		0
+	);
+
+	baseMenu.add(camera);
+
+}
+
+void initViewSubmenu() {
+
+	Menu view("View");
+
+	view.add<float*>("Font Size",
+		[](int inc, float*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 1.0f, 30.0f);
+		},
+		pointerSliderNameFunc,
+		sDEBUG_MENU_FONT_SIZE,
+		&menuFontSize
+	);
+
+	view.add<int*>("BG Alpha",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0x00, 0xFF);
+		},
+		pointerIntSliderNameFunc,
+		sDEBUG_MENU_BG_ALPHA,
+		&bgAlpha
+	);
+
+	view.add<int>("Compact View",
+		[](int inc, int& opt) {
+			opt += inc;
+			opt &= 0b1;
+
+			compactView = opt != 0;
+		},
+		defaultOnOffNameFunc,
+		sDEBUG_MENU_COMPACT_VIEW,
+		0
+	);
+
+	baseMenu.add(view);
+
+}
+
+const DWORD MBAA_Change_Volume = 0x00418030;
+void ChangeVolume_Debug() {
+	PUSH_ALL;
+	__asm {
+		call[MBAA_Change_Volume];
+	}
+	POP_ALL;
+}
+
+const DWORD MBAA_Save_Game_Settings = 0x00401540;
+void SaveGameSettings_Debug() {
+	PUSH_ALL;
+	__asm {
+		call[MBAA_Save_Game_Settings];
+	}
+	POP_ALL;
+}
+
+void initGameOptionsSubmenu() {
+
+	Menu gameOptions("Game Options");
+
+	struct Settings {
+		DWORD base;
+		int difficulty;
+		int winCount;
+		int damageLevel;
+		int timerSpeed;
+		byte unused1[8];
+		int winCountVS;
+		byte unused2[8];
+		int replaySave;
+		byte unused3[280];
+		int bgmVolume;
+		int seVolume;
+		int unknown1;
+		int unknown2;
+		int unknown3;
+		int useOldVectors;
+		int unknown4;
+		int characterFilter;
+		int stageAnimations;
+		int viewFPS;
+		int frameRate;
+		int unknown5;
+		int screenFilter;
+		int aspectRatio;
+		byte unused4[4];
+	};
+
+	Settings* settings = *(Settings**)(adMBAABase + 0x00154140);
+
+	gameOptions.add<int*>("BGM Volume",
+		[](int inc, int*& opt) {
+			*opt -= inc;
+			*opt = CLAMP(*opt, 0, 20);
+			if (*opt == 20) *opt -= inc;
+			ChangeVolume_Debug();
+			SaveGameSettings_Debug();
+		},
+		[](int* opt) -> std::string {
+			if (*opt == 21) return "OFF";
+			static char buffer[256];
+			snprintf(buffer, 256, "%i", 20 - *opt);
+			return std::string(buffer);
+		},
+		L"",
+		& settings->bgmVolume
+	);
+
+	gameOptions.add<int*>("SE Volume",
+		[](int inc, int*& opt) {
+			*opt -= inc;
+			*opt = CLAMP(*opt, 0, 20);
+			if (*opt == 20) *opt -= inc;
+			ChangeVolume_Debug();
+			SaveGameSettings_Debug();
+		},
+		[](int* opt) -> std::string {
+			if (*opt == 21) return "OFF";
+			static char buffer[256];
+			snprintf(buffer, 256, "%i", 20 - *opt);
+			return std::string(buffer);
+		},
+		L"",
+		& settings->seVolume
+	);
+
+	gameOptions.add<int*>("Stage Animations",
+		[](int inc, int*& opt) {
+			*opt -= inc;
+			*opt = CLAMP(*opt, 0, 1);
+			SaveGameSettings_Debug();
+		},
+		[](int* opt) -> std::string {
+			std::string strs[2] = { "ON", "OFF"};
+			return strs[*opt];
+		},
+		L"",
+		& settings->stageAnimations
+	);
+
+	gameOptions.add<int*>("Character Filter",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0, 3);
+			*(int*)(adMBAABase + 0x0034d858) = *opt;
+			*(int*)(adMBAABase + 0x0034d884) = *opt;
+			SaveGameSettings_Debug();
+		},
+		[](int* opt) -> std::string {
+			std::string strs[4] = { "OFF", "EDGE", "FULL", "LINEAR"};
+			return strs[*opt];
+		},
+		L"",
+		& settings->characterFilter
+	);
+
+	gameOptions.add<int*>("Replay Save",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0, 1);
+			SaveGameSettings_Debug();
+		},
+		[](int* opt) -> std::string {
+			std::string strs[2] = { "MANUAL", "AUTO" };
+			return strs[*opt];
+		},
+		L"",
+		& settings->replaySave
+	);
+
+	gameOptions.add<int*>("View FPS",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0, 1);
+			SaveGameSettings_Debug();
+		},
+		[](int* opt) -> std::string {
+			std::string strs[2] = { "OFF", "ON" };
+			return strs[*opt];
+		},
+		L"",
+		& settings->viewFPS
+	);
+
+	gameOptions.add<int*>("Aspect Ratio",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0, 6);
+			SaveGameSettings_Debug();
+		},
+		[](int* opt) -> std::string {
+			std::string strs[7] = { "NORMAL", "AUTO", "4:3", "16:9", "16:10", "5:4", "15:9" };
+			return strs[*opt];
+		},
+		L"",
+		& settings->aspectRatio
+	);
+
+	gameOptions.add<int*>("Screen Filter",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0, 1);
+			SaveGameSettings_Debug();
+		},
+		[](int* opt) -> std::string {
+			std::string strs[2] = { "OFF", "ON"};
+			return strs[*opt];
+		},
+		L"",
+		& settings->screenFilter
+	);
+
+	gameOptions.add<int>(" [ Default ]",
+		[](int inc, int& opt) {
+			Settings* settings_ = *(Settings**)(adMBAABase + 0x00154140);
+			settings_->characterFilter = 2;
+			settings_->bgmVolume = 0;
+			settings_->seVolume = 0;
+			settings_->stageAnimations = 0;
+			settings_->viewFPS = 0;
+			settings_->screenFilter = 0;
+			settings_->aspectRatio = 0;
+			*(int*)(adMBAABase + 0x0034d858) = 2;
+			*(int*)(adMBAABase + 0x0034d884) = 2;
+			ChangeVolume_Debug();
+			SaveGameSettings_Debug();
+		},
+		buttonNameFunc,
+		L"",
+		0
+	);
+
+	baseMenu.add(gameOptions);
+}
+
 void initMenu() {
 
 	initUISubmenu();
 
 	initHitboxSubmenu();
 
+	initFramebarSubmenu();
+
 	initMiscSubmenu();
 
 	initObjViewSubmenu();
 
 	initDebugSubmenu();
+
+	initReloadSubmenu();
+
+	initCameraSubmenu();
+
+	initViewSubmenu();
+
+	initGameOptionsSubmenu();
 
 	baseMenu.unfolded = true;
 
@@ -803,7 +1774,6 @@ void drawFancyMenu() {
 
 	menuDrag.bottomRight = menuDragPoint + Point(12.0f, 12.0f);
 	menuDrag.topLeft = menuDragPoint - Point(4.0f, 4.0f);
-
 
 	Point menuBasePos = menuDragPoint; // copy bc the menu messes with this point value
 	baseMenu.draw(menuBasePos);

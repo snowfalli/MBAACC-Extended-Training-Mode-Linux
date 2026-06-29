@@ -1,5 +1,5 @@
 #pragma once
-#define UNICODE
+
 //#include <ws2tcpip.h>
 //#include <winsock2.h>
 #include <Windows.h>
@@ -11,16 +11,13 @@
 #if !defined(DWORD)
 //typedef unsigned DWORD;
 //static_assert(sizeof(DWORD) == 4, "what are you doing maddy");
-#endif
+#endif 
 
 
 //void LogInfo(const std::string& sInfo);
 //void LogError(const std::string& sError);
 
-#define asmCall(f) \
-__asm { call f }
-
-#pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "ws2_32.lib") 
 #pragma comment(lib, "dinput8.lib")
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "dxerr.lib")
@@ -86,6 +83,19 @@ enum class eCharID {
 	NECOMECH,
 	KOHAMECH,
 	HIME = 51
+};
+
+const std::string CharNameMap[52] = {
+	"SION", "ARC", "CIEL", "AKIHA", "MAIDS", "HISUI", "KOHAKU", "TOHNO", "MIYAKO", "WARA",
+	"NERO", "VSION", "WARC", "VAKIHA", "MECH", "NANAYA", "GAKIHA", "SATSUKI", "LEN", "PCIEL",
+	"NECO", "_21", "AOKO", "WLEN", "_24", "NAC", "_26", "GCHAOS", "KOUMA", "SEI",
+	"RIES", "ROA", "HERMES", "RYOUGI", "NECOMECH", "KOHAMECH", "_36", "_37", "_38", "_39",
+	"_40", "_41", "_42", "_43", "_44", "_45", "_46", "_47", "_48", "_49",
+	"_50", "HIME"
+};
+
+const std::string MoonMap[10] = {
+	"CRESCENT", "FULL", "HALF", "_3", "_4", "_5", "_6", "_7", "BOSS HALF", "ECLIPSE"
 };
 
 const std::string VERSION = "v2.1";
@@ -225,70 +235,6 @@ const char TEXT_TIMER = 40; //How many frames Save State popup text stays on scr
 const char REVERSE_INPUT_MAP[10] = { 0, 3, 2, 1, 6, 0, 4, 9, 8, 7 };
 const char CH_MAP[3] = { ' ', 'H', 'L' };
 
-// Foreground color -> \x1b[38;2;R;G;Bm
-// Background color -> \x1b[48;2;R;G;Bm
-const std::string FD_CLEAR = "\x1b[0m";
-const std::string FD_ITALICS = "\x1b[3m";
-const std::string FD_UNDERLINE = "\x1b[4m";
-const std::string FD_INACTIONABLE = "\x1b[38;2;255;255;255m\x1b[48;2;65;200;0m";
-const std::string FD_JUMP = "\x1b[38;2;177;177;255m\x1b[48;2;241;224;132m";
-const std::string FD_HITSTUN = "\x1b[38;2;255;255;255m\x1b[48;2;140;140;140m";
-const std::string FD_BLOCKSTUN = "\x1b[38;2;255;255;255m\x1b[48;2;180;180;180m";
-const std::string FD_ACTIONABLE = "\x1b[38;2;92;92;92m\x1b[48;2;0;0;0m";
-const std::string FD_ADVANTAGE = "\x1b[38;2;255;255;255m\x1b[48;2;0;0;0m";
-const std::string FD_NEUTRAL = "\x1b[38;2;255;255;255m\x1b[48;2;32;90;0m";
-const std::string FD_THROW_ACTIVE = "\x1b[38;2;255;255;255m\x1b[48;2;192;0;128m";
-const std::string FD_THROWN = "\x1b[38;2;255;255;255m\x1b[48;2;110;110;110m";
-const std::string FD_CLASH = "\x1b[38;2;255;255;255m\x1b[48;2;225;184;0m";
-const std::string FD_SHIELD = "\x1b[38;2;255;255;255m\x1b[48;2;145;194;255m";
-const std::string FD_INACTIONABLE_INVULN = "\x1b[38;2;160;160;160m\x1b[48;2;255;255;255m";
-const std::string FD_ACTIONABLE_INVULN = "\x1b[38;2;100;100;100m\x1b[48;2;255;255;255m";
-const std::string FD_FREEZE = "\x1b[38;2;255;255;255m\x1b[48;2;60;60;60m";
-const std::string FD_HITSTOP = "\x1b[38;2;255;255;255m\x1b[48;2;60;80;128m";
-const std::string FD_ACTIVE = "\x1b[38;2;255;255;255m\x1b[48;2;255;0;0m";
-const std::string FD_ASSIST_ACTIVE = "\x1b[38;2;255;255;255m\x1b[48;2;255;128;0m";
-const std::string FD_BUTTON_PRESSED = "\x1b[38;2;255;255;255m\x1b[48;2;128;128;128m";
-const std::string FD_A_PRESSED = "\x1b[38;2;255;143;169m\x1b[48;2;170;27;58m";
-const std::string FD_B_PRESSED = "\x1b[38;2;255;255;137m\x1b[48;2;169;91;7m";
-const std::string FD_C_PRESSED = "\x1b[38;2;143;255;195m\x1b[48;2;18;132;62m";
-const std::string FD_D_PRESSED = "\x1b[38;2;137;255;255m\x1b[48;2;21;66;161m";
-
-const std::string FD_SPECIAL_GUIDE_BG = "\x1b[48;2;65;200;0m";
-const std::string SPECIAL_CANCEL_FONTS[4] = { "\x1b[38;2;255;255;255m", "\x1b[38;2;128;80;128m", "\x1b[38;2;0;0;0m", "\x1b[38;2;128;80;128m" };
-const std::string FD_NORMAL_GUIDE_FG = "\x1b[38;2;255;255;255m";
-const std::string NORMAL_CANCEL_FONTS[4] = { "\x1b[48;2;65;200;0m", "\x1b[48;2;65;150;30m", "\x1b[48;2;65;80;65m", "\x1b[48;2;65;150;30m" };
-
-const DWORD METER_COLOR_MAP[3] = { 0xFFC80000, 0xFFC8C800, 0xFF00C800 };
-const DWORD HEAT_COLOR = 0xFF5A5AE6;
-const DWORD HEATFONT_COLOR = 0xFFFA5300;
-const DWORD MAX_COLOR = 0xFFFAA000;
-const DWORD MAXFONT_COLOR = 0xFF2796FD;
-const DWORD BLOODHEAT_COLOR = 0xFFB4B4B4;
-const DWORD BLOODHEATFONT_COLOR = 0xFF8C0000;
-const DWORD UNLIMITED_COLOR = 0xFF3296FF;
-const DWORD UNLIMITEDFONT_COLOR = 0xFFFEABFF;
-const DWORD CIRCUITBREAK_COLOR = 0xFFBE64C8;
-const DWORD CIRCUITBREAKFONT_COLOR = 0xFFB06ED7;
-
-const DWORD FB_INACTIONABLE = 0xFF41C800;
-const DWORD FB_JUMP = 0xFFF1E084;
-const DWORD FB_HITSTUN = 0xFF8C8C8C;
-const DWORD FB_BLOCKSTUN = 0xFFB4B4B4;
-const DWORD FB_ACTIVE = 0xFFFF0000;
-const DWORD FB_ACTIONABLE = 0xFF202020;
-const DWORD FB_ADVANTAGE = 0xFF101010;
-const DWORD FB_NEUTRAL = 0xFF205A00;
-const DWORD FB_FREEZE = 0xFF3C3C3C;
-const DWORD FB_FREEZE_ACTIVE = 0xFFFF8080;
-const DWORD FB_THROWN = 0xFF6E6E6E;
-const DWORD FB_HITSTOP = 0xFF3C5080;
-const DWORD FB_SHIELD = 0xFF91C2FF;
-const DWORD FB_THROW_ACTIVE = 0xFFC00080;
-const DWORD FB_CLASH = 0xFFE1B800;
-const DWORD FB_INVULN = 0xFFFFFFFF;
-const DWORD FB_ASSIST_ACTIVE = 0xFFFF8000;
-const DWORD FB_COUNTER = 0xFFC485EA;
-
 const ADDRESS adMBAABase = 0x400000;
 
 const ADDRESS adSaveCurrentCamZoom = 0x14EB70;
@@ -410,6 +356,7 @@ const ADDRESS adP1Freeze = 0x158908;
 const ADDRESS adP2Freeze = 0x158C14;
 const ADDRESS adP3Freeze = 0x158F20;
 const ADDRESS adP4Freeze = 0x15922C;
+const ADDRESS adJustDidPlayerFreeze = 0x1595BC;
 const ADDRESS adFrameCount = 0x15D1CC;
 
 const ADDRESS adSaveCurrentCamX = 0x15DEC4;
@@ -475,10 +422,11 @@ const char pcLatestVersion_19[19] = "LATEST VERSION";
 const char pcOffline_8[8] = "OFFLINE";
 
 //registry keys
-typedef LPCWSTR REGKEY;
+typedef LPCTSTR REGKEY;
 
 //extended menu registry keys
 const REGKEY sFREEZE_KEY_REG = L"HOTKEY_Freeze";
+const REGKEY sADVANCE_FRAME_KEY_REG = L"HOTKEY_AdvanceFrame";
 const REGKEY sNEXT_FRAME_KEY_REG = L"HOTKEY_NextFrame";
 const REGKEY sPREV_FRAME_KEY_REG = L"HOTKEY_PrevFrame";
 const REGKEY sTOGGLE_HITBOXES_KEY_REG = L"HOTKEY_ToggleHitboxes";
@@ -503,16 +451,24 @@ const REGKEY sIDLE_HIGHLIGHT = L"IdleHighlight";
 
 const REGKEY sHITBOX_STYLE = L"HitboxStyle";
 const REGKEY sCOLOR_BLIND_MODE = L"ColorBlindMode";
+const REGKEY sORIGIN_STYLE = L"OriginStyle";
+const REGKEY sDRAW_GROUND = L"DrawGround";
 
-const REGKEY sFRAME_DATA = L"FrameData";
+const REGKEY sCONSOLE_DATA = L"ConsoleData";
 const REGKEY sFRAME_DISPLAY = L"FrameDisplay";
 const REGKEY sDISPLAY_FREEZE = L"DisplayFreeze";
+const REGKEY sDISPLAY_COUNTERHIT = L"DisplayCounterhit";
 const REGKEY sDISPLAY_INPUTS = L"DisplayInputs";
 const REGKEY sDISPLAY_CANCELS = L"DisplayCancels";
 
-const REGKEY sFRAME_BAR_Y = L"FrameBarY";
+const REGKEY sDISPLAY_STATS = L"DisplayStats";
+const REGKEY sACCURATE_COMBO_DAMAGE = L"AccurateComboDamage";
 const REGKEY sP1_INPUT_DISPLAY = L"P1InputDisplay";
 const REGKEY sP2_INPUT_DISPLAY = L"P2InputDisplay";
+
+const REGKEY sHIDE_HUD = L"HideHUD";
+const REGKEY sHIDE_SHADOWS = L"HideShadows";
+const REGKEY sHIDE_EXTRAS = L"HideExtras";
 
 const REGKEY sP1_ARCADE_INPUT_X = L"P1ArcadeInputX";
 const REGKEY sP1_ARCADE_INPUT_Y = L"P1ArcadeInputY";
@@ -522,6 +478,21 @@ const REGKEY sP1_LIST_INPUT_X = L"P1ListInputX";
 const REGKEY sP1_LIST_INPUT_Y = L"P1ListInputY";
 const REGKEY sP2_LIST_INPUT_X = L"P2ListInputX";
 const REGKEY sP2_LIST_INPUT_Y = L"P2ListInputY";
+
+const REGKEY sFRAME_BAR_X = L"FrameBarX";
+const REGKEY sFRAME_BAR_Y = L"FrameBarY";
+const REGKEY sFRAME_BAR_W = L"FrameBarW";
+const REGKEY sFRAME_BAR_H = L"FrameBarH";
+const REGKEY sFRAME_BAR_NUMCELLS = L"FrameBarNumCells";
+const REGKEY sFRAME_BAR_CELLWIDTH = L"FrameBarCellWidth";
+
+const REGKEY sDISPLAY_CURSOR = L"DisplayCursor";
+const REGKEY sDEBUG_MENU_FONT_SIZE = L"DebugMenuFontSize";
+const REGKEY sDEBUG_MENU_BG_ALPHA = L"DebugMenuBGAlpha";
+const REGKEY sDEBUG_MENU_COMPACT_VIEW = L"DebugMenuCompactView";
+
+const REGKEY sDO_FRAMESTEP_AUTO_ADVANCE = L"DoFramestepAutoAdvance";
+const REGKEY sFRAMESTEP_AUTO_ADVANCE_FRAMES = L"FramestepAutoAdvanceFrames";
 
 #define VK_KEY_UNSET 0x0;
 

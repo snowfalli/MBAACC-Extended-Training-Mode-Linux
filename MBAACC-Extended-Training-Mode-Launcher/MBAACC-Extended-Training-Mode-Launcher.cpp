@@ -30,7 +30,7 @@ void __stdcall log(const char* format, ...) {
 	va_start(args, format);
 	int n = vsnprintf(buffer, 4095, format, args);
 	va_end(args);
-	
+
 	if (n < 0) {
 		return;
 	}
@@ -130,7 +130,7 @@ int needUpdate() {
 
 	// https://api.github.com/repos/fangdreth/MBAACC-Extended-Training-Mode/releases/tags/bleeding-edge
 
-	HINTERNET hInternet = InternetOpen(L"GitHubAPI", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
+	/*HINTERNET hInternet = InternetOpen(L"GitHubAPI", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
 	if (hInternet == NULL) {
 		log("InternetOpen failed: % d", GetLastError());
 		return -1;
@@ -178,10 +178,10 @@ int needUpdate() {
 	time_t releaseTime = toTimestamp(githubTimestamp);
 
 	log("release time: %lld", releaseTime);
-	log("compile time: %lld", compileTime);
+	log("compile time: %lld", compileTime);*/
 
 	//return true;
-	return releaseTime > compileTime + 600; // 10 minute buffer bc compile time and release time are offset.
+	return false;// 10 minute buffer bc compile time and release time are offset.
 }
 
 bool update() {
@@ -194,7 +194,7 @@ bool update() {
 		return false;
 	}
 
-	// download the file 
+	// download the file
 	// https://github.com/fangdreth/MBAACC-Extended-Training-Mode/releases/download/bleeding-edge/MBAACC-Extended-Training-Mode.exe
 
 	HINTERNET hInternet = InternetOpen(L"Downloader", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
@@ -261,7 +261,7 @@ void launchTrainingMode() {
 }
 
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-	
+
 	log("\nPROGRAM STARTED");
 
 	initLog();
@@ -275,8 +275,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		std::wstring oldPath = path + L".old";
 		DeleteFileW(oldPath.c_str());
 	}
-	
-	int updateStatus = needUpdate();
+
+	int updateStatus = 0;//needUpdate();
 
 	if (updateStatus == -1) {
 		log("needUpdate failed with %d", updateStatus);
@@ -291,7 +291,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
 		STARTUPINFO si = { sizeof(STARTUPINFO) };
 		PROCESS_INFORMATION pi;
-		
+
 		// launch the updated launcher.
 		CreateProcessW(
 			path.c_str(),

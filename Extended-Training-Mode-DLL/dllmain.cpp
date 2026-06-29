@@ -6,18 +6,15 @@
 #include "FrameBar.h"
 #include "SaveState.h"
 #include "ReplayManager.h"
-#include "..\MBAACC-Extended-Training-Mode\Logger.h"
 #include "TASManager.h"
 #include "FancyMenu.h"
 #include "TrainingMenu.h"
-#include "DirectXHook.h"
-#include <format>
-#include <fstream>
 #include <filesystem>
 
 
+
 #pragma push_macro("optimize")
-#pragma optimize("t", on)
+#pragma optimize("t", on) 
 
 typedef long long longlong;
 typedef unsigned long long ulonglong;
@@ -26,7 +23,7 @@ typedef uint32_t uint;
 void enemyReversal();
 void frameStartCallback();
 void dualInputDisplayReset();
-void doFastReversePenalty();
+void doFastReversePenalty(); 
 void drawFancyMenu();
 void rollFancyInputDisplay(int n);
 void loadCustomShader();
@@ -36,7 +33,7 @@ TASManager TASManagerObj[4];
 bool fn1Press2v2[4] = { false, false, false, false };
 void doWeird2v2Fixes() {
 	// FN1 needs to be written at a different point than it is. this is a horrid fix, that may result in the button press being 1f late, or more, but i just want this done
-
+	 
 	for (int i = 0; i < 4; i++) {
 		if (fn1Press2v2[i]) {
 			*(BYTE*)((*(DWORD*)0x76E6AC) + 0x25 + (i * 0x14)) = 1;
@@ -47,7 +44,7 @@ void doWeird2v2Fixes() {
 
 // have all pointers as DWORDS, or a goofy object type, fangs way of doing things was right as to not have pointers get incremented by sizeof(unsigned)
 // or i could make all pointers u8*, but that defeats half the point of what i did
-// or,, making address a class which allowed for CONST ONLY derefing
+// or,, making address a class which allowed for CONST ONLY derefing 
 // or i could allow for writing and integrate the virtualprotect stuff into it?
 
 DWORD addrEndScene = 0x663fb900;
@@ -80,15 +77,17 @@ int nSaveStateKey;
 
 DWORD showCSS = 1;
 int showDebugMenu = 0;
+int showReplayMenu = 0;
 bool bFreeze = false;
 bool bSlow = false;
+int nInputHeldFrameAdvanceCounter = 0;
 bool bFrameDataDisplay = false;
 bool bHitboxesDisplay = false;
 bool bHighlightsOn = true;
 DWORD shouldDrawBackground = 1;
 DWORD shouldDrawHud = 1;
 DWORD shouldDrawGroundLine = 0;
-DWORD backgroundColor = 0xFF000000;
+DWORD backgroundColor = 0xFFFFFFFF;
 DWORD shouldDrawShadow = 0;
 DWORD fastReversePenalty = 0;
 DWORD shouldDrawMeter = 1;
@@ -97,6 +96,11 @@ bool bDoResetBars = true;
 bool bShowFrameBarPreview = false;
 bool bShowFrameBarYPreview = false;
 bool bForceGuard = false;
+int dummyDelayTechFramesElapsed = 0;
+bool showFrameScrubber = false;
+int comboTimer = 0;
+
+bool initLoadChars = false;
 
 struct TrueComboDamageData {
 	int startingHealth = 11400;
@@ -135,14 +139,10 @@ PlayerData* pP2 = (PlayerData*)(adMBAABase + adP2Base);
 PlayerData* pP3 = (PlayerData*)(adMBAABase + adP3Base);
 PlayerData* pP4 = (PlayerData*)(adMBAABase + adP4Base);
 
-PlayerData* pPlayerArray[4] = { pP1, pP2, pP3, pP4 };
-
 PlayerAuxData* pdP1Data = (PlayerAuxData*)(adMBAABase + adP1DataBase);
 PlayerAuxData* pdP2Data = (PlayerAuxData*)(adMBAABase + adP2DataBase);
 PlayerAuxData* pdP3Data = (PlayerAuxData*)(adMBAABase + adP3DataBase);
 PlayerAuxData* pdP4Data = (PlayerAuxData*)(adMBAABase + adP4DataBase);
-
-PlayerAuxData* pdPlayerDataArray[4] = { pdP1Data , pdP2Data , pdP3Data , pdP4Data };
 
 PlayerData* pActiveP1 = pP1;
 PlayerData* pActiveP2 = pP2;
@@ -150,52 +150,8 @@ bool isP1Controlled = 1;
 PlayerData* pPlayer = pP1;
 PlayerData* pDummy = pP2;
 
-void initHotkeys()
-{
-	oFreezeHotkey.setKeyFromRegistry(sFREEZE_KEY_REG);
-	oNextFrameHotkey.setKeyFromRegistry(sNEXT_FRAME_KEY_REG);
-	oPrevFrameHotkey.setKeyFromRegistry(sPREV_FRAME_KEY_REG);
-	oToggleHitboxesHotkey.setKeyFromRegistry(sTOGGLE_HITBOXES_KEY_REG);
-	oToggleFrameBarHotkey.setKeyFromRegistry(sTOGGLE_FRAME_BAR_KEY_REG);
-	oToggleHighlightsHotkey.setKeyFromRegistry(sTOGGLE_HIGHLIGHTS_KEY_REG);
-	oQueueReversalHotkey.setKeyFromRegistry(sQUEUE_REVERSAL_KEY_REG);
-	oIncrementRNGHotkey.setKeyFromRegistry(sINCREMENT_RNG_KEY_REG);
-	oDecrementRNGHotkey.setKeyFromRegistry(sDECREMENT_RNG_KEY_REG);
-
-	oSaveStateHotkey.setKeyFromRegistry(sSAVE_STATE_KEY_REG);
-	oPrevSaveSlotHotkey.setKeyFromRegistry(sPREV_SAVE_SLOT_KEY_REG);
-	oNextSaveSlotHotkey.setKeyFromRegistry(sNEXT_SAVE_SLOT_KEY_REG);
-	oFrameBarLeftHotkey.setKeyFromRegistry(sFRAME_BAR_LEFT_KEY_REG);
-	oFrameBarRightHotkey.setKeyFromRegistry(sFRAME_BAR_RIGHT_KEY_REG);
-
-}
-
 void initRegistryValues()
 {
-	ReadFromRegistry(sHIGHLIGHTS, &nHIGHLIGHTS);
-	ReadFromRegistry(sBLOCKING_HIGHLIGHT, &nGUARD_HIGHLIGHT);
-	ReadFromRegistry(sHIT_HIGHLIGHT, &nHIT_HIGHLIGHT);
-	ReadFromRegistry(sARMOR_HIGHLIGHT, &nARMOR_HIGHLIGHT);
-	ReadFromRegistry(sTHROW_PROTECTION_HIGHLIGHT, &nTHROW_PROTECTION_HIGHLIGHT);
-	ReadFromRegistry(sIDLE_HIGHLIGHT, &nIDLE_HIGHLIGHT);
-
-	ReadFromRegistry(sHITBOX_STYLE, &nHITBOX_STYLE);
-	ReadFromRegistry(sCOLOR_BLIND_MODE, &nCOLOR_BLIND_MODE);
-
-	ReadFromRegistry(sFRAME_DATA, &nFRAME_DATA);
-	ReadFromRegistry(sDISPLAY_FREEZE, &nSHOW_HITSTOP_AND_FREEZE);
-	ReadFromRegistry(sDISPLAY_INPUTS, &nSHOW_INPUTS);
-	ReadFromRegistry(sDISPLAY_CANCELS, &nSHOW_CANCEL_WINDOWS);
-
-	ReadFromRegistry(sFRAME_BAR_Y, &nTRUE_FRAME_DISPLAY_Y);
-	if (nTRUE_FRAME_DISPLAY_Y == 440) nFRAME_DISPLAY_Y = 2;
-	else if (nTRUE_FRAME_DISPLAY_Y == 10) nFRAME_DISPLAY_Y = 0;
-	ReadFromRegistry(sP1_INPUT_DISPLAY, &nP1_INPUT_DISPLAY);
-	ReadFromRegistry(sP2_INPUT_DISPLAY, &nP2_INPUT_DISPLAY);
-	if (nP1_INPUT_DISPLAY != 0 || nP2_INPUT_DISPLAY != 0) {
-		*(bool*)(INPUTDISPLAYTOGGLE) = true;
-	}
-
 	ReadFromRegistry(sP1_LIST_INPUT_X, &fP1_LIST_INPUT_X);
 	ReadFromRegistry(sP1_LIST_INPUT_Y, &fP1_LIST_INPUT_Y);
 	ReadFromRegistry(sP2_LIST_INPUT_X, &fP2_LIST_INPUT_X);
@@ -204,14 +160,29 @@ void initRegistryValues()
 	ReadFromRegistry(sP1_ARCADE_INPUT_Y, &fP1_ARCADE_INPUT_Y);
 	ReadFromRegistry(sP2_ARCADE_INPUT_X, &fP2_ARCADE_INPUT_X);
 	ReadFromRegistry(sP2_ARCADE_INPUT_Y, &fP2_ARCADE_INPUT_Y);
+
+	ReadFromRegistry(sFRAME_BAR_X, &frameBar.x);
+	ReadFromRegistry(sFRAME_BAR_Y, &frameBar.y);
+	int backCompY;
+	ReadFromRegistry(sFRAME_BAR_Y, &backCompY);
+	if (backCompY > 0 && backCompY < 480) {
+		frameBar.y = 410.0f;
+	}
+	ReadFromRegistry(sFRAME_BAR_W, &frameBar.w);
+	ReadFromRegistry(sFRAME_BAR_H, &frameBar.h);
+	ReadFromRegistry(sFRAME_BAR_NUMCELLS, &frameBar.numCells);
+	ReadFromRegistry(sFRAME_BAR_CELLWIDTH, &frameBar.cellWidth);
+
+	ReadFromRegistry(sDISPLAY_CURSOR, &enableCursor);
+	ReadFromRegistry(sDEBUG_MENU_COMPACT_VIEW, &compactView);
 }
 
 void initSharedValues()
 {
-	*(byte*)(adMBAABase + adXS_frameData) = nFRAME_DATA;
-	*(byte*)(adMBAABase + adXS_showHitstopAndFreeze) = nSHOW_HITSTOP_AND_FREEZE;
-	*(byte*)(adMBAABase + adXS_showInputs) = nSHOW_INPUTS;
-	*(byte*)(adMBAABase + adXS_showCancel) = nSHOW_CANCEL_WINDOWS;
+	*(byte*)(adMBAABase + adXS_frameData) = XS_consoleData;
+	*(byte*)(adMBAABase + adXS_showHitstopAndFreeze) = XS_showHitstopAndFreeze;
+	*(byte*)(adMBAABase + adXS_showInputs) = XS_showInputs;
+	*(byte*)(adMBAABase + adXS_showCancel) = XS_showCancelWindows;
 }
 
 bool __stdcall safeWrite()
@@ -233,6 +204,11 @@ bool __stdcall isPaused()
 	return *reinterpret_cast<BYTE*>(dwBaseAddress + dwPausedFlag);
 }
 
+void QueueTrainingReset()
+{
+	*(byte*)(0x0055dec3) = 0xFF;
+}
+
 // the patch func being templated causes problems when calling from asm
 void __stdcall asmPatchMemcpy(void* dest, void* source, DWORD n)
 {
@@ -247,43 +223,35 @@ void __stdcall asmPatchMemcpy(void* dest, void* source, DWORD n)
 #include "DirectX.h"
 //#include "RendererModifications.h"
 
+void initPaletteLoadPatches();
+
+//#define ENABLEFILELOG 1
+
 bool logFileInit = false;
-
-#define ENABLEFILELOG 1
-
 void __stdcall initLogFile() {
 #ifdef ENABLEFILELOG
 
-	/*std::string sTempPath = std::filesystem::temp_directory_path().string();
-
-	m_dsLogFile = sTempPath + "ExtendedTrainingModeDLL__" + ".log";
-
-	m_dfLogFile.open(m_dsLogFile);
-
-	//FILE* file = fopen("Extended-Training-Mode-DLL.log", "w");
-	//if (file == NULL) {
-	//	log("opening log file failed?");
-	//	return;
-	//}
-	//fclose(file);
+	FILE* file = fopen("Extended-Training-Mode-DLL.log", "w");
+	if (file == NULL) {
+		log("opening log file failed?");
+		return;
+	}
+	fclose(file);
 
 
-	logFileInit = true;*/
+	logFileInit = true;
 #endif
 }
 
 void __stdcall writeLog(const char* msg) {
-	/*if (!logFileInit) {
+	if (!logFileInit) {
 		return;
 	}
 
-	//FILE* file = fopen("Extended-Training-Mode-DLL.log", "a");
-	m_dfLogFile << "\n";
-	m_dfLogFile << "\t" << msg << "\n";
-	m_dfLogFile << "\n";
+	FILE* file = fopen("Extended-Training-Mode-DLL.log", "a");
+	fprintf(file, "%s\n", msg); 
+	fclose(file);
 
-	m_dfLogFile.flush();*/
-	LogInfo(msg);
 }
 
 bool __stdcall isAddrValid(DWORD addr) {
@@ -348,7 +316,7 @@ __declspec(naked) void _naked_timeMeltyCall() {
 	}
 
 	PUSH_ALL;
-	asmCall(timeMeltyCallLogger)
+	timeMeltyCallLogger();
 	POP_ALL;
 
 	__asm {
@@ -360,7 +328,7 @@ __declspec(naked) void _naked_timeMeltyCall() {
 	};
 
 	PUSH_ALL;
-	asmCall(timeMeltyCallLoggerDone)
+	timeMeltyCallLoggerDone();
 	POP_ALL;
 
 	__asm {
@@ -375,7 +343,7 @@ void timeMeltyCall(DWORD patchAddr, const char* funcName) {
 	// actually i shouldnt even need callAddr, with math
 	// 0x0040e499 0x00024ff2 -> 0x00433490
 	// 0x0040e499 + 0x00024ff2 + 5. please note that the call offset is signed
-
+	
 	// i need to maintain state of where to go. ill use a map despite that being very stupid
 	// can i even,, use my emitcall funcs with variables omfg
 
@@ -392,7 +360,7 @@ void timeMeltyCall(DWORD patchAddr, const char* funcName) {
 
 // legacy melty draw funcs. please use the funcs in directx.h instead of these
 
-int asmDrawText(int w, int h, int x, int y, const char* text, int alpha, int shade, int layer, void* addr, int spacing, int idek, char* out) {return 0;}
+extern "C" int asmDrawText(int w, int h, int x, int y, const char* text, int alpha, int shade, int layer, void* addr, int spacing, int idek, char* out);
 
 void __stdcall drawText(int x, int y, int w, int h, const char* text, int alpha, int shade, int layer = 0x2cc, void* font = (void*)adFont2)
 {
@@ -508,7 +476,7 @@ void __stdcall drawText(int x, int y, const char* text, int textSize = 16, ADDRE
 		5.34375,     // '}'
 		9.34375,     // '~'
 	};
-
+	
 	float tempWidth = 0;
 	const char* c = text;
 
@@ -547,7 +515,7 @@ void __stdcall drawTextWithBorder(int x, int y, int w, int h, const char* text)
 
 	/*
 	drawText(x, y, w, h, text, 0xFF, 0xFF);
-
+	
 	drawText(x - 1, y, w, h, text, 0xFF, 0x00);
 	drawText(x + 1, y, w, h, text, 0xFF, 0x00);
 	drawText(x, y - 1, w, h, text, 0xFF, 0x00);
@@ -624,7 +592,7 @@ void __stdcall drawBorderWithHighlight(int x, int y, int w, int h, DWORD ARGB = 
 	BYTE r = (ARGB & 0x00FF0000) >> 16;
 	BYTE g = (ARGB & 0x0000FF00) >> 8;
 	BYTE b = (ARGB & 0x000000FF) >> 0;
-
+	
 	drawRect(x, y, w, h, r, g, b, 0x38);
 }
 
@@ -646,10 +614,10 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 	//int yPos = *(DWORD*)(objAddr + 0x10C);
 	//bool facingLeft = *(BYTE*)(objAddr + 0x314);
 
-	int xPos = effect->subObj.xPos;
-	int yPos = effect->subObj.yPos;
+	int xPos = effect->subObj.xPos + effect->subObj.thrownXOffset;
+	int yPos = effect->subObj.yPos + effect->subObj.thrownYOffset;
 	bool facingLeft = effect->subObj.facingLeft;
-
+	
 	AnimationData* animationData = effect->subObj.animationDataPtr;
 	//DWORD objFramePtr = (DWORD)animationData;
 
@@ -676,9 +644,9 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 	// what is that 49.
 	float xCamTemp = ((((float)(xPos - cameraX) * cameraZoom) / 128.0f) * (windowWidth / 640.0f) + windowWidth / 2.0f);
 	//float xCamTemp = ((((float)(xPos - cameraX) * cameraZoom) / 128.0f - 49.0f) * (windowWidth / 640.0f) + windowWidth / 2.0f);
-
+	
 	float yCamTemp = ((((float)(yPos - cameraY) * cameraZoom) / 128.0f - 49.0f) * (windowHeight / 480.0f) + windowHeight);
-
+	
 	xCamTemp = floor(xCamTemp);
 	yCamTemp = floor(yCamTemp);
 
@@ -695,6 +663,10 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 
 	drawColor = 0xFF42E5F4;
 	boxType = BoxType::Origin;
+	if (XS_originStyle != 0) {
+		if (playerIndex % 2 == 0) boxType = BoxType::ExtendedP1Origin;
+		else boxType = BoxType::ExtendedP2Origin;
+	}
 
 	x1Cord = ((float)xCamTemp - (windowWidth / 640.0f) * cameraZoom * 5.0f);
 	x2Cord = ((windowWidth / 640.0f) * cameraZoom * 5.0f + (float)xCamTemp);
@@ -716,7 +688,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 		//drawBorder((int)x1Cord, (int)y1Cord, (int)(x2Cord - x1Cord), (int)(y2Cord - y1Cord), drawColor);
 		//DrawHitbox(x1Cord, y1Cord, (x2Cord - x1Cord), (y2Cord - y1Cord), BoxType::Origin, playerIndex);
 		//(*res)[static_cast<int>(boxType)].emplace_back(BoxData(x1Cord, y1Cord, (x2Cord - x1Cord), (y2Cord - y1Cord)));
-
+		
 		(*res)[static_cast<int>(boxType)].emplace_back(BoxData(x1Cord, y1Cord, (x2Cord - x1Cord), (y2Cord - y1Cord)));
 		/*
 		if (facingLeft) {
@@ -735,7 +707,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 	// should have made a box/poit class
 	DWORD animDataPtr = *(DWORD*)(objAddr + 0x320);
 	bool isPat = *(BYTE*)(animDataPtr + 0x0);
-
+	
 	// non hitboxes
 	//if (*(DWORD*)(objFramePtr + 0x4C) != 0) {
 	if(animationData->nonHitboxData != NULL) {
@@ -765,7 +737,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 					break;
 				case 0xB:
 					drawColor = 0xFFFFFF00;
-					boxType = BoxType::Clash;
+					boxType = BoxType::Clash; 
 					break;
 				default:
 					if (index < 0xC) {
@@ -803,7 +775,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 			if (isPat) {
 				scaleCords(xOrig, yOrig, x1Cord, y1Cord, x2Cord, y2Cord);
 			}
-
+			
 			//drawBorderWithHighlight((int)x1Cord, (int)y1Cord, (int)(x2Cord - x1Cord), (int)(y2Cord - y1Cord), drawColor);
 			//DrawHitbox(x1Cord, y1Cord, (x2Cord - x1Cord), (y2Cord - y1Cord), boxType, playerIndex);
 
@@ -821,7 +793,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 		boxType = BoxType::Hitbox;
 		unsigned highestHitboxIndex = animationData->highestHitboxIndex;
 		for (unsigned index = 0; index < highestHitboxIndex; index++) {
-
+			
 			if (animationData->hitboxData->boxes[index] == NULL) {
 				continue;
 			}
@@ -834,7 +806,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 			tempFloat = (float)isRight * (windowWidth / 640.0f) * cameraZoom;
 			x1Cord = ((float)x1) * (tempFloat + tempFloat) + (float)xCamTemp;
 			x2Cord = ((float)x2) * (float)isRight * (windowWidth / 640.0f) * cameraZoom + (float)xCamTemp;
-
+	
 			y1Cord = ((float)y1) * (windowHeight / 480.0f) * cameraZoom + (float)yCamTemp;
 			y2Cord = ((float)y2) * (windowHeight / 480.0f) * cameraZoom + (float)yCamTemp;
 
@@ -878,7 +850,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 		{
 			if (*(char*)(*(DWORD*)(animDataPtr + adAnimationData_StateDataPointer) + adStateData_Stance) == 1)
 			{
-
+	
 				boxType = BoxType::Throw;
 
 				short x1 = 0;
@@ -943,59 +915,6 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 	return true;
 }
 
-void drawColorGuide()
-{
-	RectDraw(0, 8, 640, 50, 0xFF000000);
-
-	RectDraw(10, 10, 7, 10, FB_INACTIONABLE);
-	TextDraw(17, 10, 10, 0xFFFFFFFF, "INACTIONABLE");
-	RectDraw(120, 10, 7, 10, FB_JUMP);
-	TextDraw(127, 10, 10, 0xFFFFFFFF, "JUMP STARTUP");
-	RectDraw(230, 10, 7, 10, FB_HITSTUN);
-	TextDraw(237, 10, 10, 0xFFFFFFFF, "HITSTUN");
-	RectDraw(300, 10, 7, 10, FB_BLOCKSTUN);
-	TextDraw(307, 10, 10, 0xFFFFFFFF, "BLOCKSTUN");
-	RectDraw(390, 10, 7, 10, FB_ACTIVE);
-	TextDraw(397, 10, 10, 0xFFFFFFFF, "ACTIVE FRAMES");
-	RectDraw(500, 10, 7, 10, FB_ACTIONABLE);
-	TextDraw(507, 10, 10, 0xFFFFFFFF, "FULLY ACTIONABLE");
-	RectDraw(10, 22, 7, 10, FB_ADVANTAGE);
-	TextDraw(17, 22, 10, 0xFFFFFFFF, "FRAME ADVANTAGE");
-	RectDraw(140, 22, 7, 10, FB_NEUTRAL);
-	TextDraw(147, 22, 10, 0xFFFFFFFF, "NEUTRAL FRAME");
-	RectDraw(260, 22, 7, 10, FB_FREEZE);
-	TextDraw(267, 22, 10, 0xFFFFFFFF, "SCREEN FREEZE");
-	RectDraw(370, 22, 7, 10, FB_FREEZE_ACTIVE);
-	TextDraw(377, 22, 10, 0xFFFFFFFF, "ACTIVE DURING FREEZE");
-	RectDraw(530, 22, 7, 10, FB_THROWN);
-	TextDraw(537, 22, 10, 0xFFFFFFFF, "BEING THROWN");
-	RectDraw(10, 34, 7, 10, FB_HITSTOP);
-	TextDraw(17, 34, 10, 0xFFFFFFFF, "HITSTOP");
-	RectDraw(80, 34, 7, 10, FB_SHIELD);
-	TextDraw(87, 34, 10, 0xFFFFFFFF, "SHIELD");
-	RectDraw(140, 34, 7, 10, FB_THROW_ACTIVE);
-	TextDraw(147, 34, 10, 0xFFFFFFFF, "THROW ACTIVE FRAME");
-
-	RectDraw(10, 45, 7, 10, FB_INACTIONABLE);
-	RectDraw(14, 45, 3, 10, FB_CLASH);
-	TextDraw(17, 45, 10, 0xFFFFFFFF, "CLASH");
-	RectDraw(70, 45, 7, 10, FB_INACTIONABLE);
-	RectDraw(74, 45, 3, 10, FB_INVULN);
-	TextDraw(77, 45, 10, 0xFFFFFFFF, "INVULN");
-	RectDraw(130, 45, 7, 10, FB_INACTIONABLE);
-	RectDraw(134, 45, 3, 10, FB_COUNTER);
-	TextDraw(137, 45, 10, 0xFFFFFFFF, "COUNTER");
-	RectDraw(200, 45, 7, 10, FB_INACTIONABLE);
-	RectDraw(200, 44, 7, 2, FB_JUMP);
-	TextDraw(207, 45, 10, 0xFFFFFFFF, "AIRBORNE");
-	RectDraw(280, 45, 7, 10, FB_INACTIONABLE);
-	RectDraw(280, 54, 7, 2, FB_ACTIVE);
-	TextDraw(287, 45, 10, 0xFFFFFFFF, "ACTIVE PROJECTILE");
-	RectDraw(450, 45, 7, 10, FB_INACTIONABLE);
-	RectDraw(450, 54, 7, 2, FB_ASSIST_ACTIVE);
-	TextDraw(457, 45, 10, 0xFFFFFFFF, "ACTIVE ASSIST");
-}
-
 int getPatternFromInput(PlayerData* PD, const char input[20])
 {
 	char buffer[20];
@@ -1024,7 +943,7 @@ int getPatternFromInput(PlayerData* PD, const char input[20])
 					readableInput[j] = inputCopy[j];
 				}
 			}
-
+			
 			bool isMatch = true;
 			for (int k = 0; k < length; k++)
 			{
@@ -1039,14 +958,46 @@ int getPatternFromInput(PlayerData* PD, const char input[20])
 	return -1;
 }
 
-int getIDFromPattern(PlayerData* pPlayer, int nPattern, int nthMatch = 1)
+CommandData* getCommandDataFromInput(PlayerData* PD, const char input[20]) {
+	char buffer[20];
+	char inputCopy[20];
+	char readableInput[20] = { 0 };
+	for (int i = 0; i < PD->cmdFileDataPtr->cmdDataPtr->count; i++) {
+		if (PD->cmdFileDataPtr->cmdDataPtr->array[i] != 0) {
+			int length = 0;
+			snprintf(inputCopy, 20, "%s", PD->cmdFileDataPtr->cmdDataPtr->array[i]->input);
+			for (int j = 0; j < 20; j++) {
+				if (inputCopy[j] == '\xFF') {
+					readableInput[j] = 0;
+					length = j;
+					break;
+				} else if (inputCopy[j] >= 0x0 && inputCopy[j] <= 0x9) {
+					readableInput[j] = inputCopy[j] + 0x30;
+				} else {
+					readableInput[j] = inputCopy[j];
+				}
+			}
+
+			bool isMatch = true;
+			for (int k = 0; k < length; k++) {
+				if (readableInput[k] != input[k]) isMatch = false;
+			}
+			if (isMatch) {
+				return PD->cmdFileDataPtr->cmdDataPtr->array[i];
+			}
+		}
+	}
+	return NULL;
+}
+
+int getIDFromPattern(PlayerData* playerData, int nPattern, int nthMatch = 1)
 {
 	int retVal = -1;
-	for (int i = 0; i < pPlayer->cmdFileDataPtr->cmdDataPtr->count; i++) {
-		if (pPlayer->cmdFileDataPtr->cmdDataPtr->array[i])
+	for (int i = 0; i < playerData->cmdFileDataPtr->cmdDataPtr->count; i++) {
+		if (playerData->cmdFileDataPtr->cmdDataPtr->array[i])
 		{
-			if (pPlayer->cmdFileDataPtr->cmdDataPtr->array[i]->pattern == nPattern) {
-				retVal = pPlayer->cmdFileDataPtr->cmdDataPtr->array[i]->ID;
+			if (playerData->cmdFileDataPtr->cmdDataPtr->array[i]->pattern == nPattern) {
+				retVal = playerData->cmdFileDataPtr->cmdDataPtr->array[i]->ID;
 				nthMatch--;
 				if (nthMatch == 0) return retVal;
 			};
@@ -1055,13 +1006,13 @@ int getIDFromPattern(PlayerData* pPlayer, int nPattern, int nthMatch = 1)
 	return -1;
 }
 
-int getIDFromCmd(PlayerData* pPlayer, const char* cmd, int nthMatch = 1) {
+int getIDFromCmd(PlayerData* playerData, const char* cmd, int nthMatch = 1) {
 	int retVal = -1;
-	for (int i = 0; i < pPlayer->cmdFileDataPtr->cmdDataPtr->count; i++) {
-		if (pPlayer->cmdFileDataPtr->cmdDataPtr->array[i])
+	for (int i = 0; i < playerData->cmdFileDataPtr->cmdDataPtr->count; i++) {
+		if (playerData->cmdFileDataPtr->cmdDataPtr->array[i])
 		{
-			if (strcmp(cmd, pPlayer->cmdFileDataPtr->cmdDataPtr->array[i]->input) == 0) {
-				retVal = pPlayer->cmdFileDataPtr->cmdDataPtr->array[i]->ID;
+			if (strcmp(cmd, playerData->cmdFileDataPtr->cmdDataPtr->array[i]->input) == 0) {
+				retVal = playerData->cmdFileDataPtr->cmdDataPtr->array[i]->ID;
 				nthMatch--;
 				if (nthMatch == 0) return retVal;
 			};
@@ -1070,13 +1021,13 @@ int getIDFromCmd(PlayerData* pPlayer, const char* cmd, int nthMatch = 1) {
 	return -1;
 }
 
-int getPatternFromCmd(PlayerData* pPlayer, const char* cmd, int nthMatch = 1) {
+int getPatternFromCmd(PlayerData* playerData, const char* cmd, int nthMatch = 1) {
 	int retVal = -1;
-	for (int i = 0; i < pPlayer->cmdFileDataPtr->cmdDataPtr->count; i++) {
-		if (pPlayer->cmdFileDataPtr->cmdDataPtr->array[i])
+	for (int i = 0; i < playerData->cmdFileDataPtr->cmdDataPtr->count; i++) {
+		if (playerData->cmdFileDataPtr->cmdDataPtr->array[i])
 		{
-			if (strcmp(cmd, pPlayer->cmdFileDataPtr->cmdDataPtr->array[i]->input) == 0) {
-				retVal = pPlayer->cmdFileDataPtr->cmdDataPtr->array[i]->pattern;
+			if (strcmp(cmd, playerData->cmdFileDataPtr->cmdDataPtr->array[i]->input) == 0) {
+				retVal = playerData->cmdFileDataPtr->cmdDataPtr->array[i]->pattern;
 				nthMatch--;
 				if (nthMatch == 0) return retVal;
 			};
@@ -1086,47 +1037,46 @@ int getPatternFromCmd(PlayerData* pPlayer, const char* cmd, int nthMatch = 1) {
 }
 
 DWORD MBAA_CheckCmdVars = 0x0046d430;
-bool checkCmdVars(PlayerData* pPlayer, int ID) {
+bool checkCmdVars(PlayerData* playerData, int ID) {
 	__asm {
 		mov ecx, ID;
-		mov eax, pPlayer;
+		mov eax, playerData;
 		call[MBAA_CheckCmdVars];
 	}
-	return true;
+	return;
 }
 
 DWORD MBAA_CheckValidCommandConditions = 0x0046cea0;
-bool tryCmdID(PlayerData* pPlayer, int ID) {
+bool tryCmdID(PlayerData* playerData, int ID) {
 	__asm {
 		push ID;
-		mov eax, pPlayer;
+		mov eax, playerData;
 		call[MBAA_CheckValidCommandConditions];
 		add esp, 0x4;
 	}
-
-	return true;
+	return;
 }
 
-bool tryCmdPattern(PlayerData* pPlayer, int nPattern) {
+bool tryCmdPattern(PlayerData* playerData, int nPattern) {
 	if (nPattern < 41) {
 		return false;
 	}
-	else if (nPattern == 260 || nPattern == pPlayer->cmdFileDataPtr->groundThrowPat) {
-		pPlayer->subObj.targetPattern = nPattern;
+	else if (nPattern == 260 || nPattern == playerData->cmdFileDataPtr->groundThrowPat) {
+		playerData->subObj.targetPattern = nPattern;
 	}
 	int id = -1;
 	int meterMem = 0;
 	bool didCmd = false;
-	for (int i = 0; i < pPlayer->cmdFileDataPtr->cmdDataPtr->count; i++) {
-		if (pPlayer->cmdFileDataPtr->cmdDataPtr->array[i])
+	for (int i = 0; i < playerData->cmdFileDataPtr->cmdDataPtr->count; i++) {
+		if (playerData->cmdFileDataPtr->cmdDataPtr->array[i])
 		{
-			if (pPlayer->cmdFileDataPtr->cmdDataPtr->array[i]->pattern == nPattern) {
-				id = pPlayer->cmdFileDataPtr->cmdDataPtr->array[i]->ID;
-				if (checkCmdVars(pPlayer, id)) {
-					meterMem = pPlayer->cmdFileDataPtr->cmdDataPtr->array[i]->meterSpend;
-					pPlayer->cmdFileDataPtr->cmdDataPtr->array[i]->meterSpend = 0;
-					didCmd = tryCmdID(pPlayer, id);
-					pPlayer->cmdFileDataPtr->cmdDataPtr->array[i]->meterSpend = meterMem;
+			if (playerData->cmdFileDataPtr->cmdDataPtr->array[i]->pattern == nPattern) {
+				id = playerData->cmdFileDataPtr->cmdDataPtr->array[i]->ID;
+				if (checkCmdVars(playerData, id)) {
+					meterMem = playerData->cmdFileDataPtr->cmdDataPtr->array[i]->meterSpend;
+					playerData->cmdFileDataPtr->cmdDataPtr->array[i]->meterSpend = 0;
+					didCmd = tryCmdID(playerData, id);
+					playerData->cmdFileDataPtr->cmdDataPtr->array[i]->meterSpend = meterMem;
 					if (didCmd) return true;
 				}
 			};
@@ -1136,9 +1086,9 @@ bool tryCmdPattern(PlayerData* pPlayer, int nPattern) {
 }
 
 DWORD MBAA_UniversalCommands = 0x004666b0;
-void tryUnivCmd(PlayerData* pPlayer, byte buttons, byte directions) {
+void tryUnivCmd(PlayerData* playerData, byte buttons, byte directions) {
 	__asm {
-		mov ecx, pPlayer;
+		mov ecx, playerData;
 		add ecx, 0x4;
 		push directions;
 		push buttons;
@@ -1148,79 +1098,104 @@ void tryUnivCmd(PlayerData* pPlayer, byte buttons, byte directions) {
 }
 
 DWORD MBAA_SetBurstFlags = 0x00464390;
-void SetBurstFlags(PlayerData* pPlayer) {
+void SetBurstFlags(PlayerData* playerData) {
 	__asm {
-		mov ecx, pPlayer;
+		mov ecx, playerData;
 		add ecx, 0x4;
 		call[MBAA_SetBurstFlags];
 	}
 }
 
-bool tryBurst(PlayerData* pPlayer) {
-	if (pPlayer->subObj.hitstunTimeRemaining != 0 && pPlayer->subObj.burstLock == 0 && pPlayer->subObj.hitstop == 0) {
-		int stance = pPlayer->subObj.animationDataPtr->stateData->stance;
+bool tryBurst(PlayerData* playerData) {
+	if (playerData->subObj.hitstunTimeRemaining != 0 && playerData->subObj.burstLock == 0 && playerData->subObj.hitstop == 0) {
+		int stance = playerData->subObj.animationDataPtr->stateData->stance;
 		if (stance == 0 || stance == 2) {
-			if (pPlayer->subObj.hitstunTimeRemaining < 0) {
+			if (playerData->subObj.hitstunTimeRemaining < 0) {
 				return 0;
 			}
 		}
 		else if (stance == 1) {
-			if (9 < pPlayer->subObj.untechTimeElapsed) {
+			if (9 < playerData->subObj.untechTimeElapsed) {
 				return 0;
 			}
-			if (pPlayer->subObj.completedHitVectors != 0) {
+			if (playerData->subObj.completedHitVectors != 0) {
 				return 0;
 			}
 		}
-		SetBurstFlags(pPlayer);
+		SetBurstFlags(playerData);
 		return 1;
 	}
 	return 0;
 }
 
-void setBuffer(PlayerData* pPlayer, WORD* dir, WORD buttons[4]) {
-	WORD dirCount = dir[0] * 2 + 3;
-	memcpy(pPlayer->dirInputs, dir, dirCount * 0x2);
-	pPlayer->aInputs[0] = 0;
-	pPlayer->aInputs[1] = buttons[0];
-	pPlayer->aInputs[2] = 1;
+//dir : input as numeric e.g. 236
+//buttons : logical and, A = 1, B = 2, C = 4, D = 8
+void setBufferCmd(PlayerData* playerData, WORD dir, WORD buttons) {
+	WORD dirCount = (WORD)log10(dir);
+	playerData->dirInputs[0] = dirCount;
+	int i = dirCount * 2 + 1;
+	while (dir > 0) {
+		playerData->dirInputs[i] = dir % 10;
+		playerData->dirInputs[i + 1] = 1;
+		dir = dir / 10;
+		i -= 2;
+	}
+	//WORD dirCount = dir[0] * 2 + 3;
+	//memcpy(playerData->dirInputs, dir, dirCount * 0x2);
+	playerData->aInputs[0] = 0;
+	playerData->aInputs[1] = buttons & 1;
+	playerData->aInputs[2] = 1;
 
-	pPlayer->bInputs[0] = 0;
-	pPlayer->bInputs[1] = buttons[1];
-	pPlayer->bInputs[2] = 1;
+	playerData->bInputs[0] = 0;
+	playerData->bInputs[1] = buttons & 2;
+	playerData->bInputs[2] = 1;
 
-	pPlayer->cInputs[0] = 0;
-	pPlayer->cInputs[1] = buttons[2];
-	pPlayer->cInputs[2] = 1;
+	playerData->cInputs[0] = 0;
+	playerData->cInputs[1] = buttons & 4;
+	playerData->cInputs[2] = 1;
 
-	pPlayer->dInputs[0] = 0;
-	pPlayer->dInputs[1] = buttons[3];
-	pPlayer->dInputs[2] = 1;
+	playerData->dInputs[0] = 0;
+	playerData->dInputs[1] = buttons & 8;
+	playerData->dInputs[2] = 1;
 }
 
 DWORD MBAA_GetHighestPriorityValidCommand = 0x0046d510;
-bool tryBufferCmd(PlayerData* pPlayer) {
+bool tryBufferCmd(PlayerData* playerData) {
 	__asm {
-		mov eax, pPlayer;
+		mov eax, playerData;
 		call[MBAA_GetHighestPriorityValidCommand];
 	}
-	return true;
+	return;
+}
+
+DWORD MBAA_ManageNormalAttacksAndMovements = 0x004666b0;
+void tryNormalsAndMovement(ActorData* actorData, byte inputButton, byte inputDirection) {
+	__asm {
+		mov ecx, actorData;
+		push inputDirection;
+		push inputButton;
+		call[MBAA_ManageNormalAttacksAndMovements];
+	}
+	return;
 }
 
 //returns AND of 1 for held shield and 2 for ex shield
-byte getShieldCancel(PlayerData* pPlayer, int pat) {
-	byte exOnly = pPlayer->subObj.moon == 0 ? 0x2 : 0x0;
+byte getShieldCancel(PlayerData* playerData, int pat) {
+	byte exOnly = playerData->subObj.moon == 0 ? 0x2 : 0x0;
 	byte retVal = 0x0;
-	if (pat == pPlayer->cmdFileDataPtr->ShieldCounter_Ground ||
-		pat == pPlayer->cmdFileDataPtr->ShieldCounter_Air ||
-		pat == pPlayer->cmdFileDataPtr->ShieldCounter_Crouch) {
+	if (pat == playerData->cmdFileDataPtr->ShieldCounter_Ground ||
+		pat == playerData->cmdFileDataPtr->ShieldCounter_Air ||
+		pat == playerData->cmdFileDataPtr->ShieldCounter_Crouch) {
 		return 0x3;
 	}
-	if (pat <= 40) return exOnly;
-	int ID = getIDFromPattern(pPlayer, pat, 1);
+	if (pat <= 40 || //universal normals and movement
+		pat == 260 || //heat activation
+		pat == playerData->cmdFileDataPtr->groundThrowPat || //throws
+		pat == playerData->cmdFileDataPtr->airThrowPat) return exOnly;
+	int ID = getIDFromPattern(playerData, pat, 1);
 	if (ID == -1) return 0x0;
-	WORD flagsets = *(WORD*)pPlayer->cmdFileDataPtr->cmdDataPtr->array[ID]->flagsets;
-	int specialFlag = pPlayer->cmdFileDataPtr->cmdDataPtr->array[ID]->specialFlag;
+	WORD flagsets = *(WORD*)playerData->cmdFileDataPtr->cmdDataPtr->array[ID]->flagsets;
+	int specialFlag = playerData->cmdFileDataPtr->cmdDataPtr->array[ID]->specialFlag;
 	if (flagsets & 0x8) { // if no cancel
 		if (flagsets & 0x40 && !(flagsets & 0x1000)) { //if guard/shield cancel and not guard cancel only (covers D > D)
 			retVal = 0x3;
@@ -1235,11 +1210,11 @@ byte getShieldCancel(PlayerData* pPlayer, int pat) {
 	else if (specialFlag == 0) { //if normal or movement
 		retVal = exOnly;
 	}
-
-	ID = getIDFromPattern(pPlayer, pat, 2);
+	
+	ID = getIDFromPattern(playerData, pat, 2);
 	if (ID == -1) return retVal;
-	flagsets = *(WORD*)pPlayer->cmdFileDataPtr->cmdDataPtr->array[ID]->flagsets;
-	specialFlag = pPlayer->cmdFileDataPtr->cmdDataPtr->array[ID]->specialFlag;
+	flagsets = *(WORD*)playerData->cmdFileDataPtr->cmdDataPtr->array[ID]->flagsets;
+	specialFlag = playerData->cmdFileDataPtr->cmdDataPtr->array[ID]->specialFlag;
 	if (flagsets & 0x8) {
 		if (flagsets & 0x40 && !(flagsets & 0x1000)) {
 			retVal = 0x3;
@@ -1258,247 +1233,29 @@ byte getShieldCancel(PlayerData* pPlayer, int pat) {
 }
 
 //returns AND of 1 = stand, 2 = airborne, 4 = crouch
-byte getCmdStance(PlayerData* pPlayer, int ID) {
-	return pPlayer->cmdFileDataPtr->cmdDataPtr->array[ID]->flagsets[0] & 0x7;
+byte getCmdStance(PlayerData* playerData, int ID) {
+	return playerData->cmdFileDataPtr->cmdDataPtr->array[ID]->flagsets[0] & 0x7;
 }
 
 //returns AND of 1 = stand, 2 = airborne, 4 = crouch
-byte getPatStance(PlayerData* pPlayer, int pat) {
-	if ((0 <= pat && pat <= 6) || (35 <= pat && pat <= 37)) {
+byte getPatStance(PlayerData* playerData, int pat) {
+	if ((0 <= pat && pat <= 6) || (35 <= pat && pat <= 37) || pat == 260 || pat == playerData->cmdFileDataPtr->groundThrowPat) { //ground universal normals, normal jumps, heat activation, ground throw
 		return 0x5;
 	}
-	else if ((7 <= pat && pat <= 9) || (38 <= pat && pat <= 40)) {
+	else if ((7 <= pat && pat <= 9) || (38 <= pat && pat <= 40) || pat == playerData->cmdFileDataPtr->airThrowPat) { //air universal normals, normal double jumps, air throw
 		return 0x2;
 	}
-	else if (pat == pPlayer->cmdFileDataPtr->ShieldCounter_Ground || pat == pPlayer->cmdFileDataPtr->ShieldCounter_Crouch) {
+	else if (pat == playerData->cmdFileDataPtr->ShieldCounter_Ground || pat == playerData->cmdFileDataPtr->ShieldCounter_Crouch) {
 		int retVal = 0x0;
-		retVal += 0x1 * (pat == pPlayer->cmdFileDataPtr->ShieldCounter_Ground);
-		retVal += 0x4 * (pat == pPlayer->cmdFileDataPtr->ShieldCounter_Crouch);
+		retVal += 0x1 * (pat == playerData->cmdFileDataPtr->ShieldCounter_Ground);
+		retVal += 0x4 * (pat == playerData->cmdFileDataPtr->ShieldCounter_Crouch);
 		return retVal;
 	}
-	else if (pat == pPlayer->cmdFileDataPtr->ShieldCounter_Air) {
+	else if (pat == playerData->cmdFileDataPtr->ShieldCounter_Air) {
 		return 0x2;
 	}
-	int ID = getIDFromPattern(pPlayer, pat);
-	return getCmdStance(pPlayer, ID);
-}
-
-//In-game frame bar
-void drawFrameBar(int frameBarY)
-{
-	if (!safeWrite())
-		return;
-
-	FrameBar(P1, P2, P3, P4);
-
-	int nBarDrawCounter = 0;
-
-	//nBarScrolling = *(short*)(adMBAABase + adSharedScrolling);
-	short sAdjustedScroll = min(min(nBarCounter - DISPLAY_RANGE, BAR_MEMORY_SIZE - DISPLAY_RANGE), -nTRUE_SCROLL_DISPLAY);
-
-	int nForStart = (nBarCounter % BAR_MEMORY_SIZE) - DISPLAY_RANGE - sAdjustedScroll;
-	int nForEnd = (nBarCounter % BAR_MEMORY_SIZE) - sAdjustedScroll;
-	if (nBarCounter <= DISPLAY_RANGE)
-	{
-		nForStart = 0;
-		nForEnd = nBarCounter;
-	}
-
-	RectDraw(18, frameBarY, 603, 27, 0x99000000); //Background
-
-	RectDraw(17, frameBarY - 2, 605, 2, 0xFFFFFFFF);
-	RectDraw(16, frameBarY - 1, 2, 29, 0xFFFFFFFF);
-	RectDraw(17, frameBarY + 27, 605, 2, 0xFFFFFFFF);
-	RectDraw(621, frameBarY - 1, 2, 29, 0xFFFFFFFF);
-
-	int j = 0;
-	for (int i = nForStart; i < nForEnd; i++)
-	{
-		j = i < 0 ? i + BAR_MEMORY_SIZE : i;
-
-		RectDraw(20 + 8 * nBarDrawCounter, frameBarY + 2, 7, 10, Main1->dwColorBar1[j][0]);
-		if (Main1->dwColorBar1[j][1] != 0)
-			RectDraw(20 + 8 * nBarDrawCounter + 4, frameBarY + 2, 3, 10, Main1->dwColorBar1[j][1]);
-		RectDraw(20 + 8 * nBarDrawCounter, frameBarY + 15, 7, 10, Main2->dwColorBar1[j][0]);
-		if (Main2->dwColorBar1[j][1] != 0)
-			RectDraw(20 + 8 * nBarDrawCounter + 4, frameBarY + 15, 3, 10, Main2->dwColorBar1[j][1]);
-		RectDraw(20 + 8 * nBarDrawCounter, frameBarY + 1, 7, 2, Main1->dwColorBar2[j][0]);
-		if (Main1->dwColorBar2[j][1] != 0)
-			RectDraw(20 + 8 * nBarDrawCounter, frameBarY + 11, 7, 2, Main1->dwColorBar2[j][1]);
-		RectDraw(20 + 8 * nBarDrawCounter, frameBarY + 14, 7, 2, Main2->dwColorBar2[j][0]);
-		if (Main2->dwColorBar2[j][1] != 0)
-			RectDraw(20 + 8 * nBarDrawCounter, frameBarY + 24, 7, 2, Main2->dwColorBar2[j][1]);
-
-		static char buffer[256];
-
-		if (Main1->nNumBar[j][0] >= 0)
-		{
-			int nLength = floor(log10(Main1->nNumBar[j][0]));
-			snprintf(buffer, 256, "%i", Main1->nNumBar[j][0]);
-			TextDraw(19 + 8 * nBarDrawCounter - 8 * nLength, frameBarY + 2, 10, 0xFFFFFFFF, buffer);
-		}
-
-		if (Main2->nNumBar[j][0] >= 0)
-		{
-			int nLength = floor(log10(Main2->nNumBar[j][0]));
-			snprintf(buffer, 256, "%i", Main2->nNumBar[j][0]);
-			TextDraw(19 + 8 * nBarDrawCounter - 8 * nLength, frameBarY + 15, 10, 0xFFFFFFFF, buffer);
-		}
-		nBarDrawCounter++;
-	}
-	static char buffer[256];
-	snprintf(buffer, 256, "Startup %3iF / Total %3iF / Advantage %3iF", Main1->nFirstActive % 1000, Main1->nInactionableMemory % 1000, nPlayerAdvantage % 1000);
-	TextDraw(20, frameBarY - 12, 10, 0xFFFFFFFF, buffer);
-
-	snprintf(buffer, 256, "Startup %3iF / Total %3iF / Advantage %3iF", Main2->nFirstActive % 1000, Main2->nInactionableMemory % 1000, -nPlayerAdvantage % 1000);
-	TextDraw(20, frameBarY + 29, 10, 0xFFFFFFFF, buffer);
-
-}
-
-void drawSimpleMeter()
-{
-	if (!shouldDrawHud) return;
-
-	float fScroll = *(float*)(dwBaseAddress + adTrainingResetScroll);
-	int nResetOffset = 0;
-	if (fScroll > 0)
-		nResetOffset = 320.0f * fScroll;
-
-	int Y = 19;
-
-	DWORD P1Base = adP1SubBase + (*(uint8_t*)(adMBAABase + adP1SubBase + adTagFlag) * dwPlayerStructSize * 2);
-	int nP1Meter = *(int*)(adMBAABase + P1Base + adMagicCircuit);
-	int nP1MeterTime = *(int*)(adMBAABase + P1Base + adMagicCircuitTime);
-	uint8_t nP1MeterMode = *(uint8_t*)(adMBAABase + P1Base + adMagicCircuitMode);
-	short sP1CircuitBreakTimer = *(short*)(adMBAABase + P1Base + adCircuitBreakTimer);
-	short sP1CircuitBreakTotal = *(short*)(adMBAABase + P1Base + adCircuitBreakTotal);
-	short sP1CircuitBreakFlag = *(short*)(adMBAABase + P1Base + adBreakOrPenalty);
-	uint8_t nP1Moon = *(uint8_t*)(adMBAABase + dwP1CharMoon);
-
-	DWORD P2Base = adP2SubBase + (*(uint8_t*)(adMBAABase + adP2SubBase + adTagFlag) * dwPlayerStructSize * 2);
-	int nP2Meter = *(int*)(adMBAABase + P2Base + adMagicCircuit);
-	int nP2MeterTime = *(int*)(adMBAABase + P2Base + adMagicCircuitTime);
-	uint8_t nP2MeterMode = *(uint8_t*)(adMBAABase + P2Base + adMagicCircuitMode);
-	short sP2CircuitBreakTimer = *(short*)(adMBAABase + P2Base + adCircuitBreakTimer);
-	short sP2CircuitBreakTotal = *(short*)(adMBAABase + P2Base + adCircuitBreakTotal);
-	short sP2CircuitBreakFlag = *(short*)(adMBAABase + P2Base + adBreakOrPenalty);
-	uint8_t nP2Moon = *(uint8_t*)(adMBAABase + dwP2CharMoon);
-
-	static char buffer[8];
-
-	RectDraw(60 - nResetOffset, Y, 214, 12, 0x99000000); //BG
-	switch (nP1MeterMode)
-	{
-	case 0: //Normal, out of 30000
-	{
-		float fMeterScale = nP1Moon == 2 ? 94.3396 : 141.5094;
-		DWORD dwMeterColor = METER_COLOR_MAP[nP1Meter / 10000];
-		if (nP1Moon == 2 && nP1Meter >= 15000) dwMeterColor = METER_COLOR_MAP[2];
-		RectDraw(61 - nResetOffset, Y + 1, nP1Meter / fMeterScale, 10, dwMeterColor);
-		snprintf(buffer, 8, "%3.2f", nP1Meter / 100.0);
-		TextDraw(61 - nResetOffset, Y + 1, 10, 0xFFFFFFFF, buffer);
-		break;
-	}
-	case 1: //HEAT, out of 550
-	{
-		RectDraw(61 - nResetOffset, Y + 1, nP1MeterTime / 2.5943, 10, HEAT_COLOR);
-		snprintf(buffer, 8, "%3i", nP1MeterTime);
-		TextDraw(61 - nResetOffset, Y + 1, 10, 0xFFFFFFFF, buffer);
-		TextDraw(61 + 212 - 4 * 7.7777 - nResetOffset, Y + 1, 10, HEATFONT_COLOR, "HEAT");
-		break;
-	}
-	case 2: //MAX out of 600
-	{
-		RectDraw(61 - nResetOffset, Y + 1, nP1MeterTime / 2.8301, 10, MAX_COLOR);
-		snprintf(buffer, 8, "%3i", nP1MeterTime);
-		TextDraw(61 - nResetOffset, Y + 1, 10, 0xFFFFFFFF, buffer);
-		TextDraw(61 + 212 - 3 * 7.7777 - nResetOffset, Y + 1, 10, MAXFONT_COLOR, "MAX");
-		break;
-	}
-	case 3: //BLOOD HEAT out of 502
-	{
-		RectDraw(61 - nResetOffset, Y + 1, nP1MeterTime / 2.3679, 10, BLOODHEAT_COLOR);
-		snprintf(buffer, 8, "%3i", nP1MeterTime);
-		TextDraw(61 - nResetOffset, Y + 1, 10, 0xFFFFFFFF, buffer);
-		TextDraw(61 + 212 - 10 * 7.7777 - nResetOffset, Y + 1, 10, BLOODHEATFONT_COLOR, "BLOOD HEAT");
-		break;
-	}
-	case 5: //UNLIMITED
-	{
-		RectDraw(61 - nResetOffset, Y + 1, 212, 10, UNLIMITED_COLOR);
-		TextDraw(61 - nResetOffset, Y + 1, 10, UNLIMITEDFONT_COLOR, "UNLIMITED");
-		break;
-	}
-	}
-
-	RectDraw(580 - 214 + nResetOffset, Y, 214, 12, 0x99000000); //BG
-	switch (nP2MeterMode)
-	{
-	case 0: //NORMAL
-	{
-		float fMeterScale = nP2Moon == 2 ? 94.3396 : 141.5094;
-		DWORD dwMeterColor = METER_COLOR_MAP[nP2Meter / 10000];
-		if (nP2Moon == 2 && nP2Meter >= 15000) dwMeterColor = METER_COLOR_MAP[2];
-		RectDraw(579 - nP2Meter / fMeterScale + nResetOffset, Y + 1, nP2Meter / fMeterScale, 10, dwMeterColor);
-		snprintf(buffer, 8, "%6.2f", nP2Meter / 100.0);
-		TextDraw(579 - 6 * 7.7777 + nResetOffset, Y + 1, 10, 0xFFFFFFFF, buffer);
-		break;
-	}
-	case 1: //HEAT
-	{
-		RectDraw(579 - nP2MeterTime / 2.5943 + nResetOffset, Y + 1, nP2MeterTime / 2.5943, 10, HEAT_COLOR);
-		snprintf(buffer, 8, "%3i", nP2MeterTime);
-		TextDraw(579 - 3 * 7.7777 + nResetOffset, Y + 1, 10, 0xFFFFFFFF, buffer);
-		TextDraw(579 - 212 + nResetOffset, Y + 1, 10, HEATFONT_COLOR, "HEAT");
-		break;
-	}
-	case 2: //MAX
-	{
-		RectDraw(579 - nP2MeterTime / 2.8301 + nResetOffset, Y + 1, nP2MeterTime / 2.8301, 10, MAX_COLOR);
-		snprintf(buffer, 8, "%3i", nP2MeterTime);
-		TextDraw(579 - 3 * 7.7777 + nResetOffset, Y + 1, 10, 0xFFFFFFFF, buffer);
-		TextDraw(579 - 212 + nResetOffset, Y + 1, 10, MAXFONT_COLOR, "MAX");
-		break;
-	}
-	case 3: //BLOOD HEAT
-	{
-		RectDraw(579 - nP2MeterTime / 2.3679 + nResetOffset, Y + 1, nP2MeterTime / 2.3679, 10, BLOODHEAT_COLOR);
-		snprintf(buffer, 8, "%3i", nP2MeterTime);
-		TextDraw(579 - 3 * 7.7777 + nResetOffset, Y + 1, 10, 0xFFFFFFFF, buffer);
-		TextDraw(579 - 212 + nResetOffset, Y + 1, 10, BLOODHEATFONT_COLOR, "BLOOD HEAT");
-		break;
-	}
-	case 5: //UNLIMITED
-	{
-		RectDraw(579 - 212 + nResetOffset, Y + 1, 212, 10, UNLIMITED_COLOR);
-		TextDraw(579 - 9 * 7.7777 + nResetOffset, Y + 1, 10, UNLIMITEDFONT_COLOR, "UNLIMITED");
-		break;
-	}
-	}
-
-	DWORD dwBorderColor = (sP1CircuitBreakTimer && !sP1CircuitBreakFlag) ? CIRCUITBREAK_COLOR : 0xFFFFFFFF;
-	RectDraw(59 - nResetOffset, Y - 2, 216, 2, dwBorderColor);
-	RectDraw(58 - nResetOffset, Y - 1, 2, 14, dwBorderColor);
-	RectDraw(59 - nResetOffset, Y + 12, 216, 2, dwBorderColor);
-	RectDraw(274 - nResetOffset, Y - 1, 2, 14, dwBorderColor);
-	if (sP1CircuitBreakTimer && !sP1CircuitBreakFlag)
-	{
-		snprintf(buffer, 8, "%3i", sP1CircuitBreakTimer);
-		RectDraw(61 - nResetOffset, Y + 1, sP1CircuitBreakTimer / (sP1CircuitBreakTotal / 212.0), 10, CIRCUITBREAK_COLOR & 0x60FFFFFF);
-		TextDraw(61 + 106 - 1.5 * 7.7777 - nResetOffset, Y + 1, 10, CIRCUITBREAKFONT_COLOR, buffer);
-	}
-
-	dwBorderColor = (sP2CircuitBreakTimer && !sP2CircuitBreakFlag) ? CIRCUITBREAK_COLOR : 0xFFFFFFFF;
-	RectDraw(59 + 306 + nResetOffset, Y - 2, 216, 2, dwBorderColor);
-	RectDraw(58 + 306 + nResetOffset, Y - 1, 2, 14, dwBorderColor);
-	RectDraw(59 + 306 + nResetOffset, Y + 12, 216, 2, dwBorderColor);
-	RectDraw(274 + 306 + nResetOffset, Y - 1, 2, 14, dwBorderColor);
-	if (sP2CircuitBreakTimer && !sP2CircuitBreakFlag)
-	{
-		snprintf(buffer, 8, "%3i", sP2CircuitBreakTimer);
-		RectDraw(579 - sP2CircuitBreakTimer / (sP2CircuitBreakTotal / 212.0) + nResetOffset, Y + 1, sP2CircuitBreakTimer / (sP2CircuitBreakTotal / 212.0), 10, CIRCUITBREAK_COLOR & 0x60FFFFFF);
-		TextDraw(579 - 106 - 1.5 * 7.7777 + nResetOffset, Y + 1, 10, CIRCUITBREAKFONT_COLOR, buffer);
-	}
+	int ID = getIDFromPattern(playerData, pat);
+	return getCmdStance(playerData, ID);
 }
 
 void drawStats()
@@ -1514,7 +1271,7 @@ void drawStats()
 		nResetOffset = 320.0f * fScroll;
 
 	static char buffer[256];
-
+	
 	int nP1Health = pP1->subObj.health; // this works on maids too
 	int nP1RedHealth = pP1->subObj.redHealth;
 	int nP1RedHealthX;
@@ -1564,7 +1321,7 @@ void drawStats()
 	//drawTextWithBorder(369 + nResetOffset, 67, 6, 9, buffer);
 	TextDraw(367 + nResetOffset, 67, 6, 0xFFFFFFFF, buffer);
 
-
+	
 	// on p1 health bar
 	drawRect(114.0f - nResetOffset, 39.0f, 1.0f, 3.0f, 0xFF000000);
 	drawRect(167.0f - nResetOffset, 39.0f, 1.0f, 3.0f, 0xFF000000);
@@ -1706,6 +1463,191 @@ void drawStats()
 		drawRect(395.0f + nResetOffset, 23.0f, 24.0f, 1.0f, 0xFFFFFFFF);		// horizontal bar
 		TextDraw(395 + nResetOffset, 24, 6, 0xFFFFFFFF, std::format("{:.3f}", P2AdjGuts[3]).c_str());
 	}
+
+	//meter multipliers
+	if (shouldDrawMeter) {
+		nResetOffset = 0;
+		if (fScroll > 0)
+			nResetOffset = 48.0f * fScroll;
+
+		int exGuardMultTimer = pActiveP1->subObj.exGuardMeterPenaltyTimer;
+		float otgMeterMult = playerAuxDataArr[0].comboCalcData[playerAuxDataArr[0].comboCalcIndex].otgMeterMult / 100.0f;
+		int meterMultTimer = pActiveP1->subObj.meterMultTimer;
+		float y = 464.0f + nResetOffset;
+		if (exGuardMultTimer > 0) {
+			TextDraw(240, y, 10, 0xFFFFFFFF, "x0.10");
+			RectDraw(240, y + 11, 38.0f * exGuardMultTimer / 120.0f, 2, 0xFF20A020);
+		}
+		y -= 12.0f;
+		if (otgMeterMult > 0 && pActiveP2->subObj.hitstunTimeRemaining != 0) {
+			TextDraw(240, y, 10, 0xFFFFFFFF, "x%0.2f", otgMeterMult);
+		}
+		y -= 12.0f;
+		if (meterMultTimer > 0) {
+			TextDraw(240, y, 10, 0xFFFFFFFF, "x%0.2f", pActiveP1->subObj.meterGainMultiplier / 255.0f);
+			RectDraw(240, y + 11, 38.0f * (float)meterMultTimer / pActiveP1->subObj.meterMultTimerTotal, 2, 0xFF20A020);
+		}
+		
+		exGuardMultTimer = pActiveP2->subObj.exGuardMeterPenaltyTimer;
+		otgMeterMult = playerAuxDataArr[1].comboCalcData[playerAuxDataArr[1].comboCalcIndex].otgMeterMult / 100.0f;
+		meterMultTimer = pActiveP2->subObj.meterMultTimer;
+		y = 464.0f + nResetOffset;
+		if (exGuardMultTimer > 0) {
+			TextDraw(362, y, 10, 0xFFFFFFFF, "x0.10");
+			RectDraw(362, y + 11, 38.0f * exGuardMultTimer / 120.0f, 2, 0xFF20A020);
+		}
+		y -= 12.0f;
+		if (otgMeterMult > 0 && pActiveP1->subObj.hitstunTimeRemaining != 0) {
+			TextDraw(362, y, 10, 0xFFFFFFFF, "x%0.2f", otgMeterMult);
+		}
+		y -= 12.0f;
+		if (meterMultTimer > 0) {
+			TextDraw(362, y, 10, 0xFFFFFFFF, "x%0.2f", pActiveP2->subObj.meterGainMultiplier / 255.0f);
+			RectDraw(362, y + 11, 38.0f * (float)meterMultTimer / pActiveP2->subObj.meterMultTimerTotal, 2, 0xFF20A020);
+		}
+		
+	}
+		
+}
+
+void drawComboTimer()
+{
+	if (!shouldDrawHud) {
+		return;
+	}
+
+	bool showTimer = false;
+	for (int i = 0; i < 4; i++) {
+		PlayerData* P = &playerDataArr[i];
+		if (!P->exists) continue;
+		if (!P->subObj.notInCombo ||
+			P->subObj.throwFlag ||
+			P->subObj.inBlockstun) {
+			showTimer = true;
+		}
+	}
+
+	if (showTimer) {
+		if (*(int*)(adMBAABase + 0x0015df00) == 0 && *(int*)(adMBAABase + adGlobalFreeze) == 0 && !_naked_newPauseCallback2_IsPaused) {
+			bool incrementTimer = true;
+			for (int i = 0; i < 4; i++) {
+				PlayerData* P = &playerDataArr[i];
+				if (!P->exists) continue;
+				if (P->subObj.magicCircuitState == 1 ||
+					P->subObj.magicCircuitState == 3) {
+					incrementTimer = false;
+				}
+			}
+			if (incrementTimer) comboTimer++;
+		}
+
+		float length = floor(log10(max(comboTimer / 48.0f, 1.0f))) + 1.5f;
+		if (*(int*)(adMBAABase + 0x0015df00) == 0 && *(int*)(adMBAABase + adGlobalFreeze) == 0) {
+			TextDraw(320 - (7.2 * length), 15, 10, 0xFFFFFFFF, "%.02f", comboTimer / 48.0f);
+		}
+		else {
+			TextDraw(320 - (7.2 * length), 15, 10, 0x80FFFFFF, "%.02f", comboTimer / 48.0f);
+		}
+
+	}
+	else {
+		comboTimer = 0;
+	}
+}
+
+void drawAccurateComboDamage()
+{
+	if (!shouldDrawHud) {
+		return;
+	}
+
+	for (int i = 0; i < 2; i++) {
+		for (int j = 0; j < 8; j++) {
+			PlayerAuxData* playerData = &playerAuxDataArr[i];
+			if (trueComboData[i][j].damage != 0 &&
+				playerData->comboCalcData[j].someFlag != -1 &&
+				trueComboData[i][j].damage != playerData->comboCalcData[j].damage) {
+				float xPos = playerData->comboCalcData[j].xPos;
+				float yPos = playerData->comboCalcData[j].yPos;
+				byte alpha = playerData->comboCalcData[j].alpha;
+				DWORD ARGB = (alpha << 24) | 0x00FFFFFF;
+				TextDraw(xPos + 137.0f, yPos + 62.0f, 10, ARGB, "%i", trueComboData[i][j].damage);
+			}
+		}
+	}
+}
+
+void drawHitstunBar()
+{
+	if (!shouldDrawHud) {
+		return;
+	}
+
+	for (int i = 0; i < 2; i++) {
+		for (int j = 0; j < 8; j++) {
+			PlayerAuxData* playerData = &playerAuxDataArr[i];
+			if (playerData->comboCalcData[j].damage != 0 &&
+				playerData->comboCalcData[j].numHits > 1 &&
+				playerData->comboCalcData[j].someFlag != -1) {
+				float xPos = playerData->comboCalcData[j].xPos;
+				float yPos = playerData->comboCalcData[j].yPos;
+				byte alpha = playerData->comboCalcData[j].alpha;
+				DWORD ARGB = (alpha << 24) | 0x00FFFFFF;
+				DWORD bgARGB = (alpha << 24) | 0x0046A0E6;
+				PlayerData* opponent = i == 0 ? pActiveP2 : pActiveP1;
+				float width = 0.0f;
+				float bgWidth = 0.0f;
+				if (opponent->subObj.hitstunTimeRemaining == -2) { //airborne
+					width = (float)(opponent->subObj.totalUntechTime - opponent->subObj.untechTimeElapsed) / 30.0f;
+					bgWidth = (float)(opponent->subObj.totalUntechTime - 1) / 30.0f;
+				}
+				else if (opponent->subObj.hitstunTimeRemaining > 0) { //grounded
+					width = (float)(opponent->subObj.hitstunTimeRemaining - 1) / 30.0f;
+					bgWidth = (float)(opponent->subObj.hitstunTimeRemaining + opponent->subObj.hitstunBlockstunTimeElapsed - 2) / 30.0f;
+				}
+				else if (opponent->subObj.hitstunTimeRemaining == -3) { //knockdown
+					width = 1.0f;
+					bgWidth = 1.0f;	
+				}
+
+				int untechDecay = 0;
+				if (opponent->subObj.gravity > 0.072) untechDecay = max(0, (int)256 - floor(256 - (opponent->subObj.gravity - 0.072f) / 0.928f * 19)); //(opponent->subObj.gravity - 0.072f) / 0.928f * 19.0f;
+
+				if (opponent->subObj.bounceCount > 2) {
+					ARGB = (alpha << 24) | 0x00BF6716;
+					bgARGB = (alpha << 24) | 0x00000000;
+				}
+				else if (untechDecay + opponent->subObj.untechPenalty > 2) {
+					bgARGB = (alpha << 24) | 0x00000000;
+				}
+				else if (untechDecay + opponent->subObj.untechPenalty > 1) {
+					bgARGB = (alpha << 24) | 0x00808080;
+				}
+				else if (untechDecay + opponent->subObj.untechPenalty > 0) {
+					bgARGB = (alpha << 24) | 0x0078F0F0;
+				}
+
+				RectDraw(xPos - 1, yPos + 42.0f, 278.0f, 4, 0xFF000000);
+				if (i == 0) {
+					bgWidth = CLAMP(bgWidth, 0.0f, 1.0f);
+					bgWidth *= 276.0f;
+					RectDraw(xPos + 276.0f - bgWidth, yPos + 43.0f, bgWidth, 2, bgARGB);
+					width = CLAMP(width, 0.0f, 1.0f);
+					width *= 276.0f;
+					RectDraw(xPos + 276.0f - width, yPos + 43.0f, width, 2, ARGB);
+				}
+				else {
+					bgWidth = CLAMP(bgWidth, 0.0f, 1.0f);
+					bgWidth *= 276.0f;
+					RectDraw(xPos, yPos + 43.0f, bgWidth, 2, bgARGB);
+					width = CLAMP(width, 0.0f, 1.0f);
+					width *= 276.0f;
+					RectDraw(xPos, yPos + 43.0f, width, 2, ARGB);
+				}
+				
+			}
+		}
+	}
 }
 
 void drawFrameData()
@@ -1726,17 +1668,22 @@ void drawFrameData()
 	prevFrameCalled = currentFrame;
 	*/
 
-	drawObject(0x00555130 + (0xAFC * 0), false, 0); // P1
-	drawObject(0x00555130 + (0xAFC * 1), false, 1); // P2
-	if (*(bool*)(0x00555130 + (0xAFC * 2))) drawObject(0x00555130 + (0xAFC * 2), false, 2); // P3
-	if (*(bool*)(0x00555130 + (0xAFC * 3))) drawObject(0x00555130 + (0xAFC * 3), false, 3); // P4
+	PlayerData** drawOrderArray = (PlayerData**)(adMBAABase + 0x00346048);
+	for (int i = 3; i >= 0; i--) {
+		if (drawOrderArray[i]->exists) drawObject((DWORD)drawOrderArray[i], false, drawOrderArray[i]->subObj.index);
+	}
+
+	//drawObject(0x00555130 + (0xAFC * 0), false, 0); // P1
+	//drawObject(0x00555130 + (0xAFC * 1), false, 1); // P2
+	//if (*(bool*)(0x00555130 + (0xAFC * 2))) drawObject(0x00555130 + (0xAFC * 2), false, 2); // P3
+	//if (*(bool*)(0x00555130 + (0xAFC * 3))) drawObject(0x00555130 + (0xAFC * 3), false, 3); // P4
 
 	// draw all effects
 
 	int projectileIndex = 4;
 	bool res;
 	for(unsigned index = 0; index < 1000; index++) {
-		if (((*(int*)(index * 0x33c + 0x67bde8) != 0) && (*(char*)(index * 0x33c + 0x67be09) == '\0'))) {
+		if ((*(int*)(index * 0x33c + 0x67bde8) != 0) && (*(char*)(index * 0x33c + 0x67be09) == '\0') && (*(char*)(index * 0x33c + 0x67c0dd) == '\0')) {
 			res = drawObject(index * 0x33c + 0x67bde8, true, projectileIndex);
 			if (res) {
 				projectileIndex++;
@@ -1771,7 +1718,7 @@ void highlightStates()
 	auto updateAnimation = [](DWORD animDataAddr, BYTE blockState, DWORD patternState, DWORD notInCombo, BYTE armorTimer, DWORD throwInvuln) -> void
 		{
 			// the order of this if block denotes the priority for each highlight
-			if (nHIGHLIGHTS == 0)
+			if (XS_highlights == 0)
 				patchMemcpy(animDataAddr + 0x18, arrDefaultHighlightSetting.data(), 3);
 			else if (arrBlockingHighlightSetting[3] == 1 && blockState == 1)	// BLOCKING
 				patchMemcpy(animDataAddr + 0x18, arrBlockingHighlightSetting.data(), 3);
@@ -1816,7 +1763,7 @@ void highlightStates()
 				patchMemcpy(animDataAddr + 0x18, arrDefaultHighlightSetting.data(), 3);
 			}
 
-
+			
 		};
 
 	/*
@@ -1854,7 +1801,7 @@ BYTE arrAnimHookBytesOrig[10];
 BYTE arrAnimHookBytesMod[10];
 void highlightHookFunc()
 {
-	// does this func get called for both chars individually?
+	// does this func get called for both chars individually? 
 	void* funcAddress = (void*)0x0045f650;
 	// restore func to original state
 	patchMemcpy(funcAddress, arrAnimHookBytesOrig, 10);
@@ -1882,7 +1829,7 @@ void SetSeed(uint32_t nSeed)
 	*(uint32_t*)(dwBaseAddress + adRNGIndex) = 55;
 
 	std::srand(nSeed);
-
+	
 	uint8_t nOffset = 1;
 	do
 	{
@@ -1892,7 +1839,7 @@ void SetSeed(uint32_t nSeed)
 
 void SetRN(uint32_t nRN)
 {
-	if (nRATE == RNG_EVERY_FRAME)
+	if (XS_rate == RNG_EVERY_FRAME)
 	{
 		*(uint32_t*)(dwBaseAddress + adRNGIndex) = 55;
 		uint8_t nOffset = 1;
@@ -1901,7 +1848,7 @@ void SetRN(uint32_t nRN)
 			*(uint32_t*)(dwBaseAddress + adRNGArray + 4 * nOffset++) = (nOffset < 22) ? nRN : 0;
 		} while (nOffset < 56);
 	}
-	else if (nRATE == RNG_EVERY_RESET)
+	else if (XS_rate == RNG_EVERY_RESET)
 	{
 		SetSeed(nRN);
 		*(uint32_t*)(dwBaseAddress + adRNGIndex) = 55;
@@ -1918,42 +1865,43 @@ byte nHoldButtons = 0;
 bool bHoldShield = false;
 bool bDidShield = false;
 int nSaveShieldRevIndex = 0;
+int validIndex = -1;
 
 void HandleReversalsPage() {
 	if (pdP2Data->inactionableFrames == 0) {
 		nHoldButtons = 0;
 		bHoldShield = false;
 	}
-	if ((nREVERSAL_TYPE == 0 && !bDoReversal) || pActiveP2->subObj.doTrainingAction != 1 || pActiveP2->subObj.targetPatternPriority == 30001) return;
+	if ((XS_reversalType == 0 && !bDoReversal) || pActiveP2->subObj.doTrainingAction != 1 || pActiveP2->subObj.targetPatternPriority == 30000) return;
 	std::vector<int> vValidReversals = (pActiveP2->subObj.yPos == 0 && pActiveP2->subObj.prevYPos == 0 ? vGroundReversals : vAirReversals);
 	int pat;
 	if (vValidReversals.size() != 0 && bDoReversal && (pdP2Data->inactionableFrames == 0 || pActiveP2->subObj.shieldSuccessType != 0)) {
 		if (nReversalDelayFramesLeft == 0) {
 			int totalWeight = 0;
-			for (int i = 0; i < NUM_REVERSALS; i++) {
+			for (int i = 0; i < 4; i++) {
 				if (pActiveP2->subObj.shieldSuccessType != 0) {
 					pat = vValidReversals[i] % 1000;
 					byte shieldCancel = getShieldCancel(pActiveP2, pat);
-					if (*nREV_IDs[i] != 0 && vValidReversals[i] != 0 && (pActiveP2->subObj.shieldSuccessType & shieldCancel) != 0) totalWeight += *nREV_WEIGHTS[i];
+					if (*XS_reversalSlots[i] != 0 && vValidReversals[i] != 0 && (pActiveP2->subObj.shieldSuccessType & shieldCancel) != 0) totalWeight += *XS_reversalWeights[i];
 				}
 				else {
-					if (*nREV_IDs[i] != 0 && vValidReversals[i] != 0) totalWeight += *nREV_WEIGHTS[i];
+					if (*XS_reversalSlots[i] != 0 && vValidReversals[i] != 0) totalWeight += *XS_reversalWeights[i];
 				}
 			}
-			totalWeight += nNO_REV_WEIGHT;
+			totalWeight += XS_noReversalWeight;
 			if (totalWeight == 0) return;
 			int randomWeight = rand() % totalWeight + 1;
-			int validIndex = -1;
-			for (int i = 0; i < NUM_REVERSALS; i++) {
+			validIndex = -1;
+			for (int i = 0; i < 4; i++) {
 				if (pActiveP2->subObj.shieldSuccessType != 0) {
 					pat = vValidReversals[i] % 1000;
 					byte shieldCancel = getShieldCancel(pActiveP2, pat);
-					if (*nREV_IDs[i] == 0 || vValidReversals[i] == 0 || (pActiveP2->subObj.shieldSuccessType & shieldCancel) == 0) continue;
+					if (*XS_reversalSlots[i] == 0 || vValidReversals[i] == 0 || (pActiveP2->subObj.shieldSuccessType & shieldCancel) == 0) continue;
 				}
 				else {
-					if (*nREV_IDs[i] == 0 || vValidReversals[i] == 0) continue;
+					if (*XS_reversalSlots[i] == 0 || vValidReversals[i] == 0) continue;
 				}
-				randomWeight -= *nREV_WEIGHTS[i];
+				randomWeight -= *XS_reversalWeights[i];
 				if (randomWeight <= 0) {
 					validIndex = i;
 					break;
@@ -1961,44 +1909,56 @@ void HandleReversalsPage() {
 			}
 
 			if (validIndex > -1) {
-				int pat = vValidReversals[validIndex] % 1000;
-				if (*nREV_IDs[validIndex] >> 16 != 0) {
+				pat = vValidReversals[validIndex] % 1000;
+				if (*XS_reversalSlots[validIndex] >> 16 != 0) {
 					nSaveShieldRevIndex = validIndex;
-					int nP2CharacterNumber = *(int*)(adMBAABase + dwP2CharNumber);
-					int nP2Moon = *(int*)(adMBAABase + dwP2CharMoon);
-					int nP2CharacterID = 10 * nP2CharacterNumber + nP2Moon;
+					int p2CharacterNumber = *(int*)(adMBAABase + dwP2CharNumber);
+					int p2Moon = *(int*)(adMBAABase + dwP2CharMoon);
+					int p2CharacterID = 10 * p2CharacterNumber + p2Moon;
 					pat = -1;
-					switch (*nREV_IDs[validIndex] >> 16) {
+					switch (*XS_reversalSlots[validIndex] >> 16) {
 					case 1:
-						pat = GetPattern(nP2CharacterID, "5D");
+						pat = GetPattern(p2CharacterID, "5D");
 						break;
 					case 2:
-						pat = GetPattern(nP2CharacterID, "5D");
+						pat = GetPattern(p2CharacterID, "5D");
 						bHoldShield = true;
 						break;
 					case 3:
-						pat = GetPattern(nP2CharacterID, "2D");
+						pat = GetPattern(p2CharacterID, "2D");
 						break;
 					case 4:
-						pat = GetPattern(nP2CharacterID, "2D");
+						pat = GetPattern(p2CharacterID, "2D");
 						bHoldShield = true;
 						break;
 					case 5:
-						pat = GetPattern(nP2CharacterID, "j.D");
+						pat = GetPattern(p2CharacterID, "j.D");
 						break;
 					case 6:
-						pat = GetPattern(nP2CharacterID, "j.D");
+						pat = GetPattern(p2CharacterID, "j.D");
 						bHoldShield = true;
 						break;
 					}
-					if (tryCmdPattern(pActiveP2, pat)) bDidShield = true;
+					if (tryCmdPattern(pActiveP2, pat)) {
+						bDidShield = true;
+						pActiveP2->subObj.targetPatternPriority = 30000;
+					}
+				}
+				else if (pat == 999) {
+					enableTAS = true;
+					enableRevTAS = true;
+					TASManagerObj[pActiveP2->subObj.index].load("TAS_REV.txt");
+					TASManagerObj[pActiveP2->subObj.index].setInputs(pActiveP2->subObj.index);
+					revTasDoTrainingActionMem = pActiveP2->subObj.doTrainingAction;
+					pActiveP2->subObj.doTrainingAction = 0;
 				}
 				else if (pat > 40) {
 					tryCmdPattern(pActiveP2, vValidReversals[validIndex] % 1000);
+					pActiveP2->subObj.targetPatternPriority = 30000;
 				}
 				else {
 					pActiveP2->subObj.targetPattern = vValidReversals[validIndex] % 1000;
-					pActiveP2->subObj.targetPatternPriority = 30001;
+					pActiveP2->subObj.targetPatternPriority = 30000;
 				}
 
 				if (vValidReversals[validIndex] > 999) {
@@ -2021,10 +1981,11 @@ void HandleReversalsPage() {
 			pat == pActiveP2->cmdFileDataPtr->ShieldCounter_Air ||
 			pat == pActiveP2->cmdFileDataPtr->ShieldCounter_Crouch)) {
 			tryCmdPattern(pActiveP2, vValidReversals[nSaveShieldRevIndex] % 1000);
+			pActiveP2->subObj.targetPatternPriority = 30000;
 		}
 		else {
 			pActiveP2->subObj.targetPattern = vValidReversals[nSaveShieldRevIndex] % 1000;
-			pActiveP2->subObj.targetPatternPriority = 30001;
+			pActiveP2->subObj.targetPatternPriority = 30000;
 		}
 		if (vValidReversals[nSaveShieldRevIndex] > 999) {
 			nHoldButtons = vValidReversals[nSaveShieldRevIndex] / 1000;
@@ -2033,13 +1994,13 @@ void HandleReversalsPage() {
 		bDoReversal = false;
 	}
 
-	if (pActiveP2->subObj.targetPatternPriority == 30001) return;
+	if (pActiveP2->subObj.targetPatternPriority == 30000) return;
 
-	switch (nREVERSAL_TYPE) {
+	switch (XS_reversalType) {
 	case 1:
-		if (pActiveP2->subObj.hitstunTimeRemaining != 0 || pActiveP2->subObj.shieldSuccessType != 0) {
+		if (pActiveP2->subObj.hitstunTimeRemaining != 0 || (pActiveP2->subObj.receivedHitVector != 0xFF && (pActiveP2->subObj.receivedHitVector < 90 || pActiveP2->subObj.receivedHitVector > 95)) || pActiveP2->subObj.shieldSuccessType != 0) {
 			bDoReversal = true;
-			nReversalDelayFramesLeft = nREVERSAL_DELAY;
+			nReversalDelayFramesLeft = XS_reversalDelay;
 			nHoldButtons = 0;
 			bDidShield = false;
 		}
@@ -2047,23 +2008,23 @@ void HandleReversalsPage() {
 	case 2:
 		if (pActiveP2->subObj.inBlockstun != 0) {
 			bDoReversal = true;
-			nReversalDelayFramesLeft = nREVERSAL_DELAY;
+			nReversalDelayFramesLeft = XS_reversalDelay;
 			nHoldButtons = 0;
 			bDidShield = false;
 		}
 		break;
 	case 3:
-		if (pActiveP2->subObj.hitstunTimeRemaining != 0 && pActiveP2->subObj.inBlockstun == 0) {
+		if ((pActiveP2->subObj.hitstunTimeRemaining != 0 || (pActiveP2->subObj.receivedHitVector != 0xFF && (pActiveP2->subObj.receivedHitVector < 90 || pActiveP2->subObj.receivedHitVector > 95))) && pActiveP2->subObj.inBlockstun == 0) {
 			bDoReversal = true;
-			nReversalDelayFramesLeft = nREVERSAL_DELAY;
+			nReversalDelayFramesLeft = XS_reversalDelay;
 			nHoldButtons = 0;
 			bDidShield = false;
 		}
 		break;
 	case 4:
-		if (pActiveP2->subObj.hitstunTimeRemaining == -3 || pActiveP2->subObj.isGroundTech) {
+		if (pActiveP2->subObj.hitstunTimeRemaining == -3 || pActiveP2->subObj.pattern == 352 || pActiveP2->subObj.isGroundTech) {
 			bDoReversal = true;
-			nReversalDelayFramesLeft = nREVERSAL_DELAY;
+			nReversalDelayFramesLeft = XS_reversalDelay;
 			nHoldButtons = 0;
 			bDidShield = false;
 		}
@@ -2071,26 +2032,26 @@ void HandleReversalsPage() {
 	case 5:
 		if (pActiveP2->subObj.shieldSuccessType != 0) {
 			bDoReversal = true;
-			nReversalDelayFramesLeft = nREVERSAL_DELAY;
+			nReversalDelayFramesLeft = XS_reversalDelay;
 			nHoldButtons = 0;
 			bDidShield = false;
 		}
 	}
+
+	if (XS_reversalSlot1 == 0 && XS_reversalSlot2 == 0 && XS_reversalSlot3 == 0 && XS_reversalSlot4 == 0) {
+		bDoReversal = false;
+	}
 }
 
-
-bool bDoBurst = true;
-bool bDoBunker = true;
-
 void HandleTrainingPage() {
-	if (nPENALTY_RESET == 1) {
+	if (XS_penaltyReset == 1) {
 		doFastReversePenalty();
 	}
 
-	if (nGUARD_BAR_RESET == 1) {
+	if (XS_guardBarReset == 1) {
 		float mults[5] = { 1.0, 0.75, 0.5, 0.25, 0.0 };
 		int guardSetting = *(short*)(adMBAABase + adBS_GUARD_GAUGE);
-		int gauges[3] = { static_cast<int>(8000 * mults[guardSetting]), static_cast<int>(7000 * mults[guardSetting]), static_cast<int>(10500 * mults[guardSetting]) };
+		int gauges[3] = { 8000 * mults[guardSetting], 7000 * mults[guardSetting], 10500 * mults[guardSetting] };
 		if (pP1->subObj.inBlockstun == 0) pP1->subObj.guardGauge = gauges[pP1->subObj.moon];
 		if (pP2->subObj.inBlockstun == 0) pP2->subObj.guardGauge = gauges[pP2->subObj.moon];
 		if (pP3->exists && pP3->subObj.inBlockstun == 0) pP3->subObj.guardGauge = gauges[pP3->subObj.moon];
@@ -2102,40 +2063,93 @@ void HandleTrainingPage() {
 		if (pP4->exists && pP4->subObj.guardGaugeState == 2) pP4->subObj.guardGaugeState = 1;
 	}
 
-	if (nEX_GUARD == 1 || (nEX_GUARD == 2 && rand() % 2 == 0)) {
+	if (XS_exGuard == 1 || (XS_exGuard == 2 && rand() % 2 == 0)) {
 		if (pDummy->subObj.doTrainingAction) {
 			pDummy->subObj.exGuard = 10;
 		}
 	}
 
-	if (nTRUE_HITS_UNTIL_BURST != 0) {
-		if (bDoBurst &&
-			(pActiveP2->subObj.onBlockComboCount >= nTRUE_HITS_UNTIL_BURST ||
-			pActiveP2->subObj.onHitComboCount >= nTRUE_HITS_UNTIL_BURST)) {
- 			if(tryBurst(pActiveP2)) bDoBurst = false;
+	static bool doBurst = true;
+	static int burstFailHitCount = -1;
+	static int queuedBurstHitCount = -1;
+	if (XS_hitsUntilBurst != 0) {
+		int hitcount = max(pActiveP2->subObj.onBlockComboCount, pActiveP2->subObj.onHitComboCount);
+		if (pActiveP2->subObj.hitstop == 0) {
+			if (doBurst &&
+				rand() % 100 < dummyBurstChance) {
+				if (hitcount >= XS_hitsUntilBurst &&
+					hitcount != burstFailHitCount) {
+					if (dummyDelayBunkerChance < 200) {
+						doBurst = false;
+						burstFailHitCount = -1;
+						queuedBurstHitCount = hitcount;
+					}
+				}
+			}
+			else {
+				burstFailHitCount = hitcount;
+			}
 		}
 
-		if (!bDoBurst && pActiveP2->subObj.onBlockComboCount == 0 && pActiveP2->subObj.onHitComboCount == 0) {
-			bDoBurst = true;
+		if (queuedBurstHitCount == hitcount && rand() % 100 < dummyDelayBunkerChance) {
+			if (tryBurst(pActiveP2)) {
+				doBurst = false;
+				burstFailHitCount = -1;
+				queuedBurstHitCount = -1;
+			}
+		}
+
+		if (!doBurst && pActiveP2->subObj.onBlockComboCount == 0 && pActiveP2->subObj.onHitComboCount == 0) {
+			doBurst = true;
+			burstFailHitCount = -1;
+			queuedBurstHitCount = -1;
 		}
 	}
 
-	if (nTRUE_HITS_UNTIL_BUNKER != 0) {
-		if (bDoBunker && pActiveP2->subObj.onBlockComboCount >= nTRUE_HITS_UNTIL_BUNKER) {
+	static bool doBunker = true;
+	static int bunkerFailHitCount = -1;
+	static int queuedBunkerHitCount = -1;
+	if (XS_hitsUntilBunker != 0) {
+		if (pActiveP2->subObj.hitstop < 2) {
+			if (doBunker &&
+				rand() % 100 < dummyBunkerChance) {
+				if (pActiveP2->subObj.onBlockComboCount >= XS_hitsUntilBunker &&
+					pActiveP2->subObj.onBlockComboCount != bunkerFailHitCount &&
+					pActiveP2->subObj.animationDataPtr->stateData->stance != 1) {
+					if (dummyDelayBunkerChance < 200) {
+						doBunker = false;
+						bunkerFailHitCount = -1;
+						queuedBunkerHitCount = pActiveP2->subObj.onBlockComboCount;
+					}
+				}
+			}
+			else {
+				bunkerFailHitCount = pActiveP2->subObj.onBlockComboCount;
+			}
+		}
+
+		if (queuedBunkerHitCount == pActiveP2->subObj.onBlockComboCount && rand() % 100 < dummyDelayBunkerChance && pActiveP2->subObj.untechTimeElapsed < 11) {
 			int bunkerPat = getPatternFromCmd(pActiveP2, "\2\1\4D\xff");
 			pActiveP2->subObj.targetPattern = bunkerPat;
 			DWORD bunkerFlags[7] = { 4, 0, 0, 0, 0, 0, 0 };
 			memcpy(&pActiveP2->subObj.defensiveStateQueue, bunkerFlags, 7 * 0x4);
 			pActiveP2->subObj.hitstunTimeRemaining = 0;
-			bDoBunker = false;
+			doBunker = false;
+			bunkerFailHitCount = -1;
+			queuedBunkerHitCount = -1;
 		}
 
-		if (!bDoBunker && pActiveP2->subObj.onBlockComboCount == 0) {
-			bDoBunker = true;
+		if (!doBunker && pActiveP2->subObj.onBlockComboCount == 0) {
+			doBunker = true;
+			bunkerFailHitCount = -1;
+			queuedBunkerHitCount = -1;
 		}
 	}
 
-	if (nTRUE_HITS_UNTIL_FORCE_GUARD != 0 && pActiveP2->subObj.onBlockComboCount >= nTRUE_HITS_UNTIL_FORCE_GUARD && pActiveP2->subObj.animationDataPtr->stateData->stance != 1) {
+	if (XS_hitsUntilForceGuard != 0 &&
+		pActiveP2->subObj.onBlockComboCount >= XS_hitsUntilForceGuard &&
+		pActiveP2->subObj.animationDataPtr->stateData->stance != 1 &&
+		pActiveP2->subObj.defensiveStateFlag == 5) {
 		bForceGuard = true;
 	}
 	else {
@@ -2146,26 +2160,26 @@ void HandleTrainingPage() {
 void HandleCharacterPage() {
 	switch (pActiveP1->subObj.charID) {
 	case 0: //sion
-		if (nSION_BULLETS == 0 && pActiveP1->subObj.animationDataPtr->stateData->canMove) {
+		if (XS_sionBullets == 0 && pActiveP1->subObj.animationDataPtr->stateData->canMove) {
 			pActiveP1->subObj.extraVariables[1] = 0;
 		}
 		break;
 	case 4: //maids
-		if (nF_MAIDS_HEARTS == 0 && pActiveP1->subObj.animationDataPtr->stateData->canMove) {
+		if (XS_fMaidsHearts == 0 && pActiveP1->subObj.animationDataPtr->stateData->canMove) {
 			pP1->subObj.extraVariables[4] = 0;
 			pP3->subObj.extraVariables[5] = 0;
 		}
 		break;
 	case 31: //roa
-		if (nROA_HIDDEN_CHARGE == 0 && pActiveP1->subObj.animationDataPtr->stateData->canMove) {
+		if (XS_roaHiddenCharges == 0 && pActiveP1->subObj.animationDataPtr->stateData->canMove) {
 			pActiveP1->subObj.extraVariables[6] = 9;
 		}
-		if (nROA_VISIBLE_CHARGE == 0 && pActiveP1->subObj.animationDataPtr->stateData->canMove) {
+		if (XS_roaVisibleCharges == 0 && pActiveP1->subObj.animationDataPtr->stateData->canMove) {
 			pActiveP1->subObj.extraVariables[7] = 9;
 		}
 		break;
 	case 33: //ryougi
-		if (nRYOUGI_KNIFE == 0 && pActiveP1->subObj.animationDataPtr->stateData->canMove) {
+		if (XS_ryougiKnife == 0 && pActiveP1->subObj.animationDataPtr->stateData->canMove) {
 			pActiveP1->subObj.specialVariables[0] = 0;
 		}
 		break;
@@ -2173,26 +2187,26 @@ void HandleCharacterPage() {
 
 	switch (pActiveP2->subObj.charID) {
 	case 0: //sion
-		if (nSION_BULLETS == 0 && pActiveP2->subObj.animationDataPtr->stateData->canMove) {
+		if (XS_sionBullets == 0 && pActiveP2->subObj.animationDataPtr->stateData->canMove) {
 			pActiveP2->subObj.extraVariables[1] = 0;
 		}
 		break;
 	case 4: //maids
-		if (nF_MAIDS_HEARTS == 0 && pActiveP2->subObj.animationDataPtr->stateData->canMove) {
+		if (XS_fMaidsHearts == 0 && pActiveP2->subObj.animationDataPtr->stateData->canMove) {
 			pP2->subObj.extraVariables[4] = 0;
 			pP4->subObj.extraVariables[5] = 0;
 		}
 		break;
 	case 31: //roa
-		if (nROA_HIDDEN_CHARGE == 0 && pActiveP2->subObj.animationDataPtr->stateData->canMove) {
+		if (XS_roaHiddenCharges == 0 && pActiveP2->subObj.animationDataPtr->stateData->canMove) {
 			pActiveP2->subObj.extraVariables[6] = 9;
 		}
-		if (nROA_VISIBLE_CHARGE == 0 && pActiveP2->subObj.animationDataPtr->stateData->canMove) {
+		if (XS_roaVisibleCharges == 0 && pActiveP2->subObj.animationDataPtr->stateData->canMove) {
 			pActiveP2->subObj.extraVariables[7] = 9;
 		}
 		break;
 	case 33: //ryougi
-		if (nRYOUGI_KNIFE == 0 && pActiveP2->subObj.animationDataPtr->stateData->canMove) {
+		if (XS_ryougiKnife == 0 && pActiveP2->subObj.animationDataPtr->stateData->canMove) {
 			pActiveP2->subObj.specialVariables[0] = 0;
 		}
 		break;
@@ -2220,9 +2234,9 @@ void __stdcall legacyPauseCallback(DWORD dwMilliseconds)
 	// and weird things happen if i call it right after i grab the device
 	// please never move this
 	static bool isDirectXHooked = true;
-	// if (!isDirectXHooked) {
-	// 	isDirectXHooked = HookDirectX();
-	// }
+	/*if (!isDirectXHooked) {
+		isDirectXHooked = HookDirectX();
+	}*/
 
 	static bool isRendererHooked = false;
 	if (!isRendererHooked && isDirectXHooked) {
@@ -2240,8 +2254,23 @@ void frameStartCallback() {
 
 bool logSaveState = false;
 
+void (*setDesiredFPS)(double) = NULL;
+
 void setFPSLimiter(bool b) {
 	disableFPSLimit = b;
+
+	static bool isFirstRun = true;
+	if (isFirstRun) {
+		isFirstRun = false;
+
+
+
+	}
+
+	if (setDesiredFPS != NULL) {
+		//log("setting fps");
+		//setDesiredFPS(b ? 60.0 : 1000.0);
+	}
 
 	// i,, i do not know what to do here.
 	// i wish i designed the menu with this in mind, but not all menu elements have/need globals
@@ -2250,12 +2279,11 @@ void setFPSLimiter(bool b) {
 	if (disableFpsMenuOption != NULL) {
 		disableFpsMenuOption->optionState = b;
 	}
-
+	
 }
 
-int nVolTextTimer = 0;
-const DWORD MBAA_Change_Volume = 0x00418030;
 void ChangeVolume() {
+	const DWORD MBAA_Change_Volume = 0x00418030;
 	PUSH_ALL;
 	__asm {
 		call[MBAA_Change_Volume];
@@ -2263,13 +2291,110 @@ void ChangeVolume() {
 	POP_ALL;
 }
 
-const DWORD MBAA_Save_Game_Settings = 0x00401540;
 void SaveGameSettings() {
+	const DWORD MBAA_Save_Game_Settings = 0x00401540;
 	PUSH_ALL;
 	__asm {
 		call[MBAA_Save_Game_Settings];
 	}
 	POP_ALL;
+}
+
+void MenuSound() {
+	*(byte*)(adMBAABase + 0x0036e0a0) = 1;
+}
+
+void SelectSound() {
+	*(byte*)(adMBAABase + 0x0036e09f) = 1;
+}
+
+bool MenuControlsMouseInBounds = false;
+bool MenuControlsClickIsPress = false;
+bool MenuControlsScrollUp = false;
+bool MenuControlsScrollDown = false;
+void DoSingleMenuMouseControls(MenuWindow* menu) {
+	MenuControlsScrollUp = false;
+	MenuControlsScrollDown = false;
+	if (menu != 0) {
+		int middle = menu->yOffset;
+		MenuInfo* menuInfo = menu->menuInfoList.listStart[menu->menuInfoIndex];
+		int numElements = (menuInfo->elementList.listEnd - menuInfo->elementList.listStart);
+		int totalHeight = 0;
+		for (int i = 0; i < numElements; i++) {
+			totalHeight += menuInfo->elementList.listStart[i]->drawHeight;
+		}
+		int top = middle - (totalHeight / 2);
+		int bottom = middle + (totalHeight / 2);
+		if (mousePos.y < top - 5 || mousePos.y > bottom + 5) {
+			MenuControlsMouseInBounds = false;
+		}
+		else {
+			MenuControlsMouseInBounds = true;
+		}
+		MenuControlsClickIsPress = true;
+		if (MenuControlsMouseInBounds) {
+			int curPos = top;
+			int selection = 0;
+			bool canSelect = true;
+			for (int i = 0; i < numElements; i++) {
+				if (curPos < mousePos.y) {
+					selection = i;
+					canSelect = menuInfo->elementList.listStart[i]->canSelect;
+				}
+				curPos += menuInfo->elementList.listStart[i]->drawHeight;
+			}
+
+			if ((DWORD)menuInfo->elementList.listStart[selection]->vftable == 0x00536654 && mousePos.x > menu->elementsXOffset) {
+				MenuControlsClickIsPress = false;
+			}
+
+			if (canSelect) {
+				if (menuInfo->selectedElement != selection) MenuSound();
+				menuInfo->selectedElement = selection;
+			}
+		}
+	}
+}
+
+void DoMenuMouseControls() {
+	static Point prevMousePos;
+
+	bool idleMouse = false;
+	if (prevMousePos == mousePos && !lClick && !rClick) {
+		idleMouse = true;
+	}
+	prevMousePos = mousePos;
+	if (idleMouse) return;
+
+	MenuWindow* training = *(MenuWindow**)(adMBAABase + adTrainingMenu);
+	if (training != 0) {
+		switch (training->openSubmenuIndex) {
+		case 2:
+			DoSingleMenuMouseControls(training);
+			break;
+		case 6:
+			if (training->BattleSettings != 0) DoSingleMenuMouseControls(training->BattleSettings);
+			break;
+		case 7:
+			if (training->EnemySettings != 0) DoSingleMenuMouseControls(training->EnemySettings);
+			break;
+		case 8:
+			if (training->TrainingDisplay != 0) DoSingleMenuMouseControls(training->TrainingDisplay);
+			break;
+		case 9:
+			if (training->DummySettings != 0) DoSingleMenuMouseControls(training->DummySettings);
+			break;
+		case 10:
+		case 11:
+		case 14:
+			if (training->YesNoMenu != 0) DoSingleMenuMouseControls(training->YesNoMenu);
+			break;
+		case 17:
+			if (training->ExtendedSettings != 0) DoSingleMenuMouseControls(training->ExtendedSettings);
+		case 18:
+			if (training->HotkeySettings != 0) DoSingleMenuMouseControls(training->HotkeySettings);
+		}
+	}
 }
 
 void frameDoneCallback()
@@ -2306,6 +2431,8 @@ void frameDoneCallback()
 			//long long endTime = getMicroSec();
 			//long long totalTime = endTime - startTime;
 			//log("%3lld.%03lld", totalTime / 1000, totalTime % 1000);
+
+			//HandleExtendedTrainingEffects();
 		}
 
 		static KeyState UpKey(VK_UP);
@@ -2313,7 +2440,7 @@ void frameDoneCallback()
 
 		if (bFreeze)
 		{
-			/*if (UpKey.keyDownHeldFreq<4, 24>()) {
+			if (oNextFrameHotkey.keyDownHeldFreq<4, 24>()) {
 				bool needNewFrame = saveStateManager.load(1);
 				if (!alreadyRolledReplayManager) {
 					//log("calling rollforward 2");
@@ -2324,10 +2451,17 @@ void frameDoneCallback()
 					rollFancyInputDisplay(1);
 				}
 			}
-			else */if (oPrevFrameHotkey.keyDownHeldFreq<4, 24>()) {
+			else if (oPrevFrameHotkey.keyDownHeldFreq<4, 24>()) {
+				if (saveStateManager.currentState > 0) {
+					saveStateManager.load(-1);
+					rollFancyInputDisplay(-1);
+					replayManager.rollBack();
+				}
+				/*
 				saveStateManager.load(-1);
 				rollFancyInputDisplay(-1);
 				replayManager.rollBack();
+				*/
 			}
 		}
 
@@ -2339,29 +2473,100 @@ void frameDoneCallback()
 
 	static KeyState rKey('R');
 	if (lShiftKey.keyHeld() && rKey.keyDown()) {
-
+		
 		//log("RKEY hit");
-
-		needTrainingModeReset = true;
-
-		//replayManager.load("./ReplayVS/RED_ARCUEIDxV_SION_250203130642.rep");
-		replayManager.load("./ReplayVS/RED_ARCUEIDxRED_ARCUEID_241231183621_usethis.rep");
-		//replayManager.load("./ReplayVS/RED_ARCUEIDxV_SION_250203130642.rep");
-
-		//replayManager.load("./ReplayVS/RED_ARCUEIDxRED_ARCUEID_250203161138.rep");
-
+		
+		QueueTrainingReset();
+		
+		///replayManager.load("./ReplayVS/RED_ARCUEIDxSATSUKI_251128130201.rep");
 		replayManager.reset();
-
+		
 
 		//TASManagerObj.load("TAS.txt");
 		//needTrainingModeReset = true;
 	}
 
 	static KeyState mKey('M');
-	if (mKey.keyDown())
+	if (lShiftKey.keyHeld() && mKey.keyDown())
 	//if (oResetKey.keyDown())
 	{
-		needTrainingModeReset = true;
+		QueueTrainingReset();
+	}
+
+	static KeyState nKey('N');
+	if (lShiftKey.keyHeld() && nKey.keyDown())
+	{
+		if (reloadCheckFile)
+		{
+			ArrayContainer<CSSData*> cssArray = **(ArrayContainer<CSSData*>**)(0x0055df18);
+			if (cssArray.array[p1LoadChar] != 0x0)
+			{
+				char buffer[256];
+				char* charName = cssArray.array[p1LoadChar]->File1;
+				snprintf(buffer, 256, "%s%s%s_%01d.txt", ".\\data", "\\", charName, p1LoadMoon);
+				if (!std::filesystem::exists(buffer)) return;
+
+				if (cssArray.array[p1LoadChar]->File2[0] != '0')
+				{
+					charName = cssArray.array[p1LoadChar]->File2;
+					snprintf(buffer, 256, "%s%s%s_%01d.txt", ".\\data", "\\", charName, p1LoadMoon);
+					if (!std::filesystem::exists(buffer)) return;
+				}
+			}
+
+			if (cssArray.array[p2LoadChar] != 0x0)
+			{
+				char buffer[256];
+				char* charName = cssArray.array[p2LoadChar]->File1;
+				snprintf(buffer, 256, "%s%s%s_%01d.txt", ".\\data", "\\", charName, p2LoadMoon);
+				if (!std::filesystem::exists(buffer)) return;
+
+				if (cssArray.array[p2LoadChar]->File2[0] != '0')
+				{
+					charName = cssArray.array[p2LoadChar]->File2;
+					snprintf(buffer, 256, "%s%s%s_%01d.txt", ".\\data", "\\", charName, p2LoadMoon);
+					if (!std::filesystem::exists(buffer)) return;
+				}
+			}
+		}
+
+		pP1->exists = 0;
+		pP2->exists = 0;
+		pP3->exists = 0;
+		pP4->exists = 0;
+
+		*(int*)(0x0074d83c) = p1LoadPal - 1;
+		*(int*)(0x0074d840) = p1LoadChar;
+		*(int*)(0x0074d84C) = p1LoadMoon;
+
+		*(int*)(0x0074d868) = p2LoadPal - 1;
+		*(int*)(0x0074d86C) = p2LoadChar;
+		*(int*)(0x0074d878) = p2LoadMoon;
+
+		FullCharacterReload();
+
+		pdP1Data->activeCharacter = 0;
+		pdP2Data->activeCharacter = 1;
+
+		UpdateCharPointers(&(pP1->subObj));
+		UpdateCharPointers(&(pP2->subObj));
+		if (pP3->exists) UpdateCharPointers(&(pP3->subObj));
+		if (pP4->exists) UpdateCharPointers(&(pP4->subObj));
+
+		for (int i = 0; i < 3; i++)
+		{
+			saveStateManager.FullSaves[i]->unsave();
+		}
+
+		vPatternNames = GetEmptyPatternList();
+		XS_reversalSlot1 = 0;
+		XS_reversalSlot2 = 0;
+		XS_reversalSlot3 = 0;
+		XS_reversalSlot4 = 0;
+
+		initLoadChars = true;
+
+		QueueTrainingReset();
 	}
 
 	static KeyState fKey('F');
@@ -2370,36 +2575,9 @@ void frameDoneCallback()
 	}
 	////setFPSLimiter(bDisableFPSLimit);
 
-	static KeyState oKey('O');
-	if (lShiftKey.keyHeld() && oKey.keyDown()) {
-		int i = *(int*)(*(DWORD*)(adMBAABase + 0x00154140) + 0x144);
-		i--;
-		if (i < 0) i = 0;
-		if (i > 19) i = 19;
-		*(int*)(*(DWORD*)(adMBAABase + 0x00154140) + 0x144) = i;
-		ChangeVolume();
-		SaveGameSettings();
-		nVolTextTimer = 20;
-	}
-
-	static KeyState pKey('P');
-	if (lShiftKey.keyHeld() && pKey.keyDown()) {
-		int i = *(int*)(*(DWORD*)(adMBAABase + 0x00154140) + 0x144);
-		i++;
-		if (i > 19) i = 21;
-		*(int*)(*(DWORD*)(adMBAABase + 0x00154140) + 0x144) = i;
-		ChangeVolume();
-		SaveGameSettings();
-		nVolTextTimer = 20;
-	}
-
-	if (nVolTextTimer > 0) {
-		int i = *(int*)(*(DWORD*)(adMBAABase + 0x00154140) + 0x144);
-		int volume = 20 - i;
-		char buffer[8];
-		snprintf(buffer, 8, "%i", volume);
-		TextDraw(315, 10, 10, 0xFFFFFFFF, buffer);
-		nVolTextTimer--;
+	static KeyState zKey('Z');
+	if (lShiftKey.keyHeld() && zKey.keyDown()) {
+		showFrameScrubber = !showFrameScrubber;
 	}
 
 	renderModificationsFrameDone();
@@ -2408,53 +2586,61 @@ void frameDoneCallback()
 		drawFancyMenu();
 		dragManager.handleDrag();
 	}
-
+	
+	static bool etmMenuInit = false;
+	if (!etmMenuInit) {
+		initExtendedMenu();
+		initHotkeyMenu();
+		initMenuFromRegistry();
+		initSharedValues();
+		etmMenuInit = true;
+	}
 
 	shouldDrawBackground = true;
-	shouldDrawHud = !nHIDE_HUD;
-	shouldDrawGroundLine = nDRAW_GROUND;
-	shouldDrawShadow = !nHIDE_SHADOWS;
+	shouldDrawHud = !XS_hideHUD;
+	shouldDrawGroundLine = XS_drawGround;
+	shouldDrawShadow = !XS_hideShadows;
 
-	switch (nBACKGROUND)
+	switch (XS_background)
 	{
 	case BG_NORMAL:
-        shouldDrawBackground = 1;
-        break;
-    case BG_RED:
-        shouldDrawBackground = 0;
-        backgroundColor = 0xFFFF0000;
-        break;
-    case BG_GREEN:
-        shouldDrawBackground = 0;
-        backgroundColor = 0xFF00FF00;
-        break;
-    case BG_BLUE:
-        shouldDrawBackground = 0;
-        backgroundColor = 0xFF0000FF;
-        break;
-    case BG_WHITE:
-        shouldDrawBackground = 0;
-        backgroundColor = 0xFFFFFFFF;
-        break;
-    case BG_BLACK:
-        shouldDrawBackground = 0;
-        backgroundColor = 0xFF000000;
-        break;
-    case BG_GRAY:
-        shouldDrawBackground = 0;
-        backgroundColor = 0xFF888888;
-        break;
-    case BG_YELLOW:
-        shouldDrawBackground = 0;
-        backgroundColor = 0xFFFFFF00;
-        break;
-    case BG_PURPLE:
-        shouldDrawBackground = 0;
-        backgroundColor = 0xFFFF00FF;
-        break;
-    default:
-        break;
-    }
+		shouldDrawBackground = true;
+		break;
+	case BG_RED:
+		shouldDrawBackground = false;
+		backgroundColor = 0xFFFF0000;
+		break;
+	case BG_GREEN:
+		shouldDrawBackground = false;
+		backgroundColor = 0xFF00FF00;
+		break;
+	case BG_BLUE:
+		shouldDrawBackground = false;
+		backgroundColor = 0xFF0000FF;
+		break;
+	case BG_WHITE:
+		shouldDrawBackground = false;
+		backgroundColor = 0xFFFFFFFF;
+		break;
+	case BG_BLACK:
+		shouldDrawBackground = false;
+		backgroundColor = 0xFF000000;
+		break;
+	case BG_GRAY:
+		shouldDrawBackground = false;
+		backgroundColor = 0xFF888888;
+		break;
+	case BG_YELLOW:
+		shouldDrawBackground = false;
+		backgroundColor = 0xFFFFFF00;
+		break;
+	case BG_PURPLE:
+		shouldDrawBackground = false;
+		backgroundColor = 0xFFFF00FF;
+		break;
+	default:
+		break;
+	}
 
 	bool ok = true;
 	MSG msg;
@@ -2482,7 +2668,7 @@ void frameDoneCallback()
 	}
 
 	// this hooks directx
-	static bool deviceInit = false;
+	/*static bool deviceInit = false;
 	if (!deviceInit && *(DWORD*)0x0076e7d4 != 0) {
 		deviceInit = true;
 
@@ -2495,10 +2681,9 @@ void frameDoneCallback()
 		log("directx device has been acquired! texmem: %08X", avalTexMem);
 
 		//HookDirectX();
-	}
-
+	}*/
+	
 	//drawTextWithBorder(300, 300, 36, 48	, " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~");
-
 	if (bFreeze && shouldDrawHud)
 	{
 		try
@@ -2514,7 +2699,7 @@ void frameDoneCallback()
 			TextDraw(100.0f, 3.5f, 16.0f, 0xFFFFFFFF, "Freeze Key: <corrupt>");
 		}
 
-		if (nFrameCount % 240 > 120)
+		if (nFrameCount > 170)
 		{
 			try
 			{
@@ -2526,10 +2711,10 @@ void frameDoneCallback()
 			}
 			catch (...)
 			{
-				TextDraw(375.0f, 3.5f, 16.0f, 0xFFFFFFFF, "Frame Step Key: <corrupt>");
+				TextDraw(375.0f, 3.5f, 16.0f, 0xFFFFFFFF, "Next Frame: <corrupt>");
 			}
 		}
-		else
+		else if (nFrameCount > 85)
 		{
 			try
 			{
@@ -2544,6 +2729,44 @@ void frameDoneCallback()
 				TextDraw(375.0f, 3.5f, 16.0f, 0xFFFFFFFF, "Prev Frame: <corrupt>");
 			}
 		}
+		else
+		{
+			try
+			{
+				char pcPrevFrameKey[256];
+				char pcName[19];
+				oAdvanceFrameHotkey.getKeyName(pcName);
+				snprintf(pcPrevFrameKey, sizeof(pcPrevFrameKey), "Advance Frame: %s", pcName);
+				TextDraw(375.0f, 3.5f, 16.0f, 0xFFFFFFFF, pcPrevFrameKey);
+			}
+			catch (...)
+			{
+				TextDraw(375.0f, 3.5f, 16.0f, 0xFFFFFFFF, "Advance Frame: <corrupt>");
+			}
+		}
+
+		if (showFrameScrubber) {
+			float x = 10.0f;
+			float y = 390.0f;
+			float unitW = (640.0f - 2 * x) / (float)(saveStateManager.states.size() - 1);
+			float maxW = (640.0f - 2 * x);
+			float h = 10.0f;
+			RectDraw(x, y, maxW, h, 0x99000000); //BG
+			for (int i = 0; i < saveStateManager.currentState; i++) {
+				float x1 = x + unitW * i;
+				RectDraw(x1, y, unitW, h, 0xFF00FF00);
+			}
+
+			if (lHeld && mousePos.y > 380.0f && mousePos.y < 410.0f) {
+				float usedX = mousePos.x;
+				float ratio = (mousePos.x - 10.0f) / 620.0f;
+				int newState = floor(ratio * saveStateManager.states.size());
+				if (newState < 0) newState = 0;
+				else if (newState >= saveStateManager.states.size()) newState = saveStateManager.states.size() - 1;
+				saveStateManager.currentState = newState;
+				saveStateManager.states[newState]->load();
+			}
+		}
 	}
 
 	if (oFrameBarLeftHotkey.keyHeld())
@@ -2552,15 +2775,15 @@ void frameDoneCallback()
 		oFrameBarLeftHotkey.nHeldKeyCounter = 0;
 	if (oFrameBarLeftHotkey.keyDown() || oFrameBarLeftHotkey.nHeldKeyCounter >= 20)
 	{
-		nTRUE_SCROLL_DISPLAY--;
-		if (nTRUE_SCROLL_DISPLAY <= -400) {
-			nTRUE_SCROLL_DISPLAY = -400;
-			nSCROLL_DISPLAY = 0;
+		XS_scrollDisplay--;
+		if (XS_scrollDisplay <= -400) {
+			XS_scrollDisplay = -400;
+			//nSCROLL_DISPLAY = 0;
 		}
 		else {
-			nSCROLL_DISPLAY = 1;
+			//nSCROLL_DISPLAY = 1;
 		}
-		*(short*)(adMBAABase + adXS_frameScroll) = -nTRUE_SCROLL_DISPLAY;
+		*(short*)(adMBAABase + adXS_frameScroll) = -XS_scrollDisplay;
 	}
 
 	if (oFrameBarRightHotkey.keyHeld())
@@ -2569,22 +2792,22 @@ void frameDoneCallback()
 		oFrameBarRightHotkey.nHeldKeyCounter = 0;
 	if (oFrameBarRightHotkey.keyDown() || oFrameBarRightHotkey.nHeldKeyCounter >= 20)
 	{
-		nTRUE_SCROLL_DISPLAY++;
-		if (nTRUE_SCROLL_DISPLAY >= 0) {
-			nTRUE_SCROLL_DISPLAY = 0;
-			nSCROLL_DISPLAY = 2;
+		XS_scrollDisplay++;
+		if (XS_scrollDisplay >= 0) {
+			XS_scrollDisplay = 0;
+			//nSCROLL_DISPLAY = 2;
 		}
 		else {
-			nSCROLL_DISPLAY = 1;
+			//nSCROLL_DISPLAY = 1;
 		}
-		*(short*)(adMBAABase + adXS_frameScroll) = -nTRUE_SCROLL_DISPLAY;
+		*(short*)(adMBAABase + adXS_frameScroll) = -XS_scrollDisplay;
 	}
 
 	if (oToggleHitboxesHotkey.keyDown())
 	{
-		nDISPLAY_HITBOXES = !nDISPLAY_HITBOXES;
+		XS_displayHitboxes = !XS_displayHitboxes;
 		nDrawTextTimer = TEXT_TIMER;
-		if (nDISPLAY_HITBOXES)
+		if (XS_displayHitboxes)
 			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s", "HITBOXES ON");
 		else
 			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s", "HITBOXES OFF");
@@ -2592,9 +2815,10 @@ void frameDoneCallback()
 
 	if (oToggleFrameBarHotkey.keyDown())
 	{
-		nIN_GAME_FRAME_DISPLAY = !nIN_GAME_FRAME_DISPLAY;
+		XS_inGameFrameDisplay = !XS_inGameFrameDisplay;
+		SetRegistryValue(sFRAME_DISPLAY, XS_inGameFrameDisplay);
 		nDrawTextTimer = TEXT_TIMER;
-		if (nIN_GAME_FRAME_DISPLAY)
+		if (XS_inGameFrameDisplay)
 			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s", "FRAME DATA ON");
 		else
 			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s", "FRAME DATA OFF");
@@ -2602,41 +2826,43 @@ void frameDoneCallback()
 
 	if (oToggleHighlightsHotkey.keyDown())
 	{
-		nHIGHLIGHTS = !nHIGHLIGHTS;
-		SetRegistryValue(sHIGHLIGHTS, nHIGHLIGHTS);
+		XS_highlights = !XS_highlights;
+		SetRegistryValue(sHIGHLIGHTS, XS_highlights);
 		nDrawTextTimer = TEXT_TIMER;
-		if (nHIGHLIGHTS)
+		if (XS_highlights)
 			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s", "HIGHLIGHTS ON");
 		else
 			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s", "HIGHLIGHTS OFF");
 	}
 
 	if (oQueueReversalHotkey.keyDown() &&
-		(nREV_ID_1 != 0 || nREV_ID_2 != 0 || nREV_ID_3 != 0 || nREV_ID_4 != 0))
+		(XS_reversalSlot1 != 0 || XS_reversalSlot2 != 0 || XS_reversalSlot3 != 0 || XS_reversalSlot4 != 0))
 	{
 		bDoReversal = true;
 	}
 
 	if (oSaveStateHotkey.keyDown() && safeWrite())
 	{
-		if (nSAVE_STATE_SLOT > 0) {
-			saveStateManager.FullSaves[nSAVE_STATE_SLOT - 1]->save();
+		if (XS_saveStateSlot > 0) {
+			saveStateManager.FullSaves[XS_saveStateSlot - 1]->save();
+			if (XS_syncSavesWithFiles) saveStateManager.SaveToFile();
 		}
 		nDrawTextTimer = TEXT_TIMER;
-		if (nSAVE_STATE_SLOT == 0)
+		if (XS_saveStateSlot == 0)
 			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s", "NO SLOT SELECTED");
 		else
-			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s %i", "SAVED SLOT", nSAVE_STATE_SLOT);
+			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s %i", "SAVED SLOT", XS_saveStateSlot);
 	}
 
-	if (oSaveStateHotkey.keyHeld() && safeWrite() && nSAVE_STATE_SLOT != 0)
+	if (oSaveStateHotkey.keyHeld() && safeWrite() && XS_saveStateSlot != 0)
 	{
 		nClearSaveTimer++;
 		if (nClearSaveTimer == SAVE_RESET_TIME)
 		{
-			saveStateManager.FullSaves[nSAVE_STATE_SLOT - 1]->unsave();
+			saveStateManager.FullSaves[XS_saveStateSlot - 1]->unsave();
+			if (XS_syncSavesWithFiles) saveStateManager.SaveToFile();
 			nDrawTextTimer = TEXT_TIMER;
-			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s %i", "CLEARED SAVE", nSAVE_STATE_SLOT);
+			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s %i", "CLEARED SAVE", XS_saveStateSlot);
 		}
 	}
 	else
@@ -2646,42 +2872,41 @@ void frameDoneCallback()
 
 	if (oPrevSaveSlotHotkey.keyDown())
 	{
-		nSAVE_STATE_SLOT = max(0, nSAVE_STATE_SLOT - 1);
+		XS_saveStateSlot = max(0, XS_saveStateSlot - 1);
 		nDrawTextTimer = TEXT_TIMER;
-		if (nSAVE_STATE_SLOT == 0)
+		if (XS_saveStateSlot == 0)
 			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s", "NO SLOT SELECTED");
 		else
-			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s %i", "SELECTED SAVE", nSAVE_STATE_SLOT);
+			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s %i", "SELECTED SAVE", XS_saveStateSlot);
 	}
 	if (oNextSaveSlotHotkey.keyDown())
 	{
-		nSAVE_STATE_SLOT = min(nSAVE_STATE_SLOT + 1, MAX_SAVES);
+		XS_saveStateSlot = min(XS_saveStateSlot + 1, MAX_SAVES);
 		nDrawTextTimer = TEXT_TIMER;
-		if (nSAVE_STATE_SLOT == 0)
+		if (XS_saveStateSlot == 0)
 			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s", "NO SLOT SELECTED");
 		else
-			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s %i", "SELECTED SAVE", nSAVE_STATE_SLOT);
+			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "%s %i", "SELECTED SAVE", XS_saveStateSlot);
 	}
 
 	if (oIncrementRNGHotkey.keyHeld())
 		oIncrementRNGHotkey.nHeldKeyCounter++;
 	else
 		oIncrementRNGHotkey.nHeldKeyCounter = 0;
-	if (nCUSTOM_RNG != 0 && oIncrementRNGHotkey.keyDown() || oIncrementRNGHotkey.nHeldKeyCounter >= 20)
+	if (XS_customRNG != 0 && oIncrementRNGHotkey.keyDown() || oIncrementRNGHotkey.nHeldKeyCounter >= 20)
 	{
-		char pcTemp[19];
 		nDrawTextTimer = TEXT_TIMER;
-		if (nCUSTOM_RNG == RNG_SEED)
+		if (XS_customRNG == RNG_SEED)
 		{
-			nTRUE_SEED++;
-			if (nTRUE_SEED > 0xffff) nTRUE_SEED = 0;
-			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "RNG SEED: %i", nTRUE_SEED);
+			XS_seed++;
+			if (XS_seed > 0xffff) XS_seed = 0;
+			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "RNG SEED: %i", XS_seed);
 		}
-		else if (nCUSTOM_RNG == RNG_RN)
+		else if (XS_customRNG == RNG_RN)
 		{
-			nTRUE_SEED++;
-			if (nTRUE_SEED > 0xffff) nTRUE_SEED = 0;
-			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "RNG VALUE: %i", nTRUE_SEED);
+			XS_seed++;
+			if (XS_seed > 0xffff) XS_seed = 0;
+			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "RNG VALUE: %i", XS_seed);
 		}
 	}
 
@@ -2689,26 +2914,27 @@ void frameDoneCallback()
 		oDecrementRNGHotkey.nHeldKeyCounter++;
 	else
 		oDecrementRNGHotkey.nHeldKeyCounter = 0;
-	if (nCUSTOM_RNG != 0 && oDecrementRNGHotkey.keyDown() || oDecrementRNGHotkey.nHeldKeyCounter >= 20)
+	if (XS_customRNG != 0 && oDecrementRNGHotkey.keyDown() || oDecrementRNGHotkey.nHeldKeyCounter >= 20)
 	{
-		char pcTemp[19];
 		nDrawTextTimer = TEXT_TIMER;
-		if (nCUSTOM_RNG == RNG_SEED)
+		if (XS_customRNG == RNG_SEED)
 		{
-			nTRUE_SEED--;
-			if (nTRUE_SEED < 0) nTRUE_SEED = 0xffff;
-			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "RNG SEED: %i", nTRUE_SEED);
+			XS_seed--;
+			if (XS_seed < 0) XS_seed = 0xffff;
+			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "RNG SEED: %i", XS_seed);
 		}
-		else if (nCUSTOM_RNG == RNG_RN)
+		else if (XS_customRNG == RNG_RN)
 		{
-			nTRUE_SEED--;
-			if (nTRUE_SEED < 0) nTRUE_SEED = 0xffff;
-			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "RNG VALUE: %i", nTRUE_SEED);
+			XS_seed--;
+			if (XS_seed < 0) XS_seed = 0xffff;
+			snprintf(pcTextToDisplay, sizeof(pcTextToDisplay), "RNG VALUE: %i", XS_seed);
 		}
 	}
 
 	if (*(byte*)(adMBAABase + adP1FN2Input) &&
-		(*(byte*)(adMBAABase + adDummyState) == 0xFF || *(byte*)(adMBAABase + adDummyState) == 0x5))
+		(*(byte*)(adMBAABase + adDummyState) == 0xFF || *(byte*)(adMBAABase + adDummyState) == 0x5) &&
+		!isPaused() &&
+		safeWrite())
 	{
 		*(byte*)(adMBAABase + adNewSceneFlag) = 0xFF;
 	}
@@ -2734,78 +2960,42 @@ void frameDoneCallback()
 		nDrawTextTimer--;
 	}
 
-	// heres a lil example for the new draw funcs
-	// i can change the syntax up if desired
-	// also, i dont have any new text funcs yet, sry
-	// top left of screen is (0.0, 0.0), bottom right is (1.333333, 1.0)
-
-	/*
-
-	//         x1   x2   y1   y2    A R G B
-	LineDraw( 0.1, 0.1, 0.9, 0.9, 0x800000FF );
-
-	//        x    y    w    h		A R G B
-	RectDraw(0.1, 0.1, 0.2, 0.2, 0x80FF0000 );
-
-	for (float i = 0.0; i < 1.0; i += 0.1) {
-		RectDraw( i, 0.9f - i, 0.1, 0.1, 0x8000FF00 );
-		RectDraw( i+0.05f, 0.9f - i - 0.05f, 0.1, 0.1, 0x8000FF00 );
-	}
-
-	RectDraw( 1.23333, 0.5, 0.1, 0.1, 0xFFFF0000 );
-	RectDraw( 1.23333, 0.6, 0.1, 0.1, 0xFFFFFFFF );
-	RectDraw( 1.23333, 0.7, 0.1, 0.1, 0xFFFF0000 );
-
-	BorderDraw( 1.23333, 0.6, 0.1, 0.1, 0x800000FF );
-
-	DWORD _tempCol = 0x8000FFFF;
-	for (float i = 0.0; i < 1.0; i += 0.1) {
-		BorderRectDraw( 0.7, i, 0.1, 0.1, _tempCol );
-		_tempCol ^= 0x00FF00000;
-	}
-
-	LineDraw(0.0, 1.0, 1.3333, 0.0, 0xFFFF00FF);
-
-
-	//LineDraw(0.0, 1.0, 1.3333, 0.0, 0xFFFF00FF);
-
-	TextDraw(0.1, 0.1, 0.025, 0xFF00FFFF, "test %d %s %d", 123, "abc", 456);
-
-	*/
-
 	// don't draw on the pause menu, but do on VIEW SCREEN
-	DWORD nSubMenuPointer = *reinterpret_cast<DWORD*>(dwBaseAddress + dwBasePointer) + 0x84;
+	MenuWindow* trainingMenu = *(MenuWindow**)(adMBAABase + adTrainingMenu);
+	bool bVIEW_SCREEN = false;
+	if (trainingMenu != 0x0 && trainingMenu->openSubmenuIndex == 12) bVIEW_SCREEN = true;
 	//int nSubMenu;
 	//ReadProcessMemory(GetCurrentProcess(), (LPVOID)(nSubMenuPointer), &nSubMenu, 4, 0);
-	if ((safeWrite() && !isPaused()) || (isPaused() && *(uint8_t*)(nSubMenuPointer) == 12)) {
+	if ((safeWrite() && !isPaused()) || (isPaused() && bVIEW_SCREEN)) {
 
-		if (nIN_GAME_FRAME_DISPLAY)
-			drawFrameBar(nTRUE_FRAME_DISPLAY_Y);
-
-		if (nDISPLAY_HITBOXES)
+		if (XS_displayHitboxes)
 			drawFrameData();
 
-		if (!shouldDrawMeter)
+		if (!shouldDrawMeter && shouldDrawHud)
 			drawSimpleMeter();
 
-		if (nSHOW_STATS)
+		if (XS_showStats)
 			drawStats();
-	}
-	else if (bShowFrameBarPreview)
-	{
-		drawFrameBar(420);
-	}
-	else if (bShowFrameBarYPreview)
-	{
-		drawFrameBar(nTRUE_FRAME_DISPLAY_Y);
+
+		if (XS_accurateComboDamage)
+			drawAccurateComboDamage();
+
+		if (displayComboTimer)
+			drawComboTimer();
+
+		if (displayHitstunBar)
+			drawHitstunBar();
 	}
 
-	if (bCOLOR_GUIDE)
-	{
-		drawColorGuide();
-	}
+	bool doDraw = false;
+	if ((safeWrite() && !isPaused() && XS_inGameFrameDisplay) || (isPaused() && ((bVIEW_SCREEN && XS_inGameFrameDisplay) || bShowFrameBarPreview))) doDraw = true;
+	drawFrameBar(doDraw);
 
-	if (nIN_GAME_FRAME_DISPLAY && nTRUE_FRAME_DISPLAY_Y > 400)
+	if (safeWrite() && !isPaused()) UpdateFrameBar();
+
+	if (XS_colorGuide) drawColorGuide();
+
+	if (doDraw && frameBar.y + (frameBar.h / 2) > 436)
 	{
 		shouldDrawMeter = 0;
 	}
@@ -2816,17 +3006,61 @@ void frameDoneCallback()
 
 	*(int*)(adMBAABase + adSharedTimer) = *(int*)(adMBAABase + adTrueFrameCount);
 
-	int nFrameTimer = *(int*)(dwBaseAddress + dwFrameTimer);
-	if (nRATE == RNG_EVERY_FRAME)
+	if (XS_rate == RNG_EVERY_FRAME)
 	{
-		if (nCUSTOM_RNG == RNG_SEED)
-			SetSeed(nTRUE_SEED);
-		if (nCUSTOM_RNG == RNG_RN)
-			SetRN(nTRUE_SEED);
+		if (XS_customRNG == RNG_SEED)
+			SetSeed(XS_seed);
+		if (XS_customRNG == RNG_RN)
+			SetRN(XS_seed);
+	}
+
+	if (freezeCamera)
+	{
+		static Point customCameraMouseTracker;
+		if (lClick) {
+			customCameraMouseTracker = mousePos;
+		}
+		else if (lHeld) {
+			customCameraX += (customCameraMouseTracker.x - mousePos.x) * 128 / customCameraZoom;
+			customCameraY += (customCameraMouseTracker.y - mousePos.y) * 128 / customCameraZoom;
+			customCameraMouseTracker = mousePos;
+		}
+
+		static Point customCameraMouseTracker2;
+		if (rClick) {
+			customCameraMouseTracker2 = mousePos;
+		}
+		else if (rHeld) {
+			float xDist = 320.0f - customCameraMouseTracker2.x;
+			float yDist = 240.0f - customCameraMouseTracker2.y;
+			float trackerCenterDist = sqrt(xDist * xDist + yDist * yDist);
+			xDist = 320.0f - mousePos.x;
+			yDist = 240.0f - mousePos.y;
+			float mouseCenterDist = sqrt(xDist * xDist + yDist * yDist);
+			customCameraZoom += (mouseCenterDist - trackerCenterDist) / 100.0f;
+			customCameraMouseTracker2 = mousePos;
+		}
+
+		*(byte*)(adMBAABase + 0x00157d2b) = 0x1;
+		*(float*)(adMBAABase + 0x0014eb70) = customCameraZoom;
+		*(int*)(adMBAABase + 0x00155124) = customCameraX;
+		*(int*)(adMBAABase + 0x00155128) = customCameraY;
+	}
+	else {
+		*(byte*)(adMBAABase + 0x00157d2b) = 0x0;
+	}
+
+	int inputsPt1 = *(int*)(adMBAABase + 0x00371398);
+	int inputsPt2 = *(int*)(adMBAABase + 0x0037139C);
+	if (inputsPt1 != 0 || inputsPt2 != 0) {
+		nInputHeldFrameAdvanceCounter++;
+	}
+	else {
+		nInputHeldFrameAdvanceCounter = 0;
 	}
 
 	//some janky linking of the extended input display options to the vanilla one
-	bool nInputDisplaySettings = nP1_INPUT_DISPLAY || nP2_INPUT_DISPLAY;
+	bool nInputDisplaySettings = XS_p1InputDisplay || XS_p2InputDisplay;
 	if (nInputDisplaySettings != nLastCustomInputDisplay) {
 		*(bool*)(INPUTDISPLAYTOGGLE) = nInputDisplaySettings;
 		nLastVanillaInputDisplay = nInputDisplaySettings;
@@ -2834,18 +3068,49 @@ void frameDoneCallback()
 
 	if (*(bool*)(INPUTDISPLAYTOGGLE) != nLastVanillaInputDisplay) {
 		if (*(bool*)(INPUTDISPLAYTOGGLE)) {
-			nP1_INPUT_DISPLAY = 1;
+			XS_p1InputDisplay = 1;
 			nLastCustomInputDisplay = true;
 			SetRegistryValue(sP1_INPUT_DISPLAY, 1);
 		}
 		else {
-			nP1_INPUT_DISPLAY = 0;
-			nP2_INPUT_DISPLAY = 0;
+			XS_p1InputDisplay = 0;
+			XS_p2InputDisplay = 0;
 			nLastCustomInputDisplay = false;
 			SetRegistryValue(sP1_INPUT_DISPLAY, 0);
 			SetRegistryValue(sP2_INPUT_DISPLAY, 0);
 		}
-		nInputDisplaySettings = nP1_INPUT_DISPLAY || nP2_INPUT_DISPLAY;
+		nInputDisplaySettings = XS_p1InputDisplay || XS_p2InputDisplay;
+	}
+
+	//clear maids reversal on switch if no longer valid
+	if (nP2CharacterID >= 190 && nP2CharacterID <= 192) {
+		vPatternNames = GetMaidsPatternList(nP2CharacterID, pP2->subObj.tagFlag);
+		if (XS_reversalSlot1 % 1000 > vPatternNames.size() - 1) {
+			XS_reversalSlot1 = 0;
+		}
+		if (XS_reversalSlot2 % 1000 > vPatternNames.size() - 1) {
+			XS_reversalSlot2 = 0;
+		}
+		if (XS_reversalSlot3 % 1000 > vPatternNames.size() - 1) {
+			XS_reversalSlot3 = 0;
+		}
+		if (XS_reversalSlot4 % 1000 > vPatternNames.size() - 1) {
+			XS_reversalSlot4 = 0;
+		}
+	}
+
+	if (safeWrite()) {
+		byte curComboData;
+		if (pActiveP2->subObj.notInCombo) {
+			curComboData = playerAuxDataArr[0].comboCalcData[0].index;
+			trueComboData[0][curComboData].startingHealth = pActiveP2->subObj.health;
+			trueComboData[0][curComboData].defender = &(pActiveP2->subObj);
+		}
+		if (pActiveP1->subObj.notInCombo) {
+			curComboData = playerAuxDataArr[1].comboCalcData[0].index;
+			trueComboData[1][curComboData].startingHealth = pActiveP1->subObj.health;
+			trueComboData[1][curComboData].defender = &(pActiveP1->subObj);
+		}
 	}
 
 	nLastCustomInputDisplay = nInputDisplaySettings;
@@ -2853,6 +3118,11 @@ void frameDoneCallback()
 
 	nSavedP1ActiveChar = pdP1Data->activeCharacter;
 	nSavedP2ActiveChar = pdP2Data->activeCharacter;
+
+	if (enableMouseControls && !showDebugMenu) {
+		DoMenuMouseControls();
+	}
+
 }
 
 __declspec(naked) void nakedFrameDoneCallback()
@@ -2867,7 +3137,7 @@ __declspec(naked) void nakedFrameDoneCallback()
 
 __declspec(naked) void nakedFrameDoneCallback_RAW() {
 	PUSH_ALL;
-	asmCall(frameDoneCallback)
+	frameDoneCallback();
 	POP_ALL;
 
 	__asm {
@@ -2884,12 +3154,12 @@ int nP2MeterGain = 0;
 DWORD prevComboPtr = 0;
 
 void ResetCallback() {
-	if (nSAVE_STATE_SLOT == 0 || !(saveStateManager.FullSaves[nSAVE_STATE_SLOT - 1]->IsSaved)) { // if not loading a save
+	if (XS_saveStateSlot == 0 || !(saveStateManager.FullSaves[XS_saveStateSlot - 1]->IsSaved)) { // if not loading a save
 		if (*(int*)(adMBAABase + adBS_MAGIC_CIRCUIT) == 0) { // if Magic Circuit is set to Normal
 			for (int i = 0; i < 4; i++) {
-				PlayerData* curPlayer = pPlayerArray[i];
+				PlayerData* curPlayer = &playerDataArr[i];
 				if (!curPlayer->exists) continue;
-				int USE_METER = i % 2 == 0 ? nTRUE_P1_METER : nTRUE_P2_METER;
+				int USE_METER = i % 2 == 0 ? XS_p1Meter : XS_p2Meter;
 				switch (curPlayer->subObj.moon) {
 				case 0:
 					switch (USE_METER) {
@@ -2964,9 +3234,9 @@ void ResetCallback() {
 			}
 		}
 
-		if (nRESET_TO_POSITIONS) {
-			pP1->subObj.xPos = nTRUE_P1_X_LOC;
-			pP2->subObj.xPos = nTRUE_P2_X_LOC;
+		if (XS_resetToPositions) {
+			pP1->subObj.xPos = XS_p1Position;
+			pP2->subObj.xPos = XS_p2Position;
 			bool p1LookLeft = pP1->subObj.xPos > pP2->subObj.xPos;
 			pP1->subObj.facingLeft = p1LookLeft;
 			pP1->subObj.isOpponentToLeft = p1LookLeft;
@@ -2974,7 +3244,7 @@ void ResetCallback() {
 			pP2->subObj.isOpponentToLeft = !p1LookLeft;
 
 			if (pP3->exists && pP3->subObj.charID != 51) {
-				pP3->subObj.xPos = nTRUE_P1_ASSIST_X_LOC;
+				pP3->subObj.xPos = XS_p1AssistPosition;
 
 				bool p3LookLeft = pP3->subObj.xPos > pP2->subObj.xPos;
 				pP3->subObj.facingLeft = p3LookLeft;
@@ -2982,7 +3252,7 @@ void ResetCallback() {
 			}
 
 			if (pP4->exists && pP4->subObj.charID != 51) {
-				pP4->subObj.xPos = nTRUE_P2_ASSIST_X_LOC;
+				pP4->subObj.xPos = XS_p2AssistPosition;
 
 				bool p4LookLeft = pP4->subObj.xPos > pP1->subObj.xPos;
 				pP4->subObj.facingLeft = p4LookLeft;
@@ -2992,53 +3262,52 @@ void ResetCallback() {
 
 		switch (pActiveP1->subObj.charID) {
 		case 0: //sion
-			if (nSION_BULLETS > 1) {
-				pActiveP1->subObj.extraVariables[1] = 14 - nSION_BULLETS;
+			if (XS_sionBullets > 1) {
+				pActiveP1->subObj.extraVariables[1] = XS_sionBullets - 1;
 			}
 			break;
 		case 4: //maids
-			if (nF_MAIDS_HEARTS > 1) { //maids
-				pP1->subObj.extraVariables[4] = nF_MAIDS_HEARTS - 1;
-				pP3->subObj.extraVariables[5] = nF_MAIDS_HEARTS - 1;
+			if (XS_fMaidsHearts > 1) { //maids
+				pP1->subObj.extraVariables[4] = XS_fMaidsHearts - 1;
+				pP3->subObj.extraVariables[5] = XS_fMaidsHearts - 1;
 			}
 			break;
 		case 31: //roa
-			if (nROA_HIDDEN_CHARGE > 1) {
-				pActiveP1->subObj.extraVariables[6] = nROA_HIDDEN_CHARGE - 1;
+			if (XS_roaHiddenCharges > 1) {
+				pActiveP1->subObj.extraVariables[6] = XS_roaHiddenCharges - 1;
 			}
-			if (nROA_VISIBLE_CHARGE > 1) {
-				pActiveP1->subObj.extraVariables[7] = nROA_VISIBLE_CHARGE - 1;
+			if (XS_roaVisibleCharges > 1) {
+				pActiveP1->subObj.extraVariables[7] = XS_roaVisibleCharges - 1;
 			}
 			break;
 		}
 
 		switch (pActiveP2->subObj.charID) {
 		case 0: //sion
-			if (nSION_BULLETS > 1) {
-				pActiveP2->subObj.extraVariables[1] = 14 - nSION_BULLETS;
+			if (XS_sionBullets > 1) {
+				pActiveP2->subObj.extraVariables[1] = XS_sionBullets - 1;
 			}
 			break;
 		case 4: //maids
-			if (nF_MAIDS_HEARTS > 1) { //maids
-				pP2->subObj.extraVariables[4] = nF_MAIDS_HEARTS - 1;
-				pP4->subObj.extraVariables[5] = nF_MAIDS_HEARTS - 1;
+			if (XS_fMaidsHearts > 1) { //maids
+				pP2->subObj.extraVariables[4] = XS_fMaidsHearts - 1;
+				pP4->subObj.extraVariables[5] = XS_fMaidsHearts - 1;
 			}
 			break;
 		case 31: //roa
-			if (nROA_HIDDEN_CHARGE > 1) {
-				pActiveP2->subObj.extraVariables[6] = nROA_HIDDEN_CHARGE - 1;
+			if (XS_roaHiddenCharges > 1) {
+				pActiveP2->subObj.extraVariables[6] = XS_roaHiddenCharges - 1;
 			}
-			if (nROA_VISIBLE_CHARGE > 1) {
-				pActiveP2->subObj.extraVariables[7] = nROA_VISIBLE_CHARGE - 1;
+			if (XS_roaVisibleCharges > 1) {
+				pActiveP2->subObj.extraVariables[7] = XS_roaVisibleCharges - 1;
 			}
 			break;
 		}
 
-		int gauges[3] = { 8000, 7000, 10500 };
-		pP1->subObj.guardGauge = gauges[pP1->subObj.moon];
-		pP2->subObj.guardGauge = gauges[pP2->subObj.moon];
-		if (pP3->exists) pP3->subObj.guardGauge = gauges[pP3->subObj.moon];
-		if (pP4->exists) pP4->subObj.guardGauge = gauges[pP4->subObj.moon];
+		pP1->subObj.guardGaugeHeal = 50000.0f;
+		pP2->subObj.guardGaugeHeal = 50000.0f;
+		if (pP3->exists) pP3->subObj.guardGaugeHeal = 50000.0f;
+		if (pP4->exists) pP4->subObj.guardGaugeHeal = 50000.0f;
 
 		pP1->subObj.guardGaugeState = 1;
 		pP2->subObj.guardGaugeState = 1;
@@ -3066,18 +3335,24 @@ void ResetCallback() {
 
 	}
 
-	if (nRATE == RNG_EVERY_RESET)
+	if (XS_rate == RNG_EVERY_RESET)
 	{
-		if (nCUSTOM_RNG == RNG_SEED)
-			SetSeed(nSEED);
-		if (nCUSTOM_RNG == RNG_RN)
-			SetRN(nSEED);
+		if (XS_customRNG == RNG_SEED)
+			SetSeed(XS_seed);
+		if (XS_customRNG == RNG_RN)
+			SetRN(XS_seed);
 	}
 
 	bDoReversal = false;
 	nHoldButtons = 0;
 	bHoldShield = false;
 	bDidShield = false;
+	if (enableRevTAS) {
+		enableRevTAS = false;
+		enableTAS = false;
+	}
+
+	ResetBars();
 
 	nTempP1MeterGain = 0;
 	nTempP2MeterGain = 0;
@@ -3093,6 +3368,8 @@ void ResetCallback() {
 	TASManagerObj[2].load("TAS3.txt");
 	TASManagerObj[3].load("TAS4.txt");
 
+	didHitboxConnect = 0;
+
 	loadCustomShader();
 }
 
@@ -3105,7 +3382,7 @@ __declspec(naked) void _naked_ResetCallback() {
 	}
 
 	PUSH_ALL;
-	asmCall(ResetCallback)
+	ResetCallback();
 	POP_ALL;
 
 	__asm {
@@ -3116,44 +3393,33 @@ __declspec(naked) void _naked_ResetCallback() {
 
 // roundcall funcs
 
+bool doLoad = false;
 void RoundcallCallback() {
-	//maintain dummy recording state
-	byte p1DoTraining = pP1->subObj.doTrainingAction;
-	byte p2DoTraining = pP2->subObj.doTrainingAction;
-	byte p3DoTraining;
-	byte p4DoTraining;
-	if (pP3->exists)
-		p3DoTraining = pP3->subObj.doTrainingAction;
-	if (pP4->exists)
-		p4DoTraining = pP4->subObj.doTrainingAction;
+	if (XS_syncSavesWithFiles) saveStateManager.LoadFromFile();
 
-	if (nSAVE_STATE_SLOT > 0 && saveStateManager.FullSaves[nSAVE_STATE_SLOT - 1]->IsSaved)
+	if (XS_saveStateSlot > 0 && saveStateManager.FullSaves[XS_saveStateSlot - 1]->IsSaved)
 	{
-		saveStateManager.FullSaves[nSAVE_STATE_SLOT - 1]->load(nLOAD_RNG);
-		PlayerData* tempPlayer;
-		for (int i = 0; i < 4; i++) {
-			tempPlayer = pPlayerArray[i];
-			for (int j = 0; j < 8; j++) {
-				if (tempPlayer->subObj.attackingSubObjPtrArr[j] != 0) {
-					ActorData* attackingSubObj = tempPlayer->subObj.attackingSubObjPtrArr[j];
-					tempPlayer->subObj.recievingAttackDataPtrArr[j] = attackingSubObj->attackDataPtr;
-				}
-			}
-		}
+		doLoad = true;
 	}
-	pP1->subObj.doTrainingAction = p1DoTraining;
-	pP2->subObj.doTrainingAction = p2DoTraining;
-	if (pP3->exists)
-		pP3->subObj.doTrainingAction = p3DoTraining;
-	if (pP4->exists)
-		pP4->subObj.doTrainingAction = p4DoTraining;
+
+	if (initLoadChars) {
+		p1LoadChar = pP1->subObj.charID;
+		p1LoadMoon = pP1->subObj.moon;
+		p1LoadPal = pP1->subObj.palette + 1;
+
+		p2LoadChar = pP2->subObj.charID;
+		p2LoadMoon = pP2->subObj.moon;
+		p2LoadPal = pP2->subObj.palette + 1;
+
+		initLoadChars = false;
+	}
 }
 
 DWORD RoundcallCallback_PatchAddr = 0x00472964;
 __declspec(naked) void _naked_RoundcallCallback() {
-
+	
 	PUSH_ALL;
-	asmCall(RoundcallCallback)
+	RoundcallCallback();
 	POP_ALL;
 
 	__asm {
@@ -3180,7 +3446,7 @@ __declspec(naked) void _naked_CharInputCallback() {
 		call[MBAA_ReadCharacterInputs];
 	}
 	PUSH_ALL;
-	asmCall(CharInputCallback)
+	CharInputCallback();
 	POP_ALL;
 
 	__asm {
@@ -3195,9 +3461,6 @@ __declspec(naked) void _naked_CharInputCallback() {
 int needPause = false;
 void newPauseCallback2()
 {
-
-	HandleExtendedTrainingEffects();
-
 	if (oFreezeHotkey.keyDown()) {
 		bFreeze = !bFreeze;
 		if (bFreeze)
@@ -3209,7 +3472,7 @@ void newPauseCallback2()
 			_naked_newPauseCallback2_IsPaused = false;
 	}
 
-	else if (!bFreeze && (oNextFrameHotkey.keyDown() || oPrevFrameHotkey.keyDown()))
+	else if (!bFreeze && (oAdvanceFrameHotkey.keyDown() || oNextFrameHotkey.keyDown() || oPrevFrameHotkey.keyDown()))
 	{
 		bFreeze = true;
 		bSlow = false;
@@ -3218,7 +3481,7 @@ void newPauseCallback2()
 
 	if (!bFreeze)
 	{
-		if (nGAME_SPEED)
+		if (XS_gameSpeed)
 		{
 			bSlow = true;
 			_naked_newPauseCallback2_IsPaused = true;
@@ -3233,18 +3496,24 @@ void newPauseCallback2()
 			_naked_newPauseCallback2_IsPaused = false;
 		}
 	}
-
+	
 	static uint8_t nFrameNumber = 0;
 	nFrameNumber++;
 
-	if (oNextFrameHotkey.keyHeld())
-		oNextFrameHotkey.nHeldKeyCounter++;
+	if (oAdvanceFrameHotkey.keyHeld())
+		oAdvanceFrameHotkey.nHeldKeyCounter++;
 	else
-		oNextFrameHotkey.nHeldKeyCounter = 0;
-	if (_naked_newPauseCallback2_IsPaused && (oNextFrameHotkey.keyDown() || oNextFrameHotkey.nHeldKeyCounter >= 20 || (bSlow && nFrameNumber % 4 >= nGAME_SPEED)))
+		oAdvanceFrameHotkey.nHeldKeyCounter = 0;
+
+	if (_naked_newPauseCallback2_IsPaused &&
+		(oAdvanceFrameHotkey.keyDown() ||
+		oAdvanceFrameHotkey.nHeldKeyCounter >= 20 ||
+		(bSlow && nFrameNumber % 4 >= XS_gameSpeed)) ||
+		(doAutoAdvance && nInputHeldFrameAdvanceCounter > autoAdvanceFrames))
 	{
 		needPause = true;
 		_naked_newPauseCallback2_IsPaused = false;
+		nInputHeldFrameAdvanceCounter = 0;
 	}
 	else if (needPause == 1)
 	{
@@ -3254,7 +3523,7 @@ void newPauseCallback2()
 	else if (needPause > 1) {
 		needPause--;
 	}
-
+	
 	if (!_naked_newPauseCallback2_IsPaused) {
 		unpausedFrameCount++;
 		for (int i = 0; i < 4; i++) {
@@ -3263,13 +3532,16 @@ void newPauseCallback2()
 	}
 
 	if (!_naked_newPauseCallback2_IsPaused && needPause != 2) {
-
+		
 		if (!isPaused()) {
 			//log("calling rollforward 3");
 			replayManager.rollForward();
 		}
-
+		
 	}
+
+	if (!_naked_newPauseCallback2_IsPaused)
+		HandleExtendedTrainingEffects();
 
 }
 
@@ -3325,7 +3597,7 @@ __declspec(naked) void _naked_newPauseCallback2() {
 
 
 	PUSH_ALL;
-	asmCall(newPauseCallback2)
+	newPauseCallback2();
 	POP_ALL;
 
 	__asm {
@@ -3345,14 +3617,14 @@ __declspec(naked) void _naked_newPauseCallback2() {
 
 	_SKIP:
 
-
+	
 		// when the func is NOT called, we still need to deal with input display, attack display, and whatever the fuck controls the dummy recorder
 		// i have 2/3 of those covered
 
 		// this call, should be ok?
 		call[_naked_newPauseCallback2_Func_TrainingPause];
 
-
+		
 		call[_naked_newPauseCallback2_Func_UpdateFX];
 
 		//push 0040e476h;
@@ -3402,13 +3674,13 @@ __declspec(naked) void _naked_trigPauseHook() {
 		JNE _CONT;
 
 		// being here means we are in our pause section. ret.
-
+		
 		ret;
 
 	_CONT:
 	}
 
-
+	
 
 	// overwritten bytes
 	__asm _emit 0xA1;
@@ -3486,7 +3758,7 @@ void checkPauseEffect() {
 		}
 
 		// the meter flash seems to be,, pattern 108 or 104?
-
+		
 	}
 
 	checkPauseEffect_Skip = 1;
@@ -3500,7 +3772,7 @@ __declspec(naked) void _naked_updateEffectsPauseLoop1() {
 	};
 
 	PUSH_ALL;
-	asmCall(checkPauseEffect)
+	checkPauseEffect();
 	POP_ALL;
 
 	__asm {
@@ -3526,7 +3798,7 @@ __declspec(naked) void _naked_updateEffectsPauseLoop1() {
 	__asm _emit 0x00;
 
 	// not inlining the jz on purpose, its reljump
-	// i could align my jump func to 0xF but holy shit no
+	// i could align my jump func to 0xF but holy shit no 
 	__asm {
 		JZ _gotoNextLoop;
 
@@ -3547,7 +3819,7 @@ __declspec(naked) void _naked_updateEffectsPauseLoop2() {
 	};
 
 	PUSH_ALL;
-	asmCall(checkPauseEffect)
+	checkPauseEffect();
 	POP_ALL;
 
 	__asm {
@@ -3592,31 +3864,30 @@ __declspec(naked) void _naked_pauseHitEffectsHook() {
 		//mov al, byte ptr [0055d203h]; // generates mov al, 03. how???
 		mov al, ds: [0055d203h];
 		mov _naked_pauseHitEffectsHook_pauseVal, eax;
-
+		
 		pop eax;
 	}
 
 	__asm {
-		_SKIP: // act right
-			push 00458e86h;
-			ret;
-	}
 		// overwritten asm
-		//TODO
-		/*push ebp;
+		push ebp;
 		mov ebp, esp;
 		and esp, 0fffffff8h;
 
 		cmp _naked_newPauseCallback2_IsPaused, 0;
-		JE _SKIP;*/
+		JE _SKIP;
 
 		// we are paused. make the game think so.
 		//push eax;
 		//mov eax, 1;
 		//mov ds:[0055d203h], al; // i despise masm. shoutout to a random stackoverflow post that said "oh yea the assembler will be sane if you ds:" for some reason
-		//TODO mov ds:[0055d203h], 1;
+		mov ds:[0055d203h], 1;
 		//pop eax;
 
+	_SKIP: // act right
+		push 00458e86h;
+		ret;
+	}
 }
 
 void pauseHitEffectsCallbackSaftey() {
@@ -3654,16 +3925,16 @@ __declspec(naked) void _naked_pauseHitEffectsCallback() {
 
 __declspec(naked) void _naked_preventPauseReset() {
 	__asm {
-		_SKIP:
-			//TODO emitJump(0x00477eb8);
-		}
 
-		//TODO cmp _naked_newPauseCallback2_IsPaused, 1;
-		//TODO JE _SKIP;
+		cmp _naked_newPauseCallback2_IsPaused, 1;
+		JE _SKIP;
 
-		//TODO emitCall(0x00478590);
+		emitCall(0x00478590);
 
+	_SKIP:
 
+		emitJump(0x00477eb8);
+	}
 
 }
 
@@ -3671,7 +3942,7 @@ __declspec(naked) void _naked_preventPauseReset() {
 
 void drawSolidBackground() {
 
-	if (shouldDrawBackground == 1) {
+	if (backgroundColor == 0xFF000000) {
 		return;
 	}
 
@@ -3716,14 +3987,6 @@ void drawBackgroundLine() {
 
 }
 
-void shouldDrawBackgroundAndGround() {
-	drawSolidBackground();
-
-	if (shouldDrawGroundLine == 1) {
-		drawBackgroundLine();
-	}
-}
-
 DWORD _naked_DrawBackground_FuncAddr = 0x004b9540;
 __declspec(naked) void _naked_DrawBackground() {
 
@@ -3734,15 +3997,20 @@ __declspec(naked) void _naked_DrawBackground() {
 
 		call[_naked_DrawBackground_FuncAddr];
 
-
+	
 	_SKIP:
 
 	}
 
-	PUSH_ALL
-	asmCall(shouldDrawBackgroundAndGround)
-	POP_ALL
+	PUSH_ALL;
+	if (shouldDrawBackground == 0) {
+		drawSolidBackground();
+	}
 
+	if (shouldDrawGroundLine == 1) {
+		drawBackgroundLine();
+	}
+	POP_ALL;
 
 	__asm {
 		push 004238c5h
@@ -3774,7 +4042,7 @@ DWORD _naked_DrawHud_FuncAddr = 0x00424100;
 __declspec(naked) void _naked_DrawHud() {
 
 	// i despise msvc
-
+	
 	__asm {
 		push eax;
 		push ebx;
@@ -3788,7 +4056,7 @@ __declspec(naked) void _naked_DrawHud() {
 		pop ebx;
 		pop eax;
 	}
-
+	
 
 	__asm {
 		//cmp shouldDrawHud, 0;
@@ -4018,46 +4286,50 @@ MenuWindow* InitMenuWindow(MenuWindow* menuWindow) {
 	return menuWindow;
 }
 
-void AddSelectElement(MenuInfo* menuInfo, std::vector<const char*> elementVector, int pageNum, int elementNum) {
-	int vSize = size(elementVector);
+Element* AddSelectElement(MenuInfo* menuInfo, std::string label, std::vector<std::string> itemLabels, int pageNum, int elementNum) {
 	Element* element = NEW_SELECT_ELEMENT();
 	char tempTag[16];
 	snprintf(tempTag, 15, "%i_%i", pageNum, elementNum);
-	InitSelectElement(element, elementVector[0], tempTag, 0xa0);
+	InitSelectElement(element, label.c_str(), tempTag, 0xa0);
 	element->vftable = (void*)0x00536654;
-	for (int i = 1; i < vSize; i++) {
+	int itemNum = 0;
+	for (auto& itemLabel : itemLabels) {
 		Item* item = (Item*)NEW_ITEM();
-		snprintf(tempTag, 15, "%i_%i_%i", pageNum, elementNum, i);
-		InitItem(item, elementVector[i], tempTag, i - 1);
+		snprintf(tempTag, 15, "%i_%i_%i", pageNum, elementNum, itemNum);
+		InitItem(item, itemLabel.c_str(), tempTag, itemNum);
 		EnterIntoList((void*)(&element->itemList), (void*)(item));
+		itemNum++;
 	}
-	if (elementVector[0] == " ") {
+	if (label == " ") {
 		element->selectItemLabelXOffset = 64;
 	}
 	EnterIntoList((void*)(&menuInfo->elementList), (void*)(element));
+	return element;
 }
 
-void AddNormalElement(MenuInfo* menuInfo, std::vector<const char*> elementVector, int pageNum, int elementNum) {
+Element* AddNormalElement(MenuInfo* menuInfo, std::string label, int pageNum, int elementNum) {
 	Element* element = NEW_NORMAL_ELEMENT();
 	char tempTag[16];
-	snprintf(tempTag, 15, "%i_%i_n", pageNum, elementNum);
-	InitNormalElement(element, elementVector[0], tempTag, 0);
+	snprintf(tempTag, 15, "%i_%i", pageNum, elementNum);
+	InitNormalElement(element, label.c_str(), tempTag, 0);
 	element->canSelect = 1;
 	element->elementType = 1;
 	element->vftable = (void*)0x0053604c;
 	EnterIntoList((void*)(&menuInfo->elementList), (void*)(element));
+	return element;
 }
 
-void AddSpaceElement(MenuInfo* menuInfo, int pageNum, int elementNum, int margin = 8) {
+Element* AddSpaceElement(MenuInfo* menuInfo, int pageNum, int elementNum, int height = 8) {
 	Element* element = NEW_NORMAL_ELEMENT();
 	char tempTag[16];
-	snprintf(tempTag, 15, "%i_%i_s", pageNum, elementNum);
+	snprintf(tempTag, 15, "%i_%i", pageNum, elementNum);
 	InitNormalElement(element, "", "", 0);
 	element->canSelect = 0;
 	element->elementType = 2;
-	element->bottomMargin = margin;
+	element->drawHeight = height;
 	element->vftable = (void*)0x00536094;
 	EnterIntoList((void*)(&menuInfo->elementList), (void*)(element));
+	return element;
 }
 
 //wrapper for call to FUN_00429b00
@@ -4104,72 +4376,41 @@ Element* GetElementPointer(MenuInfo* menuInfo, const char* tag) {
 	return retElement;
 }
 
-//get a single setting from persistent location
-bool GetSetting(MenuInfo* menuInfo, int* setting, const char* tag) {
-	Element* element = GetElementPointer(menuInfo, tag);
-	if (element != 0x0 && element->GetItemListSize() != 0x0) {
+bool GetSetting(Setting& setting) {
+	if (setting.element != nullptr && setting.element->GetItemListSize() != 0x0) {
+		if (setting.settingType == 0) {
+			setting.element->selectedItem = *setting.valuePtr;
+			return true;
+		}
 		int iterator = 0;
 		while (true) {
-			int CurItemValue = element->GetItemValue(iterator);
-			if (CurItemValue == *setting) break;
+			int CurItemValue = setting.element->GetItemValue(iterator);
+			if (CurItemValue == setting.storage) break;
 			iterator++;
-			if (element->GetItemListSize() <= iterator) return false;
+			if (setting.element->GetItemListSize() <= iterator) return false;
 		}
-		element->selectedItem = iterator;
+		setting.element->selectedItem = iterator;
 		return true;
 	}
 	return false;
 }
 
-//get settings from persistent locations to init menu window
-void GetExtendedSettings(MenuWindow* extendedWindow) {
-	if ((extendedWindow->menuInfoList).listStart == 0x0 || (extendedWindow->menuInfoList).listEnd - (extendedWindow->menuInfoList).listStart == 0) {
+void LoadMenuSettings(MenuWindow* window, MenuContainer& container) {
+	if ((window->menuInfoList).listStart == 0x0 || (window->menuInfoList).listEnd - (window->menuInfoList).listStart == 0) {
 		__asm {
 			call[MBAA_UnrecoveredJumptable];
 		}
 	}
-	char tempTag[16];
-	MenuInfo* extendedInfo;
-	for (int pageNum = 0; pageNum <= XS_NUM_PAGES; pageNum++) {
-		extendedInfo = (extendedWindow->menuInfoList).listStart[pageNum];
-		int settingNum = 0;
-		for (int elementNum = 0; elementNum < size(Page_Options[pageNum]); elementNum++) {
-			snprintf(tempTag, 15, "%i_%i", pageNum, elementNum);
-			if (GetSetting(extendedInfo, Page_Settings[pageNum][settingNum], tempTag)) {
-				settingNum++;
-			};
+
+	for (auto& page : container.pages) {
+		for (auto& setting : page.settings) {
+			GetSetting(setting);
 		}
 	}
 
-	extendedWindow->menuInfoIndex = nEXTENDED_SETTINGS_PAGE;
-	for (int i = 0; i <= XS_NUM_PAGES; i++) {
-		(extendedWindow->menuInfoList).listStart[i]->selectedElement = nEXTENDED_SETTINGS_CURSOR[i];
-	}
-}
-
-//get settings from persistent locations to init menu window
-void GetHotkeySettings(MenuWindow* hotkeyWindow) {
-	if ((hotkeyWindow->menuInfoList).listStart == 0x0 || (hotkeyWindow->menuInfoList).listEnd - (hotkeyWindow->menuInfoList).listStart == 0) {
-		__asm {
-			call[MBAA_UnrecoveredJumptable];
-		}
-	}
-	char tempTag[16];
-	MenuInfo* hotkeyInfo;
-	for (int pageNum = 0; pageNum <= HK_NUM_PAGES; pageNum++) {
-		hotkeyInfo = (hotkeyWindow->menuInfoList).listStart[pageNum];
-		int settingNum = 0;
-		for (int elementNum = 0; elementNum < size(HK_Page_Options[pageNum]); elementNum++) {
-			snprintf(tempTag, 15, "%i_%i", pageNum, elementNum);
-			if (GetSetting(hotkeyInfo, HK_Page_Settings[pageNum][settingNum], tempTag)) {
-				settingNum++;
-			};
-		}
-	}
-
-	hotkeyWindow->menuInfoIndex = nHOTKEY_SETTINGS_PAGE;
-	for (int i = 0; i <= HK_NUM_PAGES; i++) {
-		(hotkeyWindow->menuInfoList).listStart[i]->selectedElement = nHOTKEY_SETTINGS_CURSOR[i];
+	window->menuInfoIndex = container.savedSelection;
+	for (int i = 0; i < container.pages.size(); i++) {
+		(window->menuInfoList).listStart[i]->selectedElement = container.get(i)->savedSelection;
 	}
 }
 
@@ -4177,35 +4418,33 @@ void GetHotkeySettings(MenuWindow* hotkeyWindow) {
 MenuWindow* InitExtendedSettingsMenu(MenuWindow* extendedWindow) {
 	InitMenuWindow(extendedWindow);
 	ReadDataFile(&extendedWindow->label, "EXTENDED SETTINGS", 18);
-	MenuInfo* extendedInfo;
-	for (int pageNum = 0; pageNum < size(Page_Options); pageNum++)
+	int pageNum = 0;
+	for (auto& page : XS_Menu.pages)
 	{
 		MenuInfo* extendedInfo = NEW_MENU_INFO();
 		if (extendedInfo != 0x0)
 		{
 			InitExtendedSettingsMenuInfo(extendedInfo, extendedWindow);
 		}
-		for (int elementNum = 0; elementNum < size(Page_Options[pageNum]); elementNum++) {
-			std::vector<const char*> elementVector = Page_Options[pageNum][elementNum];
-			int vSize = size(elementVector);
-			switch (vSize)
-			{
-			case 0:
+		int elementNum = 0;
+		for (auto& setting : page.settings) {
+			if (setting.label == "") {
 				AddSpaceElement(extendedInfo, pageNum, elementNum);
-				break;
-			case 1:
-				AddNormalElement(extendedInfo, elementVector, pageNum, elementNum);
-				break;
-			default:
-				AddSelectElement(extendedInfo, elementVector, pageNum, elementNum);
-				break;
 			}
+			else if (setting.itemLabels.size() == 0) {
+				AddNormalElement(extendedInfo, setting.label, pageNum, elementNum);
+			}
+			else {
+				setting.element = AddSelectElement(extendedInfo, setting.label, setting.itemLabels, pageNum, elementNum);
+			}
+			elementNum++;
 		}
 		EnterIntoList((void*)(&extendedWindow->menuInfoList), (void*)(extendedInfo));
+		pageNum++;
 		//_FUN_00429b00(extendedInfo, "EXTENDED_SETTING");
 	}
 
-	GetExtendedSettings(extendedWindow);
+	LoadMenuSettings(extendedWindow, XS_Menu);
 	extendedWindow->dimScreenPercentage = 0.0;
 	extendedWindow->u_layer = 0x2f1;
 	extendedWindow->isMenuLit = 1;
@@ -4220,34 +4459,32 @@ MenuWindow* InitExtendedSettingsMenu(MenuWindow* extendedWindow) {
 MenuWindow* InitHotkeySettingsMenu(MenuWindow* hotkeyWindow) {
 	InitMenuWindow(hotkeyWindow);
 	ReadDataFile(&hotkeyWindow->label, "HOTKEY SETTINGS", 18);
-	MenuInfo* hotkeyInfo;
-	for (int pageNum = 0; pageNum < size(HK_Page_Options); pageNum++)
+	int pageNum = 0;
+	for (auto& page : HK_Menu.pages)
 	{
 		MenuInfo* hotkeyInfo = NEW_MENU_INFO();
 		if (hotkeyInfo != 0x0)
 		{
 			InitHotkeySettingsMenuInfo(hotkeyInfo, hotkeyWindow);
 		}
-		for (int elementNum = 0; elementNum < size(HK_Page_Options[pageNum]); elementNum++) {
-			std::vector<const char*> elementVector = HK_Page_Options[pageNum][elementNum];
-			int vSize = size(elementVector);
-			switch (vSize)
-			{
-			case 0:
+		int elementNum = 0;
+		for (auto& setting : page.settings) {
+			if (setting.label == "") {
 				AddSpaceElement(hotkeyInfo, pageNum, elementNum);
-				break;
-			case 1:
-				AddNormalElement(hotkeyInfo, elementVector, pageNum, elementNum);
-				break;
-			default:
-				AddSelectElement(hotkeyInfo, elementVector, pageNum, elementNum);
-				break;
 			}
+			else if (setting.itemLabels.size() == 0) {
+				AddNormalElement(hotkeyInfo, setting.label, pageNum, elementNum);
+			}
+			else {
+				setting.element = AddSelectElement(hotkeyInfo, setting.label, setting.itemLabels, pageNum, elementNum);
+			}
+			elementNum++;
 		}
 		EnterIntoList((void*)(&hotkeyWindow->menuInfoList), (void*)(hotkeyInfo));
+		pageNum++;
 	}
 
-	GetHotkeySettings(hotkeyWindow);
+	LoadMenuSettings(hotkeyWindow, HK_Menu);
 	hotkeyWindow->dimScreenPercentage = 0.0;
 	hotkeyWindow->u_layer = 0x2f1;
 	hotkeyWindow->isMenuLit = 1;
@@ -4279,76 +4516,44 @@ void _FUN_0047ce20(const char* TRAINING_XX_MENU, void* field24) {
 
 }
 
-//Sets a single setting to its persistent location
-bool SetSetting(MenuInfo* menuInfo, int* setting, const char* tag) {
-	Element* element = GetElementPointer(menuInfo, tag);
-	if (element != 0x0) {
-		int selectionIndex = element->selectedItem;
-		int value = (element->itemList).listStart[selectionIndex]->value;
-		*setting = value;
+bool SetSetting(Setting& setting) {
+	if (setting.element != nullptr && setting.element->GetItemListSize() != 0x0) {
+		int selectionIndex = setting.element->selectedItem;
+		int elementValue = (setting.element->itemList).listStart[selectionIndex]->value;
+		setting.storage = elementValue;
+		if (setting.settingType == 0) {
+			*setting.valuePtr = elementValue;
+		}
 		return true;
 	}
 	return false;
 }
 
-//save extended settings to persistent locations
-void SetExtendedSettings(MenuWindow* extendedWindow) {
-	if ((extendedWindow->menuInfoList).listStart == 0x0 || (extendedWindow->menuInfoList).listEnd - (extendedWindow->menuInfoList).listStart == 0) {
+void SaveMenuSettings(MenuWindow* window, MenuContainer& container) {
+	if ((window->menuInfoList).listStart == 0x0 || (window->menuInfoList).listEnd - (window->menuInfoList).listStart == 0) {
 		__asm {
 			call[MBAA_UnrecoveredJumptable];
 		}
 	}
-	char tempTag[16];
-	MenuInfo* extendedInfo;
-	for (int pageNum = 0; pageNum <= XS_NUM_PAGES; pageNum++) {
-		extendedInfo = (extendedWindow->menuInfoList).listStart[pageNum];
-		int settingNum = 0;
-		for (int elementNum = 0; elementNum < size(Page_Options[pageNum]); elementNum++) {
-			snprintf(tempTag, 15, "%i_%i", pageNum, elementNum);
-			if (SetSetting(extendedInfo, Page_Settings[pageNum][settingNum], tempTag)) {
-				settingNum++;
-			};
+
+	for (auto& page : container.pages) {
+		for (auto& setting : page.settings) {
+			SetSetting(setting);
 		}
 	}
 
-	nEXTENDED_SETTINGS_PAGE = extendedWindow->menuInfoIndex;
-	for (int i = 0; i <= XS_NUM_PAGES; i++) {
-		nEXTENDED_SETTINGS_CURSOR[i] = (extendedWindow->menuInfoList).listStart[i]->selectedElement;
-	}
-}
-
-//save hotkey settings to persistent locations
-void SetHotkeySettings(MenuWindow* hotkeyWindow) {
-	if ((hotkeyWindow->menuInfoList).listStart == 0x0 || (hotkeyWindow->menuInfoList).listEnd - (hotkeyWindow->menuInfoList).listStart == 0) {
-		__asm {
-			call[MBAA_UnrecoveredJumptable];
-		}
-	}
-	char tempTag[16];
-	MenuInfo* hotkeyInfo;
-	for (int pageNum = 0; pageNum <= HK_NUM_PAGES; pageNum++) {
-		hotkeyInfo = (hotkeyWindow->menuInfoList).listStart[pageNum];
-		int settingNum = 0;
-		for (int elementNum = 0; elementNum < size(HK_Page_Options[pageNum]); elementNum++) {
-			snprintf(tempTag, 15, "%i_%i", pageNum, elementNum);
-			if (SetSetting(hotkeyInfo, HK_Page_Settings[pageNum][settingNum], tempTag)) {
-				settingNum++;
-			};
-		}
-	}
-
-	nHOTKEY_SETTINGS_PAGE = hotkeyWindow->menuInfoIndex;
-	for (int i = 0; i <= HK_NUM_PAGES; i++) {
-		nHOTKEY_SETTINGS_CURSOR[i] = (hotkeyWindow->menuInfoList).listStart[i]->selectedElement;
+	container.savedSelection = window->menuInfoIndex;
+	for (int i = 0; i < container.pages.size(); i++) {
+		container.get(i)->savedSelection = (window->menuInfoList).listStart[i]->selectedElement;
 	}
 }
 
 //save extended settings and free everything
 void CloseExtendedSettings(MenuWindow* extendedWindow) {
-	SetExtendedSettings(extendedWindow);
+	SaveMenuSettings(extendedWindow, XS_Menu);
 
-	bCOLOR_GUIDE = false;
-	*(bool*)(adMBAABase + adXS_colorGuide) = bCOLOR_GUIDE;
+	XS_colorGuide = false;
+	*(bool*)(adMBAABase + adXS_colorGuide) = XS_colorGuide;
 	bShowFrameBarPreview = false;
 	bShowFrameBarYPreview = false;
 
@@ -4367,7 +4572,7 @@ void CloseExtendedSettings(MenuWindow* extendedWindow) {
 
 //save hotkey settings and free everything
 void CloseHotkeySettings(MenuWindow* hotkeyWindow) {
-	SetHotkeySettings(hotkeyWindow);
+	SaveMenuSettings(hotkeyWindow, HK_Menu);
 
 	__asm {
 		mov ecx, hotkeyWindow;
@@ -4420,7 +4625,6 @@ bool LoopingScrolling(Element* element, int& storage, int min, int max, int inte
 		LEFT, MIDDLE, RIGHT
 	};
 	int item = element->selectedItem;
-	int targetIndex = MIDDLE;
 
 	if (accelInterval != 0) {
 		if (ScrollAccelTimer >= ScrollAccelThreshold) {
@@ -4446,7 +4650,7 @@ bool LoopingScrolling(Element* element, int& storage, int min, int max, int inte
 			interval -= max - min + 1;
 		}
 		storage -= interval;
-
+		
 	}
 	else if (item == RIGHT) { //right
 		retVal = true;
@@ -4521,7 +4725,7 @@ bool NormalScrolling(Element* element, int& storage, int min, int max, int inter
 		}
 	}
 
-	if (accelInterval != 0 &&
+	if (accelInterval != 0 && 
 		(*(byte*)(adMBAABase + adP1MenuDirInput) == 4 || *(byte*)(adMBAABase + adP1MenuDirInput) == 6)) {
 		ScrollAccelTimer++;
 	}
@@ -4903,17 +5107,15 @@ void XS_Reversal_Slots(Element* element, int &reversal_value, bool APos, bool DP
 		if (pActiveP2->subObj.moon == 2) shieldCancel &= 0x2;
 		byte exShield = shieldCancel & 0x2;
 		byte heldShield = shieldCancel & 0x1;
-		byte validShields[7] = { !isSC, static_cast<byte>((stance & 0x1) * (exShield)), static_cast<byte>((stance & 0x1) * (heldShield)),
-			static_cast<byte>((stance & 0x4) * (exShield)), static_cast<byte>((stance & 0x4) * (heldShield)),
-			static_cast<byte>((stance & 0x2) * (exShield)), static_cast<byte>((stance & 0x2) * (heldShield)) };
+		byte validShields[7] = { !isSC, (stance & 0x1) * exShield, (stance & 0x1) * heldShield,
+			(stance & 0x4) * exShield, (stance & 0x4) * heldShield,
+			(stance & 0x2) * exShield, (stance & 0x2) * heldShield };
 		while (!validShields[reversal_value >> 16]) {
 			reversal_value = (reversal_value + 0x00010000) % 0x00070000;
 		}
 	}
 }
 
-bool bAPrev = false;
-bool bDPrev = false;
 void ExtendedMenuInputChecking() {
 	MenuWindow* extendedWindow;
 	MenuInfo* curMenuInfo;
@@ -4922,10 +5124,13 @@ void ExtendedMenuInputChecking() {
 		mov extendedWindow, ecx;
 	}
 	char labelBuf[32];
-	bool bA = *(bool*)(adMBAABase + adP1AInput) && extendedWindow->openSubmenuIndex == 2; //A is pressed
-	bool bAPos = bA && !bAPrev; //A Press Positive Edge
-	bool bD = *(bool*)(adMBAABase + adP1DInput) && extendedWindow->openSubmenuIndex == 2; //D is pressed
-	bool bDPos = bD && !bDPrev; //D Press Positive Edge
+	static bool aPrev = false;
+	static bool dPrev = false;
+	bool mouseAPress = lClick && MenuControlsClickIsPress;
+	bool aHeld = (*(bool*)(adMBAABase + adP1AInput) || mouseAPress) && extendedWindow->openSubmenuIndex == 2;
+	bool aPressed = aHeld && !aPrev;
+	bool dHeld = *(bool*)(adMBAABase + adP1DInput) && extendedWindow->openSubmenuIndex == 2;
+	bool dPressed = dHeld && !dPrev;
 	bShowFrameBarPreview = false;
 	bShowFrameBarYPreview = false;
 	curMenuInfo = extendedWindow->menuInfoList.listStart[extendedWindow->menuInfoIndex];
@@ -4943,98 +5148,98 @@ void ExtendedMenuInputChecking() {
 
 		switch ((eREVERSALS)curMenuInfo->selectedElement) {
 		case eREVERSALS::REVERSAL_SLOT_1:
-			XS_Reversal_Slots(curElement, nREV_ID_1, bAPos, bDPos);
+			XS_Reversal_Slots(curElement, XS_reversalSlot1, aPressed, dPressed);
 			break;
 		case eREVERSALS::REVERSAL_SLOT_2:
-			XS_Reversal_Slots(curElement, nREV_ID_2, bAPos, bDPos);
+			XS_Reversal_Slots(curElement, XS_reversalSlot2, aPressed, dPressed);
 			break;
 		case eREVERSALS::REVERSAL_SLOT_3:
-			XS_Reversal_Slots(curElement, nREV_ID_3, bAPos, bDPos);
+			XS_Reversal_Slots(curElement, XS_reversalSlot3, aPressed, dPressed);
 			break;
 		case eREVERSALS::REVERSAL_SLOT_4:
-			XS_Reversal_Slots(curElement, nREV_ID_4, bAPos, bDPos);
+			XS_Reversal_Slots(curElement, XS_reversalSlot4, aPressed, dPressed);
 			break;
 		case eREVERSALS::DEFAULT:
-			if (bAPos) DefaultP1(curMenuInfo);
+			if (aPressed) XS_Menu.pages[extendedWindow->menuInfoIndex]._default();
 			break;
 		case eREVERSALS::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case eREVERSALS::PAGE:
-			PageScrolling(curElement, extendedWindow, XS_NUM_PAGES);
+			PageScrolling(curElement, extendedWindow, XS_Menu.pages.size() - 1);
 			break;
 		}
 
-		snprintf(labelBuf, 31, "%s%s", REV_SHIELD_PREFIX[nREV_ID_1 >> 16], vPatternNames[nREV_ID_1 % 0x00010000].c_str());
+		snprintf(labelBuf, 31, "%s%s", REV_SHIELD_PREFIX[XS_reversalSlot1 >> 16], vPatternNames[XS_reversalSlot1 % 0x00010000].c_str());
 		(curMenuInfo->elementList).listStart[(int)eREVERSALS::REVERSAL_SLOT_1]->SetCurItemLabel(labelBuf);
-		(curMenuInfo->elementList).listStart[(int)eREVERSALS::WEIGHT_1]->textOpacity = nREV_ID_1 == 0 ? 0.5f : 1.0f;
+		(curMenuInfo->elementList).listStart[(int)eREVERSALS::WEIGHT_1]->textOpacity = XS_reversalSlot1 == 0 ? 0.5f : 1.0f;
 
-		snprintf(labelBuf, 31, "%s%s", REV_SHIELD_PREFIX[nREV_ID_2 >> 16], vPatternNames[nREV_ID_2 % 0x00010000].c_str());
+		snprintf(labelBuf, 31, "%s%s", REV_SHIELD_PREFIX[XS_reversalSlot2 >> 16], vPatternNames[XS_reversalSlot2 % 0x00010000].c_str());
 		(curMenuInfo->elementList).listStart[(int)eREVERSALS::REVERSAL_SLOT_2]->SetCurItemLabel(labelBuf);
-		(curMenuInfo->elementList).listStart[(int)eREVERSALS::WEIGHT_2]->textOpacity = nREV_ID_2 == 0 ? 0.5f : 1.0f;
+		(curMenuInfo->elementList).listStart[(int)eREVERSALS::WEIGHT_2]->textOpacity = XS_reversalSlot2 == 0 ? 0.5f : 1.0f;
 
-		snprintf(labelBuf, 31, "%s%s", REV_SHIELD_PREFIX[nREV_ID_3 >> 16], vPatternNames[nREV_ID_3 % 0x00010000].c_str());
+		snprintf(labelBuf, 31, "%s%s", REV_SHIELD_PREFIX[XS_reversalSlot3 >> 16], vPatternNames[XS_reversalSlot3 % 0x00010000].c_str());
 		(curMenuInfo->elementList).listStart[(int)eREVERSALS::REVERSAL_SLOT_3]->SetCurItemLabel(labelBuf);
-		(curMenuInfo->elementList).listStart[(int)eREVERSALS::WEIGHT_3]->textOpacity = nREV_ID_3 == 0 ? 0.5f : 1.0f;
+		(curMenuInfo->elementList).listStart[(int)eREVERSALS::WEIGHT_3]->textOpacity = XS_reversalSlot3 == 0 ? 0.5f : 1.0f;
 
-		snprintf(labelBuf, 31, "%s%s", REV_SHIELD_PREFIX[nREV_ID_4 >> 16], vPatternNames[nREV_ID_4 % 0x00010000].c_str());
+		snprintf(labelBuf, 31, "%s%s", REV_SHIELD_PREFIX[XS_reversalSlot4 >> 16], vPatternNames[XS_reversalSlot4 % 0x00010000].c_str());
 		(curMenuInfo->elementList).listStart[(int)eREVERSALS::REVERSAL_SLOT_4]->SetCurItemLabel(labelBuf);
-		(curMenuInfo->elementList).listStart[(int)eREVERSALS::WEIGHT_4]->textOpacity = nREV_ID_4 == 0 ? 0.5f : 1.0f;
+		(curMenuInfo->elementList).listStart[(int)eREVERSALS::WEIGHT_4]->textOpacity = XS_reversalSlot4 == 0 ? 0.5f : 1.0f;
 
 		PopulateAirAndGroundReversals(&vAirReversals, &vGroundReversals, nP2CharacterID, &vPatternNames,
-			nREV_ID_1 % 0x00010000, nREV_ID_2 % 0x00010000, nREV_ID_3 % 0x00010000, nREV_ID_4 % 0x00010000);
+			XS_reversalSlot1 % 0x00010000, XS_reversalSlot2 % 0x00010000, XS_reversalSlot3 % 0x00010000, XS_reversalSlot4 % 0x00010000);
 
 		break;
 	}
 	case eXS_PAGES::TRAINING:
 	{
-		int healthInterval = bA ? 1 : 114;
-		int healthAccel = bA ? 10 : 570;
+		int healthInterval = aHeld ? 1 : 114;
+		int healthAccel = aHeld ? 10 : 570;
 		switch ((eTRAINING)curMenuInfo->selectedElement) {
 		case eTRAINING::P1_METER:
 			if (pP1->subObj.moon != 2) {
-				CFMeterScrolling(curElement, nTRUE_P1_METER, bA);
+				CFMeterScrolling(curElement, XS_p1Meter, aHeld);
 			}
 			else {
-				HMeterScrolling(curElement, nTRUE_P1_METER, bA);
+				HMeterScrolling(curElement, XS_p1Meter, aHeld);
 			}
 			break;
 		case eTRAINING::P2_METER:
 			if (pP2->subObj.moon != 2) {
-				CFMeterScrolling(curElement, nTRUE_P2_METER, bA);
+				CFMeterScrolling(curElement, XS_p2Meter, aHeld);
 			}
 			else {
-				HMeterScrolling(curElement, nTRUE_P2_METER, bA);
+				HMeterScrolling(curElement, XS_p2Meter, aHeld);
 			}
 			break;
 		case eTRAINING::P1_HEALTH:
-			NormalScrolling(curElement, nTRUE_P1_HEALTH, 0, 11400, healthInterval, healthAccel);
+			NormalScrolling(curElement, XS_p1Health, 0, 11400, healthInterval, healthAccel);
 			break;
 		case eTRAINING::P2_HEALTH:
-			NormalScrolling(curElement, nTRUE_P2_HEALTH, 0, 11400, healthInterval, healthAccel);
+			NormalScrolling(curElement, XS_p2Health, 0, 11400, healthInterval, healthAccel);
 			break;
 		case eTRAINING::HITS_UNTIL_BURST:
-			NormalScrolling(curElement, nTRUE_HITS_UNTIL_BURST, 0, 101);
+			NormalScrolling(curElement, XS_hitsUntilBurst, 0, 101);
 			break;
 		case eTRAINING::HITS_UNTIL_BUNKER:
-			NormalScrolling(curElement, nTRUE_HITS_UNTIL_BUNKER, 0, 101);
+			NormalScrolling(curElement, XS_hitsUntilBunker, 0, 101);
 			break;
 		case eTRAINING::HITS_UNTIL_FORCE_GUARD:
-			NormalScrolling(curElement, nTRUE_HITS_UNTIL_FORCE_GUARD, 0, 101);
+			NormalScrolling(curElement, XS_hitsUntilForceGuard, 0, 101);
 			break;
 		case eTRAINING::DEFAULT:
-			if (bAPos) DefaultP2(curMenuInfo);
+			if (aPressed) XS_Menu.pages[extendedWindow->menuInfoIndex]._default();
 			break;
 		case eTRAINING::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case eTRAINING::PAGE:
-			PageScrolling(curElement, extendedWindow, XS_NUM_PAGES);
+			PageScrolling(curElement, extendedWindow, XS_Menu.pages.size() - 1);
 			break;
 		}
 
 		if (pP1->subObj.moon != 2) {
-			switch (nTRUE_P1_METER) {
+			switch (XS_p1Meter) {
 			case 30000:
 				(curMenuInfo->elementList).listStart[(int)eTRAINING::P1_METER]->SetCurItemLabel("MAX");
 				break;
@@ -5045,23 +5250,23 @@ void ExtendedMenuInputChecking() {
 				(curMenuInfo->elementList).listStart[(int)eTRAINING::P1_METER]->SetCurItemLabel("BLOOD HEAT");
 				break;
 			default:
-				snprintf(labelBuf, 31, "%i.%02i%%", nTRUE_P1_METER / 100, nTRUE_P1_METER % 100);
+				snprintf(labelBuf, 31, "%i.%02i%%", XS_p1Meter / 100, XS_p1Meter % 100);
 				(curMenuInfo->elementList).listStart[(int)eTRAINING::P1_METER]->SetCurItemLabel(labelBuf);
 			}
 		}
 		else {
-			switch (nTRUE_P1_METER) {
+			switch (XS_p1Meter) {
 			case 20000:
 				(curMenuInfo->elementList).listStart[(int)eTRAINING::P1_METER]->SetCurItemLabel("HEAT");
 				break;
 			default:
-				snprintf(labelBuf, 31, "%i.%02i%%", nTRUE_P1_METER / 100, nTRUE_P1_METER % 100);
+				snprintf(labelBuf, 31, "%i.%02i%%", XS_p1Meter / 100, XS_p1Meter % 100);
 				(curMenuInfo->elementList).listStart[(int)eTRAINING::P1_METER]->SetCurItemLabel(labelBuf);
 			}
 		}
-
+		
 		if (pP2->subObj.moon != 2) {
-			switch (nTRUE_P2_METER) {
+			switch (XS_p2Meter) {
 			case 30000:
 				(curMenuInfo->elementList).listStart[(int)eTRAINING::P2_METER]->SetCurItemLabel("MAX");
 				break;
@@ -5072,31 +5277,31 @@ void ExtendedMenuInputChecking() {
 				(curMenuInfo->elementList).listStart[(int)eTRAINING::P2_METER]->SetCurItemLabel("BLOOD HEAT");
 				break;
 			default:
-				snprintf(labelBuf, 31, "%i.%02i%%", nTRUE_P2_METER / 100, nTRUE_P2_METER % 100);
+				snprintf(labelBuf, 31, "%i.%02i%%", XS_p2Meter / 100, XS_p2Meter % 100);
 				(curMenuInfo->elementList).listStart[(int)eTRAINING::P2_METER]->SetCurItemLabel(labelBuf);
 			}
 		}
 		else {
-			switch (nTRUE_P2_METER) {
+			switch (XS_p2Meter) {
 			case 20000:
 				(curMenuInfo->elementList).listStart[(int)eTRAINING::P2_METER]->SetCurItemLabel("HEAT");
 				break;
 			default:
-				snprintf(labelBuf, 31, "%i.%02i%%", nTRUE_P2_METER / 100, nTRUE_P2_METER % 100);
+				snprintf(labelBuf, 31, "%i.%02i%%", XS_p2Meter / 100, XS_p2Meter % 100);
 				(curMenuInfo->elementList).listStart[(int)eTRAINING::P2_METER]->SetCurItemLabel(labelBuf);
 			}
 		}
 
-		snprintf(labelBuf, 31, "%i (%.1f%%)", nTRUE_P1_HEALTH, nTRUE_P1_HEALTH / 114.0f);
+		snprintf(labelBuf, 31, "%i (%.1f%%)", XS_p1Health, XS_p1Health / 114.0f);
 		(curMenuInfo->elementList).listStart[(int)eTRAINING::P1_HEALTH]->SetCurItemLabel(labelBuf);
-		snprintf(labelBuf, 31, "%i (%.1f%%)", nTRUE_P2_HEALTH, nTRUE_P2_HEALTH / 114.0f);
+		snprintf(labelBuf, 31, "%i (%.1f%%)", XS_p2Health, XS_p2Health / 114.0f);
 		(curMenuInfo->elementList).listStart[(int)eTRAINING::P2_HEALTH]->SetCurItemLabel(labelBuf);
 
-		snprintf(labelBuf, 31, "%i", nTRUE_HITS_UNTIL_BURST);
+		snprintf(labelBuf, 31, "%i", XS_hitsUntilBurst);
 		(curMenuInfo->elementList).listStart[(int)eTRAINING::HITS_UNTIL_BURST]->SetCurItemLabel(labelBuf);
-		snprintf(labelBuf, 31, "%i", nTRUE_HITS_UNTIL_BUNKER);
+		snprintf(labelBuf, 31, "%i", XS_hitsUntilBunker);
 		(curMenuInfo->elementList).listStart[(int)eTRAINING::HITS_UNTIL_BUNKER]->SetCurItemLabel(labelBuf);
-		snprintf(labelBuf, 31, "%i", nTRUE_HITS_UNTIL_FORCE_GUARD);
+		snprintf(labelBuf, 31, "%i", XS_hitsUntilForceGuard);
 		(curMenuInfo->elementList).listStart[(int)eTRAINING::HITS_UNTIL_FORCE_GUARD]->SetCurItemLabel(labelBuf);
 
 		break;
@@ -5128,13 +5333,13 @@ void ExtendedMenuInputChecking() {
 			SetRegistryValue(sIDLE_HIGHLIGHT, curElement->selectedItem);
 			break;
 		case eHIGHLIGHTS::DEFAULT:
-			if (bAPos) DefaultP3(curMenuInfo);
+			if (aPressed) XS_Menu.pages[extendedWindow->menuInfoIndex]._default();
 			break;
 		case eHIGHLIGHTS::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case eHIGHLIGHTS::PAGE:
-			PageScrolling(curElement, extendedWindow, XS_NUM_PAGES);
+			PageScrolling(curElement, extendedWindow, XS_Menu.pages.size() - 1);
 			break;
 		}
 
@@ -5144,21 +5349,21 @@ void ExtendedMenuInputChecking() {
 	{
 		switch ((ePOSITIONS)curMenuInfo->selectedElement) {
 		case ePOSITIONS::P1_POSITION:
-			PositionScrolling(curElement, nTRUE_P1_X_LOC, bA);
+			PositionScrolling(curElement, XS_p1Position, aHeld);
 			break;
 		case ePOSITIONS::P1_ASSIST_POSITION:
-			PositionScrolling(curElement, nTRUE_P1_ASSIST_X_LOC, bA);
+			PositionScrolling(curElement, XS_p1AssistPosition, aHeld);
 			break;
 		case ePOSITIONS::P2_POSITION:
-			PositionScrolling(curElement, nTRUE_P2_X_LOC, bA);
+			PositionScrolling(curElement, XS_p2Position, aHeld);
 			break;
 		case ePOSITIONS::P2_ASSIST_POSITION:
-			PositionScrolling(curElement, nTRUE_P2_ASSIST_X_LOC, bA);
+			PositionScrolling(curElement, XS_p2AssistPosition, aHeld);
 			break;
 		case ePOSITIONS::MOVE_TO_POSITIONS:
-			if (bAPos) {
-				pP1->subObj.xPos = nTRUE_P1_X_LOC;
-				pP2->subObj.xPos = nTRUE_P2_X_LOC;
+			if (aPressed) {
+				pP1->subObj.xPos = XS_p1Position;
+				pP2->subObj.xPos = XS_p2Position;
 				bool p1LookLeft = pP1->subObj.xPos > pP2->subObj.xPos;
 				pP1->subObj.facingLeft = p1LookLeft;
 				pP1->subObj.isOpponentToLeft = p1LookLeft;
@@ -5166,7 +5371,7 @@ void ExtendedMenuInputChecking() {
 				pP2->subObj.isOpponentToLeft = !p1LookLeft;
 
 				if (pP3->exists && pP3->subObj.charID != (BYTE)eCharID::HIME) {
-					pP3->subObj.xPos = nTRUE_P1_ASSIST_X_LOC;
+					pP3->subObj.xPos = XS_p1AssistPosition;
 
 					bool p3LookLeft = pP3->subObj.xPos > pP2->subObj.xPos;
 					pP3->subObj.facingLeft = p3LookLeft;
@@ -5174,7 +5379,7 @@ void ExtendedMenuInputChecking() {
 				}
 
 				if (pP4->exists && pP4->subObj.charID != (BYTE)eCharID::HIME) {
-					pP4->subObj.xPos = nTRUE_P2_ASSIST_X_LOC;
+					pP4->subObj.xPos = XS_p2AssistPosition;
 
 					bool p4LookLeft = pP4->subObj.xPos > pP1->subObj.xPos;
 					pP4->subObj.facingLeft = p4LookLeft;
@@ -5182,37 +5387,50 @@ void ExtendedMenuInputChecking() {
 				}
 			}
 			break;
-		case ePOSITIONS::INVERT:
-			if (bAPos) {
-				int temp = nTRUE_P1_X_LOC;
-				nTRUE_P1_X_LOC = nTRUE_P2_X_LOC;
-				nTRUE_P2_X_LOC = temp;
+		case ePOSITIONS::SET_CURRENT_POSITIONS:
+			if (aPressed) {
+				XS_p1Position = pP1->subObj.xPos;
+				XS_p2Position = pP2->subObj.xPos;
 
-				temp = nTRUE_P1_ASSIST_X_LOC;
-				nTRUE_P1_ASSIST_X_LOC = nTRUE_P2_ASSIST_X_LOC;
-				nTRUE_P2_ASSIST_X_LOC = temp;
+				if (pP3->exists && pP3->subObj.charID != (BYTE)eCharID::HIME) {
+					XS_p1AssistPosition = pP3->subObj.xPos;
+				}
+				if (pP4->exists && pP4->subObj.charID != (BYTE)eCharID::HIME) {
+					XS_p2AssistPosition = pP4->subObj.xPos;
+				}
+			}
+			break;
+		case ePOSITIONS::INVERT:
+			if (aPressed) {
+				int temp = XS_p1Position;
+				XS_p1Position = XS_p2Position;
+				XS_p2Position = temp;
+
+				temp = XS_p1AssistPosition;
+				XS_p1AssistPosition = XS_p2AssistPosition;
+				XS_p2AssistPosition = temp;
 			}
 			break;
 		case ePOSITIONS::DEFAULT:
-			if (bAPos) DefaultP4(curMenuInfo);
+			if (aPressed) XS_Menu.pages[extendedWindow->menuInfoIndex]._default();
 			break;
 		case ePOSITIONS::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case ePOSITIONS::PAGE:
-			PageScrolling(curElement, extendedWindow, XS_NUM_PAGES);
+			PageScrolling(curElement, extendedWindow, XS_Menu.pages.size() - 1);
 			break;
 		}
 
-		snprintf(labelBuf, 31, "%i %i", nTRUE_P1_X_LOC >> 7, (nTRUE_P1_X_LOC + 0x10000) % 0x80);
+		snprintf(labelBuf, 31, "%i %i", XS_p1Position >> 7, (XS_p1Position + 0x10000) % 0x80);
 		(curMenuInfo->elementList).listStart[(int)ePOSITIONS::P1_POSITION]->SetCurItemLabel(labelBuf);
-		snprintf(labelBuf, 31, "%i %i", nTRUE_P1_ASSIST_X_LOC >> 7, (nTRUE_P1_ASSIST_X_LOC + 0x10000) % 0x80);
+		snprintf(labelBuf, 31, "%i %i", XS_p1AssistPosition >> 7, (XS_p1AssistPosition + 0x10000) % 0x80);
 		(curMenuInfo->elementList).listStart[(int)ePOSITIONS::P1_ASSIST_POSITION]->SetCurItemLabel(labelBuf);
 		(curMenuInfo->elementList).listStart[(int)ePOSITIONS::P1_ASSIST_POSITION]->textOpacity = pP3->exists ? 1.0f : 0.5f;
 
-		snprintf(labelBuf, 31, "%i %i", nTRUE_P2_X_LOC >> 7, (nTRUE_P2_X_LOC + 0x10000) % 0x80);
+		snprintf(labelBuf, 31, "%i %i", XS_p2Position >> 7, (XS_p2Position + 0x10000) % 0x80);
 		(curMenuInfo->elementList).listStart[(int)ePOSITIONS::P2_POSITION]->SetCurItemLabel(labelBuf);
-		snprintf(labelBuf, 31, "%i %i", nTRUE_P2_ASSIST_X_LOC >> 7, (nTRUE_P2_ASSIST_X_LOC + 0x10000) % 0x80);
+		snprintf(labelBuf, 31, "%i %i", XS_p2AssistPosition >> 7, (XS_p2AssistPosition + 0x10000) % 0x80);
 		(curMenuInfo->elementList).listStart[(int)ePOSITIONS::P2_ASSIST_POSITION]->SetCurItemLabel(labelBuf);
 		(curMenuInfo->elementList).listStart[(int)ePOSITIONS::P2_ASSIST_POSITION]->textOpacity = pP4->exists ? 1.0f : 0.5f;
 
@@ -5222,13 +5440,13 @@ void ExtendedMenuInputChecking() {
 	{
 		switch ((eCHARACTER)curMenuInfo->selectedElement) {
 		case eCHARACTER::DEFAULT:
-			if (bAPos) DefaultP5(curMenuInfo);
+			if (aPressed) XS_Menu.pages[extendedWindow->menuInfoIndex]._default();
 			break;
 		case eCHARACTER::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case eCHARACTER::PAGE:
-			PageScrolling(curElement, extendedWindow, XS_NUM_PAGES);
+			PageScrolling(curElement, extendedWindow, XS_Menu.pages.size() - 1);
 			break;
 		}
 
@@ -5243,14 +5461,20 @@ void ExtendedMenuInputChecking() {
 		case eHITBOXES::COLOR_BLIND_MODE:
 			SetRegistryValue(sCOLOR_BLIND_MODE, curElement->selectedItem);
 			break;
+		case eHITBOXES::ORIGIN_STYLE:
+			SetRegistryValue(sORIGIN_STYLE, curElement->selectedItem);
+			break;
+		case eHITBOXES::DRAW_GROUND:
+			SetRegistryValue(sDRAW_GROUND, curElement->selectedItem);
+			break;
 		case eHITBOXES::DEFAULT:
-			if (bAPos) DefaultP6(curMenuInfo);
+			if (aPressed) XS_Menu.pages[extendedWindow->menuInfoIndex]._default();
 			break;
 		case eHITBOXES::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case eHITBOXES::PAGE:
-			PageScrolling(curElement, extendedWindow, XS_NUM_PAGES);
+			PageScrolling(curElement, extendedWindow, XS_Menu.pages.size() - 1);
 			break;
 		}
 
@@ -5260,41 +5484,44 @@ void ExtendedMenuInputChecking() {
 	{
 		switch ((eSAVE_STATES)curMenuInfo->selectedElement) {
 		case eSAVE_STATES::SAVE_STATE_SLOT:
-			nSAVE_STATE_SLOT = curElement->selectedItem;
-			if (bAPos) {
-				saveStateManager.FullSaves[nSAVE_STATE_SLOT - 1]->unsave();
+			XS_saveStateSlot = curElement->selectedItem;
+			if (aPressed) {
+				saveStateManager.FullSaves[XS_saveStateSlot - 1]->unsave();
+				if (XS_syncSavesWithFiles) saveStateManager.SaveToFile();
 			}
 			break;
 		case eSAVE_STATES::SAVE_STATE:
-			if (bAPos && nSAVE_STATE_SLOT > 0) {
-				saveStateManager.FullSaves[nSAVE_STATE_SLOT - 1]->save();
+			if (aPressed && XS_saveStateSlot > 0) {
+				saveStateManager.FullSaves[XS_saveStateSlot - 1]->save();
+				if (XS_syncSavesWithFiles) saveStateManager.SaveToFile();
 			}
 			break;
 		case eSAVE_STATES::CLEAR_ALL_SAVES:
-			if (bAPos) {
+			if (aPressed) {
 				for (int i = 0; i < MAX_SAVES; i++) {
 					saveStateManager.FullSaves[i]->unsave();
 				}
+				if (XS_syncSavesWithFiles) saveStateManager.SaveToFile();
 			}
 			break;
 		case eSAVE_STATES::IMPORT_SAVE:
-			if (bAPos) {
-				saveStateManager.FullSaves[nSAVE_STATE_SLOT - 1]->loadFromFile();
+			if (aPressed) {
+				saveStateManager.FullSaves[XS_saveStateSlot - 1]->nport();
 			}
 			break;
 		case eSAVE_STATES::EXPORT_SAVE:
-			if (bAPos) {
-				saveStateManager.FullSaves[nSAVE_STATE_SLOT - 1]->saveToFile();
+			if (aPressed) {
+				saveStateManager.FullSaves[XS_saveStateSlot - 1]->xport();
 			}
 			break;
 		case eSAVE_STATES::DEFAULT:
-			if (bAPos) DefaultP7(curMenuInfo);
+			if (aPressed) XS_Menu.pages[extendedWindow->menuInfoIndex]._default();
 			break;
 		case eSAVE_STATES::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case eSAVE_STATES::PAGE:
-			PageScrolling(curElement, extendedWindow, XS_NUM_PAGES);
+			PageScrolling(curElement, extendedWindow, XS_Menu.pages.size() - 1);
 			break;
 		}
 
@@ -5313,9 +5540,9 @@ void ExtendedMenuInputChecking() {
 	case eXS_PAGES::FRAME_DATA:
 	{
 		switch ((eFRAME_DATA)curMenuInfo->selectedElement) {
-		case eFRAME_DATA::FRAME_DATA:
+		case eFRAME_DATA::CONSOLE_DATA:
 			*(byte*)(adMBAABase + adXS_frameData) = curElement->selectedItem;
-			SetRegistryValue(sFRAME_DATA, curElement->selectedItem);
+			SetRegistryValue(sCONSOLE_DATA, curElement->selectedItem);
 			break;
 		case eFRAME_DATA::IN_GAME_FRAME_DISPLAY:
 			SetRegistryValue(sFRAME_DISPLAY, curElement->selectedItem);
@@ -5328,6 +5555,9 @@ void ExtendedMenuInputChecking() {
 				*(byte*)(adMBAABase + adXS_showInputs) = 0;
 				SetRegistryValue(sDISPLAY_INPUTS, 0);
 			}
+			break;
+		case eFRAME_DATA::SHOW_COUNTERHIT:
+			SetRegistryValue(sDISPLAY_COUNTERHIT, curElement->selectedItem);
 			break;
 		case eFRAME_DATA::SHOW_INPUTS:
 			*(byte*)(adMBAABase + adXS_showInputs) = curElement->selectedItem;
@@ -5346,29 +5576,29 @@ void ExtendedMenuInputChecking() {
 		{
 			int scrollMax;
 			scrollMax = nBarCounter > DISPLAY_RANGE ? min(nBarCounter - DISPLAY_RANGE, BAR_MEMORY_SIZE - DISPLAY_RANGE) : 1;
-			NormalScrolling(curElement, nTRUE_SCROLL_DISPLAY, -scrollMax, 0);
-			*(short*)(adMBAABase + adXS_frameScroll) = -nTRUE_SCROLL_DISPLAY;
+			NormalScrolling(curElement, XS_scrollDisplay, -scrollMax, 0);
+			*(short*)(adMBAABase + adXS_frameScroll) = -XS_scrollDisplay;
 			bShowFrameBarPreview = true;
 			break;
 		}
 		case eFRAME_DATA::COLOR_GUIDE:
-			if (bAPos) {
-				bCOLOR_GUIDE = !bCOLOR_GUIDE;
-				*(bool*)(adMBAABase + adXS_colorGuide) = bCOLOR_GUIDE;
+			if (aPressed) {
+				XS_colorGuide = !XS_colorGuide;
+				*(bool*)(adMBAABase + adXS_colorGuide) = XS_colorGuide;
 			}
 			break;
 		case eFRAME_DATA::DEFAULT:
-			if (bAPos) DefaultP8(curMenuInfo);
+			if (aPressed) XS_Menu.pages[extendedWindow->menuInfoIndex]._default();
 			break;
 		case eFRAME_DATA::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case eFRAME_DATA::PAGE:
-			PageScrolling(curElement, extendedWindow, XS_NUM_PAGES);
+			PageScrolling(curElement, extendedWindow, XS_Menu.pages.size() - 1);
 			break;
 		}
 
-		snprintf(labelBuf, 31, "%i", nTRUE_SCROLL_DISPLAY);
+		snprintf(labelBuf, 31, "%i", XS_scrollDisplay);
 		(curMenuInfo->elementList).listStart[(int)eFRAME_DATA::SCROLL_DISPLAY]->SetCurItemLabel(labelBuf);
 
 		break;
@@ -5377,57 +5607,55 @@ void ExtendedMenuInputChecking() {
 	{
 		switch ((eRNG)curMenuInfo->selectedElement) {
 		case eRNG::CUSTOM_RNG:
-			nCUSTOM_RNG = curElement->selectedItem;
+			XS_customRNG = curElement->selectedItem;
 			break;
 		case eRNG::SEED:
-			LoopingScrolling(curElement, nTRUE_SEED, 0, 0x0000ffff, 1, 10);
+			LoopingScrolling(curElement, XS_seed, 0, 0x0000ffff, 1, 10);
 			break;
 		case eRNG::DEFAULT:
-			if (bAPos) DefaultP9(curMenuInfo);
+			if (aPressed) XS_Menu.pages[extendedWindow->menuInfoIndex]._default();
 			break;
 		case eRNG::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case eRNG::PAGE:
-			PageScrolling(curElement, extendedWindow, XS_NUM_PAGES);
+			PageScrolling(curElement, extendedWindow, XS_Menu.pages.size() - 1);
 			break;
 		}
 
-		snprintf(labelBuf, 31, "%i", nTRUE_SEED);
+		snprintf(labelBuf, 31, "%i", XS_seed);
 		(curMenuInfo->elementList).listStart[(int)eRNG::SEED]->SetCurItemLabel(labelBuf);
 
-		(curMenuInfo->elementList).listStart[(int)eRNG::RATE]->textOpacity = nCUSTOM_RNG ? 1.0f : 0.5f;
-		(curMenuInfo->elementList).listStart[(int)eRNG::SEED]->textOpacity = nCUSTOM_RNG ? 1.0f : 0.5f;
+		(curMenuInfo->elementList).listStart[(int)eRNG::RATE]->textOpacity = XS_customRNG ? 1.0f : 0.5f;
+		(curMenuInfo->elementList).listStart[(int)eRNG::SEED]->textOpacity = XS_customRNG ? 1.0f : 0.5f;
 
 		break;
 	}
 	case eXS_PAGES::UI:
 	{
 		switch ((eUI)curMenuInfo->selectedElement) {
+		case eUI::SHOW_STATS:
+			SetRegistryValue(sDISPLAY_STATS, curElement->selectedItem);
+			break;
+		case eUI::ACCURATE_COMBO_DAMAGE:
+			SetRegistryValue(sACCURATE_COMBO_DAMAGE, curElement->selectedItem);
+			break;
 		case eUI::P1_INPUT_DISPLAY:
 			SetRegistryValue(sP1_INPUT_DISPLAY, curElement->selectedItem);
 			break;
 		case eUI::P2_INPUT_DISPLAY:
 			SetRegistryValue(sP2_INPUT_DISPLAY, curElement->selectedItem);
 			break;
-		case eUI::FRAME_DISPLAY_Y:
-			NormalScrolling(curElement, nTRUE_FRAME_DISPLAY_Y, 10, 440, bA ? 1 : 10);
-			bShowFrameBarYPreview = true;
-			SetRegistryValue(sFRAME_BAR_Y, nTRUE_FRAME_DISPLAY_Y);
-			break;
 		case eUI::DEFAULT:
-			if (bAPos) DefaultP10(curMenuInfo);
+			if (aPressed) XS_Menu.pages[extendedWindow->menuInfoIndex]._default();
 			break;
 		case eUI::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case eUI::PAGE:
-			PageScrolling(curElement, extendedWindow, XS_NUM_PAGES);
+			PageScrolling(curElement, extendedWindow, XS_Menu.pages.size() - 1);
 			break;
 		}
-
-		snprintf(labelBuf, 31, "%i", nTRUE_FRAME_DISPLAY_Y);
-		(curMenuInfo->elementList).listStart[(int)eUI::FRAME_DISPLAY_Y]->SetCurItemLabel(labelBuf);
 
 		break;
 	}
@@ -5435,57 +5663,62 @@ void ExtendedMenuInputChecking() {
 	{
 		switch ((eSYSTEM)curMenuInfo->selectedElement) {
 		case eSYSTEM::HIDE_HUD: // set these options in-menu for live preview
-			nHIDE_HUD = curElement->selectedItem;
+			SetRegistryValue(sHIDE_HUD, curElement->selectedItem);
+			XS_hideHUD = curElement->selectedItem;
 			break;
 		case eSYSTEM::HIDE_SHADOWS:
-			nHIDE_SHADOWS = curElement->selectedItem;
+			SetRegistryValue(sHIDE_SHADOWS, curElement->selectedItem);
+			XS_hideShadows = curElement->selectedItem;
 			break;
 		case eSYSTEM::HIDE_EXTRAS:
-			nHIDE_EXTRAS = curElement->selectedItem;
+			SetRegistryValue(sHIDE_EXTRAS, curElement->selectedItem);
+			XS_hideExtras = curElement->selectedItem;
 			break;
 		case eSYSTEM::BACKGROUND:
-			nBACKGROUND = curElement->selectedItem;
+			XS_background = curElement->selectedItem;
 			break;
 		case eSYSTEM::DEFAULT:
-			if (bAPos) DefaultP11(curMenuInfo);
+			if (aPressed) XS_Menu.pages[extendedWindow->menuInfoIndex]._default();
 			break;
 		case eSYSTEM::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case eSYSTEM::PAGE:
-			PageScrolling(curElement, extendedWindow, XS_NUM_PAGES);
+			PageScrolling(curElement, extendedWindow, XS_Menu.pages.size() - 1);
 			break;
 		}
 
-		(curMenuInfo->elementList).listStart[(int)eSYSTEM::HIDE_EXTRAS]->textOpacity = nHIDE_HUD ? 0.5f : 1.0f;
+		(curMenuInfo->elementList).listStart[(int)eSYSTEM::HIDE_EXTRAS]->textOpacity = XS_hideHUD ? 0.5f : 1.0f;
 
 
 		break;
 	}
 	}
 
-	extendedWindow->SetLabel(Page_Labels[extendedWindow->menuInfoIndex]);
+	extendedWindow->SetLabel(XS_Menu.pages[extendedWindow->menuInfoIndex].label.c_str());
 
-	bool CurFN1Input = *(bool*)(adMBAABase + adP1FN1Input);
-	if (CurFN1Input && !bOldFN1Input) {
+	static bool oldFN1Input = false;
+	bool curFN1Input = *(bool*)(adMBAABase + adP1FN1Input);
+	if (curFN1Input && !oldFN1Input) {
 		extendedWindow->menuInfoIndex--;
 		if (extendedWindow->menuInfoIndex < 0) {
-			extendedWindow->menuInfoIndex = XS_NUM_PAGES;
+			extendedWindow->menuInfoIndex = XS_Menu.pages.size() - 1;
 		}
 	}
-	bOldFN1Input = CurFN1Input;
+	oldFN1Input = curFN1Input;
 
-	bool CurFN2Input = *(bool*)(adMBAABase + adP1FN2Input);
-	if (CurFN2Input && !bOldFN2Input) {
+	static bool oldFN2Input = false;
+	bool curFN2Input = *(bool*)(adMBAABase + adP1FN2Input);
+	if (curFN2Input && !oldFN2Input) {
 		extendedWindow->menuInfoIndex++;
-		if (extendedWindow->menuInfoIndex > XS_NUM_PAGES) {
+		if (extendedWindow->menuInfoIndex > XS_Menu.pages.size() - 1) {
 			extendedWindow->menuInfoIndex = 0;
 		}
 	}
-	bOldFN2Input = CurFN2Input;
+	oldFN2Input = curFN2Input;
 
-	bAPrev = bA;
-	bDPrev = bD;
+	aPrev = aHeld;
+	dPrev = dHeld;
 }
 
 //init hotkey menu if not already open, close and free if set to close
@@ -5524,50 +5757,51 @@ void HotkeyMenuInputChecking() {
 		mov hotkeyWindow, ecx;
 	}
 	char labelBuf[32];
-	bool bA = *(bool*)(adMBAABase + adP1AInput) && hotkeyWindow->openSubmenuIndex == 2; //A is pressed
-	bool bAPos = bA && !bAPrev; //A Press Positive Edge
+	static bool aPrev = false;
+	bool mouseAPress = lClick && MenuControlsClickIsPress;
+	bool aHeld = (*(bool*)(adMBAABase + adP1AInput) || mouseAPress) && hotkeyWindow->openSubmenuIndex == 2;
+	bool aPressed = aHeld && !aPrev;
 	curMenuInfo = (hotkeyWindow->menuInfoList).listStart[hotkeyWindow->menuInfoIndex];
 	curElement = (curMenuInfo->elementList).listStart[curMenuInfo->selectedElement];
 	switch (hotkeyWindow->menuInfoIndex) {
 	case 0:
 		switch ((eHK_PAGE1)curMenuInfo->selectedElement) {
 		case eHK_PAGE1::FREEZE:
-			CheckNewHotkey(bAPos, oFreezeHotkey, sFREEZE_KEY_REG);
+			CheckNewHotkey(aPressed, oFreezeHotkey, sFREEZE_KEY_REG);
+			break;
+		case eHK_PAGE1::ADVANCE_FRAME:
+			CheckNewHotkey(aPressed, oAdvanceFrameHotkey, sADVANCE_FRAME_KEY_REG);
 			break;
 		case eHK_PAGE1::NEXT_FRAME:
-			CheckNewHotkey(bAPos, oNextFrameHotkey, sNEXT_FRAME_KEY_REG);
+			CheckNewHotkey(aPressed, oNextFrameHotkey, sNEXT_FRAME_KEY_REG);
 			break;
 		case eHK_PAGE1::PREV_FRAME:
-			CheckNewHotkey(bAPos, oPrevFrameHotkey, sPREV_FRAME_KEY_REG);
+			CheckNewHotkey(aPressed, oPrevFrameHotkey, sPREV_FRAME_KEY_REG);
 			break;
 		case eHK_PAGE1::TOGGLE_HITBOXES:
-			CheckNewHotkey(bAPos, oToggleHitboxesHotkey, sTOGGLE_HITBOXES_KEY_REG);
+			CheckNewHotkey(aPressed, oToggleHitboxesHotkey, sTOGGLE_HITBOXES_KEY_REG);
 			break;
 		case eHK_PAGE1::TOGGLE_FRAME_BAR:
-			CheckNewHotkey(bAPos, oToggleFrameBarHotkey, sTOGGLE_FRAME_BAR_KEY_REG);
+			CheckNewHotkey(aPressed, oToggleFrameBarHotkey, sTOGGLE_FRAME_BAR_KEY_REG);
 			break;
 		case eHK_PAGE1::TOGGLE_HIGHLIGHTS:
-			CheckNewHotkey(bAPos, oToggleHighlightsHotkey, sTOGGLE_HIGHLIGHTS_KEY_REG);
+			CheckNewHotkey(aPressed, oToggleHighlightsHotkey, sTOGGLE_HIGHLIGHTS_KEY_REG);
 			break;
 		case eHK_PAGE1::QUEUE_REVERSAL:
-			CheckNewHotkey(bAPos, oQueueReversalHotkey, sQUEUE_REVERSAL_KEY_REG);
-			break;
-		case eHK_PAGE1::INCREMENT_RNG:
-			CheckNewHotkey(bAPos, oIncrementRNGHotkey, sINCREMENT_RNG_KEY_REG);
-			break;
-		case eHK_PAGE1::DECREMENT_RNG:
-			CheckNewHotkey(bAPos, oDecrementRNGHotkey, sDECREMENT_RNG_KEY_REG);
+			CheckNewHotkey(aPressed, oQueueReversalHotkey, sQUEUE_REVERSAL_KEY_REG);
 			break;
 		case eHK_PAGE1::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case eHK_PAGE1::PAGE:
-			PageScrolling(curElement, hotkeyWindow, HK_NUM_PAGES);
+			PageScrolling(curElement, hotkeyWindow, HK_Menu.pages.size() - 1);
 			break;
 		}
 
 		GetKeyStateMenuLabel(labelBuf, oFreezeHotkey);
 		(curMenuInfo->elementList).listStart[(int)eHK_PAGE1::FREEZE]->SetCurItemLabel(labelBuf);
+		GetKeyStateMenuLabel(labelBuf, oAdvanceFrameHotkey);
+		(curMenuInfo->elementList).listStart[(int)eHK_PAGE1::ADVANCE_FRAME]->SetCurItemLabel(labelBuf);
 		GetKeyStateMenuLabel(labelBuf, oNextFrameHotkey);
 		(curMenuInfo->elementList).listStart[(int)eHK_PAGE1::NEXT_FRAME]->SetCurItemLabel(labelBuf);
 		GetKeyStateMenuLabel(labelBuf, oPrevFrameHotkey);
@@ -5580,34 +5814,36 @@ void HotkeyMenuInputChecking() {
 		(curMenuInfo->elementList).listStart[(int)eHK_PAGE1::TOGGLE_HIGHLIGHTS]->SetCurItemLabel(labelBuf);
 		GetKeyStateMenuLabel(labelBuf, oQueueReversalHotkey);
 		(curMenuInfo->elementList).listStart[(int)eHK_PAGE1::QUEUE_REVERSAL]->SetCurItemLabel(labelBuf);
-		GetKeyStateMenuLabel(labelBuf, oIncrementRNGHotkey);
-		(curMenuInfo->elementList).listStart[(int)eHK_PAGE1::INCREMENT_RNG]->SetCurItemLabel(labelBuf);
-		GetKeyStateMenuLabel(labelBuf, oDecrementRNGHotkey);
-		(curMenuInfo->elementList).listStart[(int)eHK_PAGE1::DECREMENT_RNG]->SetCurItemLabel(labelBuf);
 
 		break;
 	case 1:
 		switch ((eHK_PAGE2)curMenuInfo->selectedElement) {
 		case eHK_PAGE2::SAVE_STATE:
-			CheckNewHotkey(bAPos, oSaveStateHotkey, sSAVE_STATE_KEY_REG);
+			CheckNewHotkey(aPressed, oSaveStateHotkey, sSAVE_STATE_KEY_REG);
 			break;
 		case eHK_PAGE2::PREV_SAVE_SLOT:
-			CheckNewHotkey(bAPos, oPrevSaveSlotHotkey, sPREV_SAVE_SLOT_KEY_REG);
+			CheckNewHotkey(aPressed, oPrevSaveSlotHotkey, sPREV_SAVE_SLOT_KEY_REG);
 			break;
 		case eHK_PAGE2::NEXT_SAVE_SLOT:
-			CheckNewHotkey(bAPos, oNextSaveSlotHotkey, sNEXT_SAVE_SLOT_KEY_REG);
+			CheckNewHotkey(aPressed, oNextSaveSlotHotkey, sNEXT_SAVE_SLOT_KEY_REG);
 			break;
 		case eHK_PAGE2::FRAME_BAR_LEFT:
-			CheckNewHotkey(bAPos, oFrameBarLeftHotkey, sFRAME_BAR_LEFT_KEY_REG);
+			CheckNewHotkey(aPressed, oFrameBarLeftHotkey, sFRAME_BAR_LEFT_KEY_REG);
 			break;
 		case eHK_PAGE2::FRAME_BAR_RIGHT:
-			CheckNewHotkey(bAPos, oFrameBarRightHotkey, sFRAME_BAR_RIGHT_KEY_REG);
+			CheckNewHotkey(aPressed, oFrameBarRightHotkey, sFRAME_BAR_RIGHT_KEY_REG);
+			break;
+		case eHK_PAGE2::INCREMENT_RNG:
+			CheckNewHotkey(aPressed, oIncrementRNGHotkey, sINCREMENT_RNG_KEY_REG);
+			break;
+		case eHK_PAGE2::DECREMENT_RNG:
+			CheckNewHotkey(aPressed, oDecrementRNGHotkey, sDECREMENT_RNG_KEY_REG);
 			break;
 		case eHK_PAGE2::RETURN:
-			if (bAPos) curMenuInfo->close = 1;
+			if (aPressed) curMenuInfo->close = 1;
 			break;
 		case eHK_PAGE2::PAGE:
-			PageScrolling(curElement, hotkeyWindow, HK_NUM_PAGES);
+			PageScrolling(curElement, hotkeyWindow, HK_Menu.pages.size() - 1);
 			break;
 		}
 
@@ -5621,29 +5857,37 @@ void HotkeyMenuInputChecking() {
 		(curMenuInfo->elementList).listStart[(int)eHK_PAGE2::FRAME_BAR_LEFT]->SetCurItemLabel(labelBuf);
 		GetKeyStateMenuLabel(labelBuf, oFrameBarRightHotkey);
 		(curMenuInfo->elementList).listStart[(int)eHK_PAGE2::FRAME_BAR_RIGHT]->SetCurItemLabel(labelBuf);
+		GetKeyStateMenuLabel(labelBuf, oIncrementRNGHotkey);
+		(curMenuInfo->elementList).listStart[(int)eHK_PAGE2::INCREMENT_RNG]->SetCurItemLabel(labelBuf);
+		GetKeyStateMenuLabel(labelBuf, oDecrementRNGHotkey);
+		(curMenuInfo->elementList).listStart[(int)eHK_PAGE2::DECREMENT_RNG]->SetCurItemLabel(labelBuf);
 
 		break;
 	}
 
-	bool CurFN1Input = *(bool*)(adMBAABase + adP1FN1Input);
-	if (CurFN1Input && !bOldFN1Input) {
+	static bool oldFN1Input = false;
+	bool curFN1Input = *(bool*)(adMBAABase + adP1FN1Input);
+	if (curFN1Input && !oldFN1Input) {
 		hotkeyWindow->menuInfoIndex--;
 		if (hotkeyWindow->menuInfoIndex < 0) {
-			hotkeyWindow->menuInfoIndex = HK_NUM_PAGES;
+			hotkeyWindow->menuInfoIndex = HK_Menu.pages.size() - 1;
 		}
 	}
-	bOldFN1Input = CurFN1Input;
+	oldFN1Input = curFN1Input;
 
-	bool CurFN2Input = *(bool*)(adMBAABase + adP1FN2Input);
-	if (CurFN2Input && !bOldFN2Input) {
+	static bool oldFN2Input = false;
+	bool curFN2Input = *(bool*)(adMBAABase + adP1FN2Input);
+	if (curFN2Input && !oldFN2Input) {
 		hotkeyWindow->menuInfoIndex++;
-		if (hotkeyWindow->menuInfoIndex > HK_NUM_PAGES) {
+		if (hotkeyWindow->menuInfoIndex > HK_Menu.pages.size() - 1) {
 			hotkeyWindow->menuInfoIndex = 0;
 		}
 	}
-	bOldFN2Input = CurFN2Input;
+	oldFN2Input = curFN2Input;
 
 	if (nHOTKEY_CD_TIMER > 0) nHOTKEY_CD_TIMER--;
+
+	aPrev = aHeld;
 }
 
 DWORD ExtendedSettingsMenuItem_PatchAddr = 0x0047d493;
@@ -5740,57 +5984,29 @@ __declspec(naked) void _naked_TrainingMenuSwitch() {
 		call[MBAA_FUN_004d8810];
 		jmp _BREAKSWITCH;
 
-		_DOEXTENDEDSETTINGS:
-			mov mainWindow, ebp;
-			push esp //PUSH_ALL
-			push ebp
-			push edi
-			push esi
-			push edx
-			push ecx
-			push ebx
-			push eax
-			push ebp
-			mov  ebp, esp
-			call HandleExtendedMenu;
-			pop ebp //POP_ALL
-			pop eax
-			pop ebx
-			pop ecx
-			pop edx
-			pop esi
-			pop edi
-			pop ebp
-			pop esp
-			jmp _BREAKSWITCH;
+	_DOEXTENDEDSETTINGS:
+		mov mainWindow, ebp;
+	}
 
-		_DOHOTKEYSETTINGS:
-			mov mainWindow, ebp;
-			push esp //PUSH_ALL
-			push ebp
-			push edi
-			push esi
-			push edx
-			push ecx
-			push ebx
-			push eax
-			push ebp
-			mov  ebp, esp
-			call HandleHotkeyMenu;
-			pop ebp //POP_ALL
-			pop eax
-			pop ebx
-			pop ecx
-			pop edx
-			pop esi
-			pop edi
-			pop ebp
-			pop esp
-			jmp _BREAKSWITCH;
+	PUSH_ALL;
+	HandleExtendedMenu();
+	POP_ALL;
 
-		_BREAKSWITCH:
-			push 0x0047ee5b;
-			ret;
+	__asm {
+		jmp _BREAKSWITCH;
+
+	_DOHOTKEYSETTINGS:
+		mov mainWindow, ebp;
+	}
+
+	PUSH_ALL;
+	HandleHotkeyMenu();
+	POP_ALL;
+
+	__asm {
+	_BREAKSWITCH:
+		push 0x0047ee5b;
+		ret;
 	}
 }
 
@@ -5866,9 +6082,48 @@ __declspec(naked) void _naked_CheckOpenNewSettings() {
 	}
 }
 
-DWORD UpdateMenus_PatchAddr = 0x0047e1da;
+DWORD UpdateMenus_PatchAddr = 0x0047e1b6;
 //add menus to update if-chain
 __declspec(naked) void _naked_UpdateMenus() {
+	__asm {
+		cmp enableMouseControls, 0;
+		je _EXIT;
+		cmp showDebugMenu, 0;
+		jne _EXIT;
+		cmp MenuControlsScrollUp, 0;
+		jne _SETUP;
+		cmp MenuControlsScrollDown, 0;
+		jne _SETDOWN;
+		cmp MenuControlsClickIsPress, 0;
+		je _CHECKDIRECTION;
+		cmp lClick, 0;
+		je _EXIT;
+		cmp MenuControlsMouseInBounds, 0;
+		je _EXIT;
+	_SETPRESS:
+		mov dword ptr[esp + 0x64], 1;
+		jmp _EXIT;
+	_CHECKDIRECTION:
+		cmp lClick, 0;
+		jne _SETLEFT;
+		cmp rClick, 0;
+		jne _SETRIGHT;
+		jmp _EXIT;
+	_SETRIGHT:
+		mov dword ptr[esp + 0x60], 6;
+		jmp _EXIT;
+	_SETLEFT:
+		mov dword ptr[esp + 0x60], 4;
+		jmp _EXIT;
+	_SETUP:
+		mov dword ptr[esp + 0x60], 8;
+		jmp _EXIT;
+	_SETDOWN:
+		mov dword ptr[esp + 0x60], 2;
+	_EXIT:
+
+	}
+
 	__asm {
 		cmp dword ptr[edi + 0xe0], ebx;
 		jz _CHECK_HOTKEY;
@@ -5880,74 +6135,48 @@ __declspec(naked) void _naked_UpdateMenus() {
 		mov eax, dword ptr[esp + 0x64];
 		push eax;
 		call edx; //u_InitSubmenus
-		push esp //PUSH_ALL
-		push ebp
-		push edi
-		push esi
-		push edx
-		push ecx
-		push ebx
-		push eax
-		push ebp
-		mov  ebp, esp
-		call ExtendedMenuInputChecking;
-		pop ebp //POP_ALL
-		pop eax
-		pop ebx
-		pop ecx
-		pop edx
-		pop esi
-		pop edi
-		pop ebp
-		pop esp
+	}
+
+	PUSH_ALL;
+	ExtendedMenuInputChecking();
+	POP_ALL;
+
+	__asm {
 		jmp _EXIT_CHAIN;
 
-		_EXIT_CHAIN:
-			push 0x0047e27a;
-			ret;
+	_CHECK_HOTKEY:
+		cmp dword ptr[edi + 0xe4], ebx;
+		jz _CHECK_YESNO;
+		mov eax, dword ptr[esp + 0x64];
+		mov ecx, dword ptr[edi + 0xe4];
+		mov edx, dword ptr[ecx];
+		mov edx, dword ptr[edx + 0x8];
+		push eax;
+		mov eax, dword ptr[esp + 0x64];
+		push eax;
+		call edx; //u_InitSubmenus
+	}
 
-		_CHECK_HOTKEY:
-			cmp dword ptr[edi + 0xe4], ebx;
-			jz _CHECK_BATTLE;
-			mov eax, dword ptr[esp + 0x64];
-			mov ecx, dword ptr[edi + 0xe4];
-			mov edx, dword ptr[ecx];
-			mov edx, dword ptr[edx + 0x8];
-			push eax;
-			mov eax, dword ptr[esp + 0x64];
-			push eax;
-			call edx; //u_InitSubmenus
-			push esp //PUSH_ALL
-			push ebp
-			push edi
-			push esi
-			push edx
-			push ecx
-			push ebx
-			push eax
-			push ebp
-			mov  ebp, esp
-			call HotkeyMenuInputChecking;
-			pop ebp //POP_ALL
-			pop eax
-			pop ebx
-			pop ecx
-			pop edx
-			pop esi
-			pop edi
-			pop ebp
-			pop esp
-			jmp _EXIT_CHAIN;
+	PUSH_ALL;
+	HotkeyMenuInputChecking();
+	POP_ALL;
 
-		_CHECK_ENEMY:
-			push 0x0047e1fb;
-			ret;
+	__asm {
+		jmp _EXIT_CHAIN;
 
-		_CHECK_BATTLE:
-			cmp dword ptr[edi + 0xc8], ebx;
-			jz _CHECK_ENEMY;
-			push 0x0047e1e2;
-			ret;
+	_CHECK_YESNO:
+		cmp dword ptr[edi + 0xc4], ebx;
+		jz _CHECK_BATTLE;
+		push 0x0047e1be;
+		ret;
+
+	_CHECK_BATTLE:
+		push 0x0047e1da;
+		ret;
+
+	_EXIT_CHAIN:
+		push 0x0047e27a;
+		ret;
 	}
 }
 
@@ -6015,16 +6244,20 @@ void Handle_REV(char* buffer) {
 		nP2CharacterID = 10 * nP2CharacterNumber + nP2Moon;
 		vPatternNames = GetPatternList(nP2CharacterID);
 	}
-	if (strcmp(vPatternNames[nREV_ID_1 % 0x00010000].c_str(), "OFF") == 0) {
+	if (strcmp(vPatternNames[XS_reversalSlot1 % 0x00010000].c_str(), "OFF") == 0) {
 		snprintf(buffer, 128, "%sNo reversal.", SUB_INFO_PREFIX);
 		return;
 	}
-	snprintf(buffer, 128, "%sReversal with %s%s (Press D).", SUB_INFO_PREFIX, REV_SHIELD_PREFIX[nREV_ID_1 >> 16], vPatternNames[nREV_ID_1 % 0x00010000].c_str());
+	else if (strcmp(vPatternNames[XS_reversalSlot1 % 0x00010000].c_str(), "CUSTOM") == 0) {
+		snprintf(buffer, 128, "%sReversal using TAS_REV.txt (must be in MBAA.exe directory).", SUB_INFO_PREFIX);
+		return;
+	}
+	snprintf(buffer, 128, "%sReversal with %s%s (Press D).", SUB_INFO_PREFIX, REV_SHIELD_PREFIX[XS_reversalSlot1 >> 16], vPatternNames[XS_reversalSlot1 % 0x00010000].c_str());
 }
 
 void Handle_METER1(char* buffer) {
 	char meterStr[32];
-	switch (nTRUE_P1_METER) {
+	switch (XS_p1Meter) {
 	case 30000:
 		snprintf(meterStr, 32, "MAX");
 		break;
@@ -6040,14 +6273,14 @@ void Handle_METER1(char* buffer) {
 			break;
 		}
 	default:
-		snprintf(meterStr, 32, "%i.%02i%%", nTRUE_P1_METER / 100, nTRUE_P1_METER % 100);
+		snprintf(meterStr, 32, "%i.%02i%%", XS_p1Meter / 100, XS_p1Meter % 100);
 	}
 	snprintf(buffer, 128, "%sReset meter to %s (Hold A).", SUB_INFO_PREFIX, meterStr);
 }
 
 void Handle_METER2(char* buffer) {
 	char meterStr[32];
-	switch (nTRUE_P2_METER) {
+	switch (XS_p2Meter) {
 	case 30000:
 		snprintf(meterStr, 32, "MAX");
 		break;
@@ -6063,57 +6296,53 @@ void Handle_METER2(char* buffer) {
 			break;
 		}
 	default:
-		snprintf(meterStr, 32, "%i.%02i%%", nTRUE_P2_METER / 100, nTRUE_P2_METER % 100);
+		snprintf(meterStr, 32, "%i.%02i%%", XS_p2Meter / 100, XS_p2Meter % 100);
 	}
 	snprintf(buffer, 128, "%sReset meter to %s (Hold A).", SUB_INFO_PREFIX, meterStr);
 }
 
 void Handle_HEALTH1(char* buffer) {
-	snprintf(buffer, 128, "%sReset health to %i (%.1f%%) (Hold A).", SUB_INFO_PREFIX, nTRUE_P1_HEALTH, nTRUE_P1_HEALTH / 114.0f);
+	snprintf(buffer, 128, "%sReset health to %i (%.1f%%) (Hold A).", SUB_INFO_PREFIX, XS_p1Health, XS_p1Health / 114.0f);
 }
 
 void Handle_HEALTH2(char* buffer) {
-	snprintf(buffer, 128, "%sReset health to %i (%.1f%%) (Hold A).", SUB_INFO_PREFIX, nTRUE_P2_HEALTH, nTRUE_P2_HEALTH / 114.0f);
+	snprintf(buffer, 128, "%sReset health to %i (%.1f%%) (Hold A).", SUB_INFO_PREFIX, XS_p2Health, XS_p2Health / 114.0f);
 }
 
 void Handle_BURST(char* buffer) {
-	snprintf(buffer, 128, "%sBurst after %i hit(s).", SUB_INFO_PREFIX, nTRUE_HITS_UNTIL_BURST);
+	snprintf(buffer, 128, "%sBurst after %i hit(s).", SUB_INFO_PREFIX, XS_hitsUntilBurst);
 }
 
 void Handle_BUNKER(char* buffer) {
-	snprintf(buffer, 128, "%sBunker after %i hit(s).", SUB_INFO_PREFIX, nTRUE_HITS_UNTIL_BUNKER);
+	snprintf(buffer, 128, "%sBunker after %i hit(s).", SUB_INFO_PREFIX, XS_hitsUntilBunker);
 }
 
 void Handle_FORCEGUARD(char* buffer) {
-	snprintf(buffer, 128, "%sForce guard after %i hit(s).", SUB_INFO_PREFIX, nTRUE_HITS_UNTIL_FORCE_GUARD);
+	snprintf(buffer, 128, "%sForce guard after %i hit(s).", SUB_INFO_PREFIX, XS_hitsUntilForceGuard);
 }
 
 void Handle_POS1(char* buffer) {
-	snprintf(buffer, 128, "%sReset position to %i pixels %i sub pixels (Hold A).", SUB_INFO_PREFIX, nTRUE_P1_X_LOC >> 7, (nTRUE_P1_X_LOC + 0x10000) % 0x80);
+	snprintf(buffer, 128, "%sReset position to %i pixels %i sub pixels (Hold A).", SUB_INFO_PREFIX, XS_p1Position >> 7, (XS_p1Position + 0x10000) % 0x80);
 }
 
 void Handle_POS1A(char* buffer) {
-	snprintf(buffer, 128, "%sReset position to %i pixels %i sub pixels (Hold A).", SUB_INFO_PREFIX, nTRUE_P1_ASSIST_X_LOC >> 7, (nTRUE_P1_ASSIST_X_LOC + 0x10000) % 0x80);
+	snprintf(buffer, 128, "%sReset position to %i pixels %i sub pixels (Hold A).", SUB_INFO_PREFIX, XS_p1AssistPosition >> 7, (XS_p1AssistPosition + 0x10000) % 0x80);
 }
 
 void Handle_POS2(char* buffer) {
-	snprintf(buffer, 128, "%sReset position to %i pixels %i sub pixels (Hold A).", SUB_INFO_PREFIX, nTRUE_P2_X_LOC >> 7, (nTRUE_P2_X_LOC + 0x10000) % 0x80);
+	snprintf(buffer, 128, "%sReset position to %i pixels %i sub pixels (Hold A).", SUB_INFO_PREFIX, XS_p2Position >> 7, (XS_p2Position + 0x10000) % 0x80);
 }
 
 void Handle_POS2A(char* buffer) {
-	snprintf(buffer, 128, "%sReset position to %i pixels %i sub pixels (Hold A).", SUB_INFO_PREFIX, nTRUE_P2_ASSIST_X_LOC >> 7, (nTRUE_P2_ASSIST_X_LOC + 0x10000) % 0x80);
+	snprintf(buffer, 128, "%sReset position to %i pixels %i sub pixels (Hold A).", SUB_INFO_PREFIX, XS_p2AssistPosition >> 7, (XS_p2AssistPosition + 0x10000) % 0x80);
 }
 
 void Handle_SCROLL(char* buffer) {
-	snprintf(buffer, 128, "%sScroll display by %i frames.", SUB_INFO_PREFIX, nTRUE_SCROLL_DISPLAY);
+	snprintf(buffer, 128, "%sScroll display by %i frames.", SUB_INFO_PREFIX, XS_scrollDisplay);
 }
 
 void Handle_RNG(char* buffer) {
-	snprintf(buffer, 128, "%sUse a seed / value of %i", SUB_INFO_PREFIX, nTRUE_SEED);
-}
-
-void Handle_BARY(char* buffer) {
-	snprintf(buffer, 128, "%sDisplay the bar at y = %i.", SUB_INFO_PREFIX, nTRUE_FRAME_DISPLAY_Y);
+	snprintf(buffer, 128, "%sUse a seed / value of %i", SUB_INFO_PREFIX, XS_seed);
 }
 
 void HandleInformationMenu() {
@@ -6193,9 +6422,6 @@ void HandleInformationMenu() {
 			else if (strcmp(subInfo, "_RNG") == 0) {
 				Handle_RNG(buffer);
 			}
-			else if (strcmp(subInfo, "_BARY") == 0) {
-				Handle_BARY(buffer);
-			}
 		}
 		else {
 			snprintf(buffer, 128, "%s%s", SUB_INFO_PREFIX, SUB_INFORMATION_MAP.at(checkStr));
@@ -6208,7 +6434,7 @@ DWORD HandleInformationWindow_PatchAddr = 0x004da725;
 __declspec(naked) void _naked_HandleInformationMenu() {
 
 	PUSH_ALL;
-	asmCall(HandleInformationMenu)
+	HandleInformationMenu();
 	POP_ALL;
 
 	__asm {
@@ -6259,22 +6485,299 @@ __declspec(naked) void _naked_InformationWindowSetTargetWindow() {
 
 //CSS funcs
 
+int CSSGetRandomChar() {
+	const DWORD MBAA_CSSGetRandomChar = 0x0048c4f0;
+	__asm {
+		call[MBAA_CSSGetRandomChar];
+	}
+}
+
+int CSSCheckMoonAvailable(int port, int moonID) {
+	const DWORD MBAA_CheckMoon = 0x0048c310;
+	__asm {
+		push port;
+		mov ebx, moonID;
+		call[MBAA_CheckMoon];
+		add esp, 0x4;
+	}
+}
+
+void CSSDoPalette(int port, byte directionalInput, int buttonInput) {
+	const DWORD MBAA_DoPalette = 0x0048ab00;
+	__asm {
+		mov esi, port;
+		push buttonInput;
+		push directionalInput;
+		call[MBAA_DoPalette];
+	}
+}
+
+int ChangeStage(int movement, int stageID) {
+	const DWORD MBAA_ChangeStage = 0x00488760;
+	__asm {
+		mov eax, movement;
+		mov ecx, stageID;
+		call[MBAA_ChangeStage];
+	}
+}
+
+int ResetCSSState() {
+	const DWORD MBAA_ResetCSSState = 0x0048c880;
+	__asm {
+		push 0x1;
+		call[MBAA_ResetCSSState];
+		add esp, 0x4;
+	}
+}
+
+void MouseControlsDoCharSelect() {
+	struct CSSInfo {
+		int base;
+		int state;
+		int port;
+		int x0c;
+		int gridPos;
+		int charID;
+		int moon;
+		int pal;
+		int x20;
+	};
+
+	int portSelecting = 0;
+	CSSInfo* cssInfo = (CSSInfo*)(adMBAABase + 0x0034d8e8);
+	if (cssInfo->state == 5) {
+		cssInfo = (CSSInfo*)(adMBAABase + 0x0034d90c);
+		portSelecting = 1;
+	}
+
+	struct CSSMoonSelect {
+		int queueShowMoonSelection;
+		int showMoonSelection;
+		int selectedMoon;
+		int timer;
+		float rotationDegrees;
+		float rotationProgress;
+		int x18;
+		int x1c;
+		float fadeProgress;
+		int x24;
+		int x28;
+		int x2c;
+		int x30;
+		int x34;
+	};
+
+	CSSMoonSelect* moonSelectArr = *(CSSMoonSelect**)(adMBAABase + 0x003717dc);
+	CSSMoonSelect* moonSelect = &moonSelectArr[portSelecting];
+
+	switch (cssInfo->state) {
+	case 0: //character
+	{
+		struct Portrait {
+			int id;
+			int idCopy;
+			int charID;
+			int x;
+			int y;
+			float turnAnim;
+		};
+		//portrait textures are 48 x 64
+		//portrait visuals are 34 x 42
+		int target = -1;
+		Portrait* portraitPtr = *(Portrait**)(adMBAABase + 0x0037181C);
+		if (portraitPtr == 0x0) return;
+		for (int i = 0; i < 63; i++) {
+			Point center = Point(portraitPtr[i].x + 24, portraitPtr[i].y + 32);
+			if (abs(mousePos.x - center.x) < 17 && abs(mousePos.y - center.y) < 21) {
+				target = i;
+			}
+		}
+
+		if (target != -1 && portraitPtr[target].charID != -1) {
+			if (cssInfo->gridPos != target) MenuSound();
+			cssInfo->gridPos = target;
+			int* charIDMap = (int*)(adMBAABase + 0x00151d28);
+			cssInfo->charID = charIDMap[target];
+			if (lClick) {
+				if (cssInfo->charID == 99) {
+					cssInfo->charID = CSSGetRandomChar();
+				}
+				cssInfo->state = 1;
+				moonSelect->x2c = 0;
+				moonSelect->queueShowMoonSelection = 1;
+				moonSelect->x24 = 0;
+				moonSelect->x28 = 0;
+				SelectSound();
+			}
+		}
+		break;
+	}
+	case 1: //moon
+	{
+		if (rClick) {
+			moonSelect->showMoonSelection = 0;
+			cssInfo->state = 0;
+		}
+		else if (lClick) {
+			bool inXRange = portSelecting == 0 ? (mousePos.x < 275) : (mousePos.x > 365);
+			if (mousePos.y > 225 && inXRange) {
+				if (mousePos.y < 400 && mousePos.y > 300) {
+					cssInfo->state = 2;
+					moonSelect->showMoonSelection = 100;
+					moonSelect->fadeProgress = 1.0f;
+					SelectSound();
+				}
+				else {
+					int movement = mousePos.y > 350 ? 1 : -1;
+					int avail = 0;
+					do {
+						moonSelect->selectedMoon += movement;
+						if (moonSelect->selectedMoon > 4) {
+							moonSelect->selectedMoon = 0;
+						}
+						else if (moonSelect->selectedMoon < 0) {
+							moonSelect->selectedMoon = 4;
+						}
+						int* moonMap2 = (int*)(adMBAABase + 0x0014d3f4);
+						int moonID = moonMap2[moonSelect->selectedMoon];
+						avail = CSSCheckMoonAvailable(portSelecting, moonID);
+					} while (avail == 0);
+					moonSelect->rotationProgress = 1.0f * movement;
+					moonSelect->rotationDegrees = moonSelect->rotationDegrees + 60.0f * movement;
+					int* moonMap = (int*)(adMBAABase + 0x0014d3cc);
+					cssInfo->moon = moonMap[moonSelect->selectedMoon];
+					MenuSound();
+				}
+			}
+		}
+		break;
+	}
+	case 2: //palette
+	{
+		bool inYRange = mousePos.y > 288 && mousePos.y < 400;
+		bool inSelectRange = portSelecting == 0 ? (mousePos.x > 110 && mousePos.x < 220) : (mousePos.x > 420 && mousePos.x < 530);
+		bool inGeneralRange = portSelecting == 0 ? (mousePos.x < 275) : (mousePos.x > 365);
+		int movementCheck = portSelecting == 0 ? 165 : 475;
+		int movement = mousePos.x > movementCheck ? 1 : -1;
+		if (inYRange && inSelectRange) {
+			struct SomeCSSStruct {
+				byte x0[0x34];
+				int paletteSelectedTime;
+				int isRandomPaletteSelected;
+				byte x3c[0x1a0];
+			};
+			SomeCSSStruct* someStruct = *(SomeCSSStruct**)(adMBAABase + 0x0034d808);
+			if (mousePos.y < 384) {
+				int basePal = (cssInfo->pal / 6) * 6;
+				int newPal = basePal + (mousePos.y - 288.0f) / 16;
+				if (cssInfo->pal != newPal) MenuSound();
+				cssInfo->pal = newPal;
+				someStruct[portSelecting].isRandomPaletteSelected = 0;
+			}
+			else {
+				if (someStruct[portSelecting].isRandomPaletteSelected != 1) {
+					someStruct[portSelecting].paletteSelectedTime = 0;
+					MenuSound();
+				}
+				someStruct[portSelecting].isRandomPaletteSelected = 1;
+			}
+		}
+
+		if (rClick) {
+			cssInfo->state = 0;
+		}
+		else if (lClick && inYRange) {
+			if (inSelectRange) {
+				CSSDoPalette(portSelecting, 0, 1);
+				cssInfo->state = 4;
+			}
+			else if (inGeneralRange) {
+				CSSDoPalette(portSelecting, 6 * movement, 0);
+			}
+
+		}
+		break;
+	}
+	}
+}
+
+void MouseControlsDoStageSelect() {
+	struct cssGamestate {
+		byte x00[0x3c];
+		int state;
+	};
+	cssGamestate* gs = (cssGamestate*)(adMBAABase + 0x00373158);
+
+	if (rClick) {
+		ResetCSSState();
+		gs->state = 0;
+	}
+	if (lClick) {
+		if (mousePos.y > 224 && mousePos.y < 248) {
+			gs->state = 4;
+			SelectSound();
+		}
+		else {
+			int movement = mousePos.y > 236 ? 1 : -1;
+			int stageID = *(int*)(adMBAABase + 0x0034fd98);
+			*(int*)(adMBAABase + 0x0036e988) = stageID;
+			int newStageID = ChangeStage(movement, stageID);
+			*(int*)(adMBAABase + 0x0034fd98) = newStageID;
+			*(float*)(adMBAABase + 0x0036e980) = -1.0f * movement;
+			MenuSound();
+		}
+	}
+}
+
+void DoCSSMouseControls() {
+	static Point prevMousePos;
+
+	bool idleMouse = false;
+	if (prevMousePos == mousePos && !lClick && !rClick) {
+		idleMouse = true;
+	}
+	prevMousePos = mousePos;
+	if (idleMouse) return;
+
+
+	struct cssGamestate {
+		byte x00[0x3c];
+		int state;
+	};
+	cssGamestate* gs = (cssGamestate*)(adMBAABase + 0x00373158);
+
+	switch (gs->state) {
+	case 0: //char select
+		MouseControlsDoCharSelect();
+		break;
+	case 1: //stage select
+		MouseControlsDoStageSelect();
+	}
+}
+
 void CSSCallback() {
 	for (int i = 0; i < MAX_SAVES; i++)
-		saveStateManager.FullSaves[i]->IsSaved = false;
+		saveStateManager.FullSaves[i]->unsave();
 
 	vPatternNames = GetEmptyPatternList();
-	nREV_ID_1 = 0;
-	nREV_ID_2 = 0;
-	nREV_ID_3 = 0;
-	nREV_ID_4 = 0;
+	XS_reversalSlot1 = 0;
+	XS_reversalSlot2 = 0;
+	XS_reversalSlot3 = 0;
+	XS_reversalSlot4 = 0;
+
+	initLoadChars = true;
+
+	if (enableMouseControls && !showDebugMenu) {
+		DoCSSMouseControls();
+	}
+		
 }
 
 DWORD CSSCallback_PatchAddr = 0x004271e0;
 __declspec(naked) void _naked_CSSCallback() {
 
 	PUSH_ALL;
-	asmCall(CSSCallback)
+	CSSCallback();
 	POP_ALL;
 
 	__asm {
@@ -6285,26 +6788,22 @@ __declspec(naked) void _naked_CSSCallback() {
 // ---
 
 DWORD _naked_DisableShadows_FuncAddr = 0x0041a390;
-__declspec(naked) void _naked_DisableShadows() {
+__declspec(naked) void _naked_DisableShadows() { 
 
 	// patched at 0x0041b47c and 0041b58a
 	__asm {
-		//TODO
-		/*
-		_SKIP:
-
-			push 0041b481h;
-			ret;
-		}
 
 		//cmp shouldDrawBackground, 0;
 		cmp shouldDrawShadow, 0;
 		JE _SKIP;
 
 		call[_naked_DisableShadows_FuncAddr];
-		*/
-	}
+	
+	_SKIP:
 
+		push 0041b481h;
+		ret;
+	}
 }
 
 __declspec(naked) void _naked_DisableShadows2() {
@@ -6407,7 +6906,7 @@ void meterGainHook() {
 	}
 
 	switch (moon) {
-		// unsure if the rounding here is ok
+		// unsure if the rounding here is ok 
 	default:
 	case 0: // CMOON, do nothing
 		break;
@@ -6450,7 +6949,7 @@ __declspec(naked) void _naked_meterGainHook()
 	};
 
 	PUSH_ALL;
-	asmCall(meterGainHook)
+	meterGainHook();
 	POP_ALL;
 
 	// actual code for the function that was overwritten by our jump
@@ -6462,7 +6961,7 @@ __declspec(naked) void _naked_meterGainHook()
 	__asm _emit 0xEC;
 	__asm _emit 0x08;
 
-	// cmp byte ptr [0x00562a6f], 0x0
+	// cmp byte ptr [0x00562a6f], 0x0 
 	__asm _emit 0x80;
 	__asm _emit 0x3D;
 	__asm _emit 0x6F;
@@ -6530,10 +7029,10 @@ void newAttackDisplay() {
 
 	TextDraw(xVal, 122,      12, 0xFFFFFFFF, "COMBO%9d(%5d)", invalidComboVal, validComboVal);
 	TextDraw(xVal, 122 + 12, 12, 0xFFFFFFFF, "DAMAGE%8d(%5d)", scaledDamageVal, unscaledDamageVal);
-
+			 
 	TextDraw(xVal, 152,      12, 0xFFFFFFFF, "CORRECTION VALUE%4d%%", correctionValue);
 	TextDraw(xVal, 152 + 12, 12, 0xFFFFFFFF, "REVERSE PENALTY%5.1f%%", reversePenalty);
-
+			 
 	TextDraw(xVal, 182,      12, 0xFFFFFFFF, "P1 METER GAIN%4d.%02d%%", nP1MeterGain / 100, nP1MeterGain % 100);
 	TextDraw(xVal, 182 + 12, 12, 0xFFFFFFFF, "P2 METER GAIN%4d.%02d%%", nP2MeterGain / 100, nP2MeterGain % 100);
 
@@ -6541,22 +7040,22 @@ void newAttackDisplay() {
 
 __declspec(naked) void _naked_newAttackDisplay() {
 	// there are some last minute things that need to be done here before we can move on to draw code
-	// for reasons unknown, they are also interlaied with random pushes for the next call. why? idek
+	// for reasons unknown, they are also interlaied with random pushes for the next call. why? idek 
 	// recreating the code without the pushes here
 	// and while i am aware, that i could trust the assembler to do it for me, i dont, so its raw bytes again (maybe);
-
+	
 	__asm {
 		add esp, 014h; // cleanup the prev stack
 		mov newAttackDisplay_local_14c, esi;
 	}
 
 	PUSH_ALL;
-	asmCall(newAttackDisplay)
+	newAttackDisplay();
 	POP_ALL;
 
 	// overwritten code
 	/*
-
+	
 	*/
 
 	__asm {
@@ -6579,7 +7078,6 @@ __declspec(naked) void _naked_dualInputDisplay() {
 }
 
 // input funcs
-bool needTrainingModeReset = false;
 void inputCallback() {
 
 	// does melty update controllers in a thread? and is this inside said thread?
@@ -6587,19 +7085,24 @@ void inputCallback() {
 	profileFunction();
 
 	KeyState::updateControllers(); // this call is taking half a ms, and wtf why am i even caring
-
-	for (int i = 0; i < 4; i++) {
-		TASManagerObj[i].setInputs(i);
+	
+	if (enableRevTAS) {
+		TASManagerObj[pActiveP2->subObj.index].setInputs(pActiveP2->subObj.index);
 	}
-
+	else {
+		for (int i = 0; i < 4; i++) {
+			TASManagerObj[i].setInputs(i);
+		}
+	}
+	
 	replayManager.setInputs();
 
-	if (needTrainingModeReset) {
-		needTrainingModeReset = false;
+}
 
-		PUSH_ALL;
-		//TODO emitCall(0x00478590);
-		POP_ALL;
+void inputCallbackMidGameUpdate() {
+
+	for (int i = 0; i < 4; i++) {
+		//TASManagerObj[i].setInputs(i);
 	}
 
 }
@@ -6609,13 +7112,30 @@ __declspec(naked) void _naked_inputCallback() {
 	// patched at 0x0041f1a6
 
 	PUSH_ALL;
-	asmCall(inputCallback)
+	inputCallback();
 	POP_ALL;
 
 	__asm {
 		add esp, 0090h;
 		ret;
 	}
+
+}
+
+__declspec(naked, noinline) void _naked_inputCallbackMidGameUpdate() {
+	
+	// patched at 0x0042373d
+
+	// overwritten asm 
+	emitCall(0x004745e0); // maybeReadControlsOrSomething?
+
+	PUSH_ALL;
+	inputCallbackMidGameUpdate();
+	POP_ALL;
+
+	emitCall(0x0046db40); // ControlCharacter
+
+	emitJump(0x00423747);
 
 }
 
@@ -6654,19 +7174,19 @@ __declspec(naked) void _naked_CustomHealthRegen() {
 		jl __P3;
 
 	__P4:
-		mov edx, nTRUE_P2_HEALTH;
+		mov edx, XS_p2Health;
 		mov[esi], edx;
 		ret;
 	__P1:
-		mov edx, nTRUE_P1_HEALTH;
+		mov edx, XS_p1Health;
 		mov[esi], edx;
 		ret;
 	__P2:
-		mov edx, nTRUE_P2_HEALTH;
+		mov edx, XS_p2Health;
 		mov[esi], edx;
 		ret;
 	__P3:
-		mov edx, nTRUE_P1_HEALTH;
+		mov edx, XS_p1Health;
 		mov[esi], edx;
 		ret;
 	}
@@ -6677,7 +7197,7 @@ __declspec(naked) void _naked_init2v2Hack() {
 	// patched at 0040e3ab
 
 	PUSH_ALL;
-	asmCall(doWeird2v2Fixes)
+	doWeird2v2Fixes();
 	POP_ALL;
 
 	// overwritten asm from 0040e3ab. i dont trust the compiler
@@ -6700,13 +7220,12 @@ __declspec(naked) void _naked_ForceDummyGuard() {
 		mov eax, ebp;
 		call[MBAA_GetTrainingDummyBlockType];
 	}
-	//TODO
-	/*if (bForceGuard) {
+	if (bForceGuard) {
 		__asm {
-			mov eax, nFORCE_GUARD_STANCE;
+			mov eax, XS_forceGuardStance;
 			add eax, 0x1;
 		}
-	}*/
+	}
 	__asm {
 		push 0x004710ac;
 		ret;
@@ -6717,8 +7236,8 @@ void GetInitialHealthForTrueComboDamage() {
 	if (pAttPlayer->OwnerSubObjPtr != 0) {
 		pAttPlayer = pAttPlayer->OwnerSubObjPtr;
 	}
-	byte curComboData = pdPlayerDataArray[pAttPlayer->ownerIndex]->comboCalcData[0].index;
-	if (pdPlayerDataArray[pAttPlayer->ownerIndex]->comboCalcData[curComboData].numHits == 0) {
+	byte curComboData = playerAuxDataArr[pAttPlayer->ownerIndex].comboCalcData[0].index;
+	if (playerAuxDataArr[pAttPlayer->ownerIndex].comboCalcData[curComboData].numHits == 0) {
 		trueComboData[pAttPlayer->ownerIndex][curComboData].startingHealth = pDefPlayer->health;
 		trueComboData[pAttPlayer->ownerIndex][curComboData].defender = pDefPlayer;
 	}
@@ -6737,7 +7256,7 @@ __declspec(naked) void _naked_GetInitialHealthForTrueComboDamage() {
 	}
 
 	PUSH_ALL;
-	asmCall(GetInitialHealthForTrueComboDamage)
+	GetInitialHealthForTrueComboDamage();
 	POP_ALL;
 
 	__asm {
@@ -6747,26 +7266,29 @@ __declspec(naked) void _naked_GetInitialHealthForTrueComboDamage() {
 	}
 }
 
-void DrawTrueComboDamage() {
+void SetTrueComboDamage() {
 	for (int i = 0; i < 2; i++) {
 		for (int j = 0; j < 8; j++) {
-			PlayerAuxData* playerData = pdPlayerDataArray[i];
+			PlayerAuxData* playerData = &playerAuxDataArr[i];
 			if (playerData->comboCalcData[j].someFlag == -1) {
 				trueComboData[i][j].damage = 0;
 				trueComboData[i][j].defender = nullptr;
 			}
-			else if (playerData->comboCalcData[j].someFlag <= 100 && trueComboData[i][j].defender != nullptr && trueComboData[i][j].defender->notInCombo == false && nACCURATE_COMBO_DAMAGE) {
-				playerData->comboCalcData[j].damage = trueComboData[i][j].startingHealth - trueComboData[i][j].defender->health;
+			else if (playerData->comboCalcData[j].someFlag <= 100 &&
+				trueComboData[i][j].defender != nullptr &&
+				trueComboData[i][j].defender->notInCombo == false) {
+				//playerData->comboCalcData[j].damage = trueComboData[i][j].startingHealth - trueComboData[i][j].defender->health;
+				trueComboData[i][j].damage = trueComboData[i][j].startingHealth - trueComboData[i][j].defender->health;
 			}
 		}
 	}
 }
 
 //DWORD DrawTrueComboDamage_PatchAddr = 0x0047698a;
-DWORD DrawTrueComboDamage_PatchAddr = 0x00476a81;
-__declspec(naked) void _naked_DrawTrueComboDamage() {
+DWORD SetTrueComboDamage_PatchAddr = 0x00476a81;
+__declspec(naked) void _naked_SetTrueComboDamage() {
 	PUSH_ALL;
-	asmCall(DrawTrueComboDamage)
+	SetTrueComboDamage();
 	POP_ALL;
 
 	__asm {
@@ -6779,17 +7301,160 @@ __declspec(naked) void _naked_DrawTrueComboDamage() {
 	}
 }
 
+byte randomTechDelay = 0xff;
+DWORD MBAA_IsInGroundTechWindow = 0x00463760;
+DWORD DummyDelayTech_PatchAddr = 0x00451346;
+__declspec(naked) void _naked_DummyDelayTech() {
+	ActorData* cso;
+	__asm {
+		mov cso, esi;
+	}
+	if (randomTechDelay == 0xff) randomTechDelay = rand() % 3;
+	if ((dummyTechDelay == 3 && cso->untechTimeElapsed - 2 < randomTechDelay) ||
+		(dummyTechDelay < 3 && cso->untechTimeElapsed - 2 < dummyTechDelay))
+	{
+		__asm {
+			push 0x0045137b; //skip ground tech
+			ret;
+		}
+	}
+	randomTechDelay = 0xff;
+	__asm {
+		mov eax, 0x00557d20;
+		mov eax, [eax];
+		cmp eax, 0x4;
+		mov byte ptr[esi + 0x17b], bl;
+		push 0x00451354;
+		ret;
+	}
+}
+
+void DummyTechGuardFix() {
+	if (pDummy->subObj.doTrainingAction != 0 && pDummy->subObj.onHitComboCount != 0) {
+		pDummy->subObj.willBlock = 0;
+	}
+}
+
+void LoadSave() {
+	if (doLoad && XS_saveStateSlot > 0 && saveStateManager.FullSaves[XS_saveStateSlot - 1]->IsSaved)
+	{
+		//save recording status
+		byte p1DoTraining = pP1->subObj.doTrainingAction;
+		byte p2DoTraining = pP2->subObj.doTrainingAction;
+		byte p3DoTraining = pP3->subObj.doTrainingAction;
+		byte p4DoTraining = pP4->subObj.doTrainingAction;
+
+		CommandFileData* cmdPtrs[4] = { pP1->cmdFileDataPtr, pP2->cmdFileDataPtr, pP3->cmdFileDataPtr, pP4->cmdFileDataPtr };
+		saveStateManager.FullSaves[XS_saveStateSlot - 1]->load(XS_loadRNG);
+		PlayerData* curPlayer;
+		for (int i = 0; i < 4; i++) {
+			curPlayer = &playerDataArr[i];
+			if (curPlayer->exists)
+			{
+				UpdateCharPointers(&(curPlayer->subObj));
+				curPlayer->cmdFileDataPtr = cmdPtrs[i];
+				for (int j = 0; j < 8; j++) {
+					if (curPlayer->subObj.attackingSubObjPtrArr[j] != 0) {
+						ActorData* attackingSubObj = curPlayer->subObj.attackingSubObjPtrArr[j];
+						curPlayer->subObj.receivingAttackDataPtrArr[j] = attackingSubObj->attackDataPtr;
+					}
+				}
+			}
+
+		}
+
+		EffectData* curEffect;
+		for (int i = 0; i < 1000; i++) {
+			curEffect = &effectDataArr[i];
+			if (curEffect->exists)
+			{
+				UpdateCharPointers(&(curEffect->subObj));
+			}
+
+		}
+
+		//load recording status
+		pP1->subObj.doTrainingAction = p1DoTraining;
+		pP2->subObj.doTrainingAction = p2DoTraining;
+		pP3->subObj.doTrainingAction = p3DoTraining;
+		pP4->subObj.doTrainingAction = p4DoTraining;
+
+		doLoad = false;
+	}
+}
+
+//called once per game frame after all other gameplay processing
+void EndUpdateBattleScene() {
+	LoadSave();
+	if (*(byte*)(adMBAABase + 0x0015d203) == 0) { //is not paused
+		DummyTechGuardFix();
+	}
+}
+
+DWORD EndUpdateBattleScene_PatchAddr = 0x004540b8;
+__declspec(naked) void _naked_EndUpdateBattleScene() {
+	PUSH_ALL;
+	EndUpdateBattleScene();
+	POP_ALL;
+
+	__asm {
+		mov eax, 0x1;
+		pop esi;
+		ret;
+	}
+}
+
+DWORD didHitboxConnect = 0;
+__declspec(naked) void _naked_HitboxOnConnect() {
+	// patched at 0x0046f8d0
+
+	__asm {
+		mov didHitboxConnect, 1;
+	}
+
+	// overwritten asm 
+	emitByte(0x80);
+	emitByte(0x83);
+	emitByte(0x76);
+	emitByte(0x01);
+	emitByte(0x00);
+	emitByte(0x00);
+	emitByte(0xFF);
+
+	emitJump(0x0046f8d7);
+
+}
+
+DWORD MBAA_GetHoveredReplayPath = 0x0043d340;
+DWORD CustomLoadReplay_PatchAddr = 0x00437d66;
+__declspec(naked) void _naked_CustomLoadReplay() {
+	__asm {
+		cmp customLoadReplay, 1;
+		JE _CUSTOM;
+		call[MBAA_GetHoveredReplayPath];
+		jmp _END;
+
+	_CUSTOM:
+		mov eax, customLoadReplayPathPtr;
+		mov customLoadReplay, 0;
+	
+	_END:
+		push 0x00437d6b;
+		ret;
+	}
+}
+
 // init funcs
 
 void initFrameDoneCallback()
 {
-	// caster hooks the start of this func. ill have to hook the end of it
+	// caster hooks the start of this func. ill have to hook the end of it 
 	void* patchAddr = (void*)0x00432e2b;
 	patchJump(patchAddr, nakedFrameDoneCallback);
 
 }
 
-void initHighlightHook()
+void initHighlightHook() 
 {
 	void* funcAddress = (void*)0x0045f650;
 	// backup
@@ -6798,7 +7463,7 @@ void initHighlightHook()
 	patchFunction(funcAddress, highlightHookFunc);
 	// ret
 	patchByte(((BYTE*)funcAddress) + 5, 0xC3);
-	// backup modded bytes
+	// backup modded bytes 
 	patchMemcpy(arrAnimHookBytesMod, funcAddress, 10);
 }
 
@@ -6807,10 +7472,10 @@ void initCasterMods()
 
 	// if caster ever updates, these offsets will most likely(basically definitely) need to be changed!
 
-	// 0x665f17d5 is total meter gain
+	// 0x665f17d5 is total meter gain 
 	patchByte(dwCasterBaseAddress + 0x665f17d5, '\0');
 
-	// 0x665f17c1 is meter gain
+	// 0x665f17c1 is meter gain 
 	patchByte(dwCasterBaseAddress + 0x665f17c1, '\0');
 
 	// 0x665f17cd is the actual string passed to printf
@@ -6819,7 +7484,7 @@ void initCasterMods()
 	// it would be better to just patch this func out
 
 	/*
-
+	
 	for reasons only known to madsci, caster does some wack things in regards to fps, busy waiting, the whole 9 yards of ugh
 	i do not want to fuck with this shit,, hell if i were to release a caster update this is what i would fix
 	but like,,, omfg
@@ -6830,15 +7495,35 @@ void initCasterMods()
 	// make presentFrameEnd just ret
 	//patchByte(dwCasterBaseAddress + 0x6638c020, 0xC3);
 
+
+	// the following is for ... seeing if i can call caster funcs from here
+
+	HMODULE casterHook = GetModuleHandleA("hook.dll");
+	//log("casterhook was %08X", (DWORD)casterHook);
+	setDesiredFPS = (setDesiredFPSType)GetProcAddress(casterHook, "setDesiredFPS");
+	//log("setDesiredFPS was %08X", (DWORD)setDesiredFPS);
+
+	// ok to be honest, wanting to have draws in both caster and training mode is greed beyond human comprehension
+	// but having 2v2, etm, and shock collar be able to share code (mostly the debug info here) and all use the same draw code instead of overwriting each other 
+	// would be soso nice
+	// but also having everything in one project would be,, difficult
+	// i wanted to make the next shock collar revision in caster, but maybe i should keep it as a mod.
+	// idk
+	// msvc also has some things, mainly the use of __try and nicer asm syntax.. idk
+	// ig for now, ill just keep things as is.
+	// putting shock collar and 2v2 into melty just,, thats for another day
+
+
+
 }
 
 void initAttackMeterDisplay()
 {
 
-	// this func rets early, this jump prevents that
+	// this func rets early, this jump prevents that 
 	void* patchAddr = (void*)0x00478fe2;
 	patchJump(patchAddr, 0x00478ffd);
-
+	
 	void* funcAddr = (void*)0x00479005;
 	patchFunction(funcAddr, attackMeterDisplayCallback);
 	patchByte(((BYTE*)funcAddr) + 5, 0xC3);
@@ -6894,14 +7579,14 @@ void initPauseCallback()
 }
 
 void initNewPauseCallback() {
-
+	
 	patchJump(0x004794c4, _naked_pauseInputDisplay2);
 
 	patchJump(0x004235d1, _naked_newPauseCallback2);
 
 	patchJump(0x0044c48e, _naked_pauseMenuProcessInput2);
 
-	// ppl wanted to open the menu while paused, so not doing this anymore
+	// ppl wanted to open the menu while paused, so not doing this anymore	
 	//patchJump(0x0044c7b0, _naked_trigPauseHook);
 
 	//patchJump(0x00477eb3, _naked_preventPauseReset);
@@ -6934,7 +7619,7 @@ void initNewAttackDisplay() {
 void initDualInputDisplay() {
 
 	patchJump(0x00477f17, _naked_dualInputDisplay);
-	patchMemset(0x00477f20, 0x90, 5);
+	patchMemset(0x00477f20, 0x90, 5); 
 }
 
 void initInputCallback() {
@@ -6942,6 +7627,8 @@ void initInputCallback() {
 	// called after controller is read, but not processed. i think?
 
 	patchJump(0x0041f1a6, _naked_inputCallback);
+
+	patchJump(0x0042373d, _naked_inputCallbackMidGameUpdate);
 
 }
 
@@ -6998,18 +7685,35 @@ void initDisabledExit() {
 }
 
 void initTrueComboDamage() {
-	patchJump(GetInitialHealthForTrueComboDamage_PatchAddr, _naked_GetInitialHealthForTrueComboDamage);
-	patchJump(DrawTrueComboDamage_PatchAddr, _naked_DrawTrueComboDamage);
+	//patchJump(GetInitialHealthForTrueComboDamage_PatchAddr, _naked_GetInitialHealthForTrueComboDamage);
+	patchJump(SetTrueComboDamage_PatchAddr, _naked_SetTrueComboDamage);
+}
+
+void initDummyDelayTech() {
+	patchJump(DummyDelayTech_PatchAddr, _naked_DummyDelayTech);
 }
 
 void init2v2Hack() {
 	patchJump(0x0040e3ab, _naked_init2v2Hack);
 }
 
+void initEndUpdateBattleScene() {
+	patchJump(EndUpdateBattleScene_PatchAddr, _naked_EndUpdateBattleScene);
+}
+
+void initHitboxOnConnect() {
+	patchJump(0x0046f8d0, _naked_HitboxOnConnect);
+}
+
+void initCustomLoadReplay() {
+	patchJump(CustomLoadReplay_PatchAddr, _naked_CustomLoadReplay);
+}
+
+#include "DirectXHook.h"
+
 HRESULT APIENTRY hkPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pScourceRect, const RECT *pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion)
 {
 	if(!bInit) {
-		pD3DDevice = pDevice;
 		bInit = true;
 		initFont();
 	}
@@ -7020,11 +7724,9 @@ HRESULT APIENTRY hkPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pScourceRect, 
 
 // dll thread func
 
-void threadFunc()
+void threadFunc() 
 {
 	srand(time(NULL));
-
-	patchByte(0x00554128, 0x00);
 
 	// make sure that caster has time to hook at the start
 	Sleep(32);
@@ -7034,24 +7736,24 @@ void threadFunc()
 	// todo, put something here to prevent mult injection
 
 	// check if we are running with caster
-	/*HMODULE hModule = GetModuleHandleA("hook.dll");
+	HMODULE hModule = GetModuleHandleA("hook.dll");
 
 	if (hModule != NULL) { // we are running with caster
 		bCasterInit = true;
 		// 0x66380000 is the base address when looking through caster in decomp
 		dwCasterBaseAddress = ((DWORD)hModule) - 0x66380000;
 		initCasterMods();
-	}*/
+	}
 
 	initPauseCallback();
 	initFrameDoneCallback();
 	initHighlightHook();
 	InitializeCharacterMaps();
 	// when running with caster, the prints to this area are disabled
-	// when not running with caster, they arent even there, so this is fine to run regardless of caster
-		//initAttackMeterDisplay();
+	// when not running with caster, they arent even there, so this is fine to run regardless of caster 
+	//initAttackMeterDisplay();
 	initMeterGainHook();
-	initNewAttackDisplay();
+	//initNewAttackDisplay();
 
 	initNewPauseCallback();
 	initDrawBackground();
@@ -7080,41 +7782,53 @@ void threadFunc()
 
 	initTrueComboDamage();
 
-	initHotkeys();
+	initDummyDelayTech();
+
 	initRegistryValues();
-	initSharedValues();
 	init2v2Hack();
 
+	initEndUpdateBattleScene();
 
+	initHitboxOnConnect();
 
+	initCustomLoadReplay();
 
-	D3DPRESENT_PARAMETERS d3dpp;
-	ZeroMemory(&d3dpp, sizeof(d3dpp));
-	d3dpp.Windowed = TRUE;
-	d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
-	d3dpp.hDeviceWindow = getProcessWindow();
+	initPaletteLoadPatches();
 
-	IDirect3DDevice9* dummyPDevice = nullptr;
-	IDirect3D9* dummy_pD3D = Direct3DCreate9(D3D_SDK_VERSION);
-	HRESULT hrCreateDevice = dummy_pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, d3dpp.hDeviceWindow, D3DCREATE_SOFTWARE_VERTEXPROCESSING, &d3dpp, &dummyPDevice);
+	ReadFromRegistry(L"ShowDebugMenu", &showDebugMenu);
 
+	ReadFromRegistry(L"showReplayMenuf", &showReplayMenu);
 
-	//77F329E8
-	//pD3DDevice = *(IDirect3DDevice9**)(0x0076e7d4);
-	memcpy(pTable, *reinterpret_cast<void***>(dummyPDevice), sizeof(pTable));
+	//timeMeltyCall(0x0040d350, "GoesToGameLoop0");
+
+	//timeMeltyCall(0x0040e410, "FUN_0048e0a0");
+	//timeMeltyCall(0x0040e438, "linkedListAppend_MAYBE???");
+	//timeMeltyCall(0x0040e471, "GoesToGameLoop1");
+	//timeMeltyCall(0x0040e483, "FUN_0043b8d0");
+	//timeMeltyCall(0x0040e494, "callsTheFpsAndEverything");
+	//timeMeltyCall(0x0040e499, "callsImportantDraw1");
+	//timeMeltyCall(0x0040e49e, "callsDirectXPresent2");
+	//timeMeltyCall(0x0040e4a3, "somethingTimeRelated");
+	//timeMeltyCall(0x0040e4a8, "FUN_004bf970");
+	//timeMeltyCall(0x0040e4bd, "FUN_004151f0");
+	//timeMeltyCall(0x0040e4fb, "FUN_00406680");
+	//timeMeltyCall(0x0040e500, "FUN_004be8b0");
+	//timeMeltyCall(0x0040e505, "FUN_0040e220");
+	device = *(IDirect3DDevice9**)(0x0076e7d4);
+	memcpy(pTable, *reinterpret_cast<void***>(device), sizeof(pTable));
 	oPresent = (tPresent)trampolineHook((char*)pTable[17], (char*)hkPresent, 7);
-};
+}
 
-BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
+BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) 
 {
 	(void)hinstDLL;
 	(void)lpReserved;
 
 	if (fdwReason == DLL_PROCESS_ATTACH) {
-
-		//MessageBoxA(NULL, "", "Injected", MB_ICONERROR);
 		CreateThread(0, 0, (LPTHREAD_START_ROUTINE)threadFunc, 0, 0, 0);
 	}
 
 	return TRUE;
 }
+
+#pragma pop_macro("optimize")

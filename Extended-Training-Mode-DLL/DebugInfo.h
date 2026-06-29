@@ -2,6 +2,7 @@
 #include <cstddef>
 //#include <windows.h>
 #include "..\Common\Common.h"
+#include <d3d9.h>
 
 #define CONCATENATE_DETAIL(x, y) x##y
 #define CONCATENATE(x, y) CONCATENATE_DETAIL(x, y)
@@ -42,7 +43,7 @@ typedef struct AttackData {
 	WORD hitEffectID;
 	WORD soundEffectID;
 	UNUSED(4);
-	WORD custonHitstop;
+	WORD customHitstop;
 	WORD untechTime;
 	BYTE effect; // 3 is electric right?
 	BYTE hitgrab;
@@ -87,7 +88,7 @@ typedef struct AttackData {
 	WORD damage;
 	WORD meterGain;
 	WORD vsDamage;
-	WORD guardBreak;
+	WORD guardDamage;
 	WORD circuitBreakTime;
 	UNUSED(2);
 } AttackData;
@@ -99,7 +100,7 @@ CHECKOFFSET(standingHitVector, 0x4);
 CHECKOFFSET(crouchingHitVector, 0x8);
 CHECKOFFSET(standingGuardVector, 0x14);
 CHECKOFFSET(hitEffectID, 0x24);
-CHECKOFFSET(custonHitstop, 0x2C);
+CHECKOFFSET(customHitstop, 0x2C);
 CHECKOFFSET(extraGravity, 0x38);
 CHECKOFFSET(damage, 0x44);
 
@@ -128,11 +129,29 @@ typedef struct MovementData {
 #pragma pack(pop)
 
 #pragma pack(push,1)
+typedef struct SineData {
+	union {
+		BYTE sineFlags;
+		struct {
+			BYTE useY : 4;
+			BYTE useX : 4;
+		};
+	};
+	UNUSED(1);
+	short xDistance;
+	short yDistance;
+	short xFrequency;
+	short yFrequency;
+} SineData;
+#pragma pack(pop)
+
+#pragma pack(push,1)
 typedef struct StateData { // i am sure of nothing in this struct.
 	MovementData* movementData;
 	short maxXSpeed;
-	UNUSED(6);
-	BYTE stance;
+	UNUSED(2);
+	SineData* sineData;
+	BYTE stance; // could be used for tas, for either tks or landing to do a move as soon as able
 	BYTE invincibility;
 	BYTE cancelNormal;
 	BYTE cancelSpecial;
@@ -160,7 +179,7 @@ typedef struct StateData { // i am sure of nothing in this struct.
 	union {
 		DWORD flagset2;
 		struct {
-			BYTE canAlwaysExCancel : 1;
+			BYTE canAlwaysExCancel : 1; 
 			BYTE canOnlyJumpCancel : 1;
 			UNUSEDBITS(6);
 			UNUSEDBITS(8);
@@ -183,27 +202,20 @@ static_assert(sizeof(StateData) == 0x1C, "StateData MUST be 0x1C large!");
 #undef CHECKOFFSET
 
 #pragma pack(push,1)
+typedef struct EF { // Effect
+	int EFTP;
+	int EFNO;
+	int EFPR[12];
+} EF;
+#pragma pack(pop)
+
+#pragma pack(push,1)
 typedef struct IF { // Condition
 	int IFTP;
-	int IFPR1;
-	int IFPR2;
-	int IFPR3;
-	int IFPR4;
-	int IFPR5;
-	int IFPR6;
-	int IFPR7;
-	int IFPR8;
-	int IFPR9;
+	int IFPR[9];
 } IF;
 #pragma pack(pop)
 
-#define CHECKOFFSET(v, n) static_assert(offsetof(IF, v) == n, "IF offset incorrect for " #v);
-
-CHECKOFFSET(IFPR1, 0x4);
-
-static_assert(sizeof(IF) == 0x28, "IF MUST be 0x28 large!");
-
-#undef CHECKOFFSET
 
 #pragma pack(push,1)
 typedef struct CameraBoxData {
@@ -268,7 +280,7 @@ typedef struct AnimationData {
 			UNUSEDBITS(4);
 		};
 	};
-	WORD goToFrame; // i cant use goto as a var name, not sure what this is going to tho! ask gonp!
+	short goToData; // i cant use goto as a var name, im pretty confident this is signed, look at warc arc drive (pattern 224 state 21)
 	WORD landingFrame;
 	WORD loopNTimes;
 	WORD endOfLoop;
@@ -294,7 +306,7 @@ typedef struct AnimationData {
 	BYTE highestNonHitboxIndex;
 	BYTE highestHitboxIndex;
 	IF** IFs;
-	DWORD EFs;
+	EF** EFs;
 	NonHitboxData* nonHitboxData;
 	HitboxData* hitboxData;
 } AnimationData;
@@ -417,13 +429,14 @@ typedef struct HA6Data {
 
 
 #pragma pack(push,1)
-typedef struct SomeData { 
+typedef struct CharFileData { 
 	// out of all the structs, i understand this one the least.
 	// the important thing, is that it eventually leads to 0x31C patternDataPtr, and so in most cases, you can and should probs just use that
 	// this however, can be used to see all paterns in a char. seems very nice to have
-	HA6Data* ha6DataPtr;
-	UNUSED(0x8);
-} SomeData;
+	HA6Data* DataFile;
+	void* BmpcutFile;
+	void* PAniFile;
+} CharFileData;
 #pragma pack(pop)
 
 typedef struct EffectData;
@@ -476,7 +489,7 @@ typedef struct ActorData {
 	WORD onBlockComboCount;
 	WORD guardQualityStop;
 	float quardQuality;
-	WORD exMoveMeterPenaltyTimer;
+	WORD exGuardMeterPenaltyTimer;
 	UNUSED(2);
 	DWORD magicCircuit;
 	DWORD heatTimeLeft;
@@ -557,14 +570,14 @@ typedef struct ActorData {
 	WORD armorTimer;
 	WORD reversedControlsTimer;
 	UNUSED(8);
-	BYTE recievedHitstop;
+	BYTE receivedHitstop;
 	BYTE isHitboxConnect;
 	UNUSED(2);
 	DWORD hitstunBlockstunTimeElapsed;
 	int hitstunTimeRemaining; // -2 if airborne
 	BYTE completedHitVectors;
 	BYTE didHitVectorFaceLeft;
-	BYTE recievedHitVector;
+	BYTE receivedHitVector;
 	UNUSED(0x2);
 	BYTE someDeathFlagMaybe;
 	UNUSED(1);
@@ -585,10 +598,11 @@ typedef struct ActorData {
 	WORD reversePenalty;
 	WORD reversePenaltyDecayTimer;
 	WORD onHitComboCount;
-	UNUSED(0xA);
+	WORD unknownHitCounter;
+	UNUSED(0x8);
 	BYTE counterhitState;
 	UNUSED(1);
-	AttackData* recievingAttackDataPtrArr[8];
+	AttackData* receivingAttackDataPtrArr[8];
 	CameraBoxData hitboxOverlapArr[8];
 	ActorData* attackingSubObjPtrArr[8];
 	ActorData* lastHitBySubObjPtr;
@@ -608,9 +622,10 @@ typedef struct ActorData {
 	DWORD buttonInputs; // 0x000AA0CC  -  AA : binary combination of buttons held (0x01 = A, 0x02 = B ... 0x10 = E) ,  CC : binary combination of buttons just pressed
 	DWORD buttonReleased; // binary combination of buttons just released (0x01 = A, 0x02 = B ... 0x10 = E)
 	BYTE ownerIndex;
-	UNUSED(0x1);
+	BYTE queueDespawn;
 	WORD numSpawnedEffects;
-	UNUSED(0x8);
+	int grabLocX;
+	int grabLocY;
 	int spriteRotation;
 	float xScale;
 	float yScale;
@@ -621,17 +636,17 @@ typedef struct ActorData {
 	BYTE facingLeft;
 	BYTE isOpponentToLeft;
 	BYTE needToCrossupInputs;
-	UNUSED(0x1);
-	BYTE delayedStance;
+	BYTE justShielded;
+	BYTE justEnteredNewPattern;
 	BYTE doLanding;
 	BYTE justLanded;
-	UNUSED(0x1);
+	BYTE delayedStance;
 	PatternData* patternDataPtr;
 	AnimationData* animationDataPtr;
 	AttackData* attackDataPtr;
 	EffectData* selfPtr;
 	ActorData* partnerPtr;
-	SomeData* someDataPtr;
+	CharFileData* charFileDataPtr;
 	DWORD framesIntoCurrentPattern;
 	UNUSED(4);
 } ActorData;
@@ -646,7 +661,9 @@ CHECKOFFSET(momentum, 0x134);
 CHECKOFFSET(thrownXOffset, 0x154);
 CHECKOFFSET(airTime, 0x186);
 CHECKOFFSET(extraVariables, 0x1c0);
-CHECKOFFSET(recievingAttackDataPtrArr, 0x1f8);
+CHECKOFFSET(remainingHits, 0x176);
+CHECKOFFSET(unknownHitCounter, 0x1EC);
+CHECKOFFSET(receivingAttackDataPtrArr, 0x1f8);
 CHECKOFFSET(isControllingSubObjPtr, 0x2c0);
 CHECKOFFSET(gravity, 0x2e0);
 CHECKOFFSET(numSpawnedEffects, 0x2f2);
@@ -654,13 +671,13 @@ CHECKOFFSET(needToCrossupInputs, 0x312);
 
 #undef CHECKOFFSET
 
-static_assert(sizeof(ActorData) == 0x338, "EffectData MUST be 0x338 large!");
+static_assert(sizeof(ActorData) == 0x338, "ActorData MUST be 0x338 large!");
 
 #pragma pack(push,1)
 typedef struct EffectData {
 	void describe(char* buffer, int bufLen);
-	inline PatternData* getPatternDataPtr(int p);
-	inline AnimationData* getAnimationDataPtr(int p, int s);
+	PatternData* getPatternDataPtr(int p);
+	AnimationData* getAnimationDataPtr(int p, int s);
 	// -----
 	DWORD exists;
 	ActorData subObj;
@@ -700,9 +717,6 @@ CHECKOFFSET(chainedCmdsCounter, 0x3e0);
 
 static_assert(sizeof(PlayerData) == 0xAFC, "PlayerData MUST be 0xAFC large!");
 
-extern PlayerData* playerDataArr;
-extern EffectData* effectDataArr;
-
 #undef CHECKOFFSET
 
 #pragma pack(push,1)
@@ -725,7 +739,7 @@ typedef struct ComboCalcData {
 	short isInvalid;
 	short field_0xe;
 	short proration;
-	short field_0x12;
+	short otgMeterMult;
 	byte drawComboData;
 	byte field_0x15;
 	short timer1;
@@ -778,10 +792,203 @@ static_assert(sizeof(PlayerAuxData) == 0x20C, "PlayerAuxData must have size 0x5A
 #undef CHECKOFFSET
 
 #pragma pack(push,1)
+typedef struct CSSData {
+	int CharaNo;
+	char Name[48];
+	char File1[32];
+	char File2[32];
+	int CharaNum[2];
+	int GiantFlag;
+	int TagType;
+	UNUSED(0xC);
+} CSSData;
+#pragma pack(pop)
+
+#define CHECKOFFSET(v, n) static_assert(offsetof(CSSData, v) == n, "CSSData offset incorrect for " #v);
+
+CHECKOFFSET(TagType, 0x80);
+
+static_assert(sizeof(CSSData) == 0x90, "CSSData must have size 0x90.");
+#undef CHECKOFFSET
+
+#pragma pack(push,1)
 typedef struct HitEffectData {
 
 } HitEffectData; // remember when i reversed this whole thing and then proceded to accidentally wipe all my work?
 #pragma pack(pop)
+
+
+// below is the render stuff from 2v2, trust none of it
+
+#define packedStruct typedef struct 
+
+#pragma pack(push,1)
+packedStruct RawMeltyVert{
+	float x;
+	float y;
+	float z;
+	float w;
+	DWORD diffuse;
+	DWORD specular;
+	float u;
+	float v;
+} RawMeltyVert;
+static_assert(sizeof(RawMeltyVert) == 0x20, "RawMeltyVert must be size 0x20");
+#pragma pack(pop)
+
+#pragma pack(push,1)
+packedStruct RenderList {
+
+	packedStruct LinkedListRenderList {
+
+		packedStruct LinkedListRenderElement {
+
+			packedStruct LinkedListRenderData {
+			// straight up? not fuckin sure about the size of this
+			// its either going to point to another 
+
+			LinkedListRenderElement * nextElement; // loops back to where this thing would have been if,, yea, yk
+
+			// not sure about this one at all
+			union {
+				DWORD flags; //
+				struct {
+					BYTE flag0; // most likely a D3DRESOURCETYPE. very weird that its only,,, one byte though,,, so it might be something else. check out 004c0243 for an explanation
+					BYTE flag1;
+					BYTE flag2;
+					BYTE flag3;
+				};
+			};
+
+			bool isTexData() {
+				// is flag0 here correct?? in terms of byte order/endianness
+				return flag0 == 0x01;
+			}
+
+			union {
+				RawMeltyVert verts[4];
+				struct {
+					RawMeltyVert v0;
+					RawMeltyVert v1;
+					RawMeltyVert v2;
+					RawMeltyVert v3;
+				};
+			};
+
+			IDirect3DTexture9* tex; // at 0x88
+
+			// why do i feel like these look similar to that weird memory area i used to,,, see if something was heat?
+			// check out 0041650b
+			BYTE unknown1; // 0x8C
+			BYTE unknown2; // 0x8D
+			WORD unknown3; // 0x8E
+			WORD unknown4; // 0x90;
+			WORD unknown5; // 0x92; // might just be padding
+
+		} LinkedListRenderData;
+		static_assert(sizeof(LinkedListRenderData) == 0x94 , "LinkedListRenderData size error"); // created at 00414EEA
+
+		// dawg. i got NO FUCKING CLUE WHATS HAPPENING
+		// basically, if this ptr + 4 is nonzero, then hit it with the switch at 004c03cb
+		// and its an alloc size 94. if not, then just keep chugging down the list!
+
+		// if this is a nextElement, [choice + 4] == 0
+		// if this is an actual fucking thing with draw details, [choice + 4] != 0
+
+		union {
+			LinkedListRenderElement* nextElement;
+			LinkedListRenderData* nextData; // this is for textures. but there is a different kind of struct for each directx type. look at 004c0243 for more info
+		};
+
+		//LinkedListAssetsElementChoice choice; 
+		DWORD stupidFlags; // 00414e48 sets this to 0, 004C0566 skips drawing if its,, not 0?
+		DWORD unknown2; // swaps between 0 and 1, not sure why. this is what doesThingsIfList+8=0 interacts with
+		DWORD possibleCount; // 1600. why? im not sure
+
+		bool isTexChoice() {
+			if (nextData == NULL) {
+				return false;
+			}
+			return nextData->isTexData();
+		}
+
+		} LinkedListRenderElement;
+		static_assert(sizeof(LinkedListRenderElement) == 0x10, "LinkedListRenderElement != 0x10");
+
+		// i could, maybe should, have this whole struct be a union of LinkedListAssets and LinkedListAssetsData
+		// tbh i will
+		// although, is this fucker always accessed as a linked list? or also as an array??
+		// theres no fucking way that its,, i,,,
+		LinkedListRenderElement elements[1600];
+		} LinkedListRenderList;
+		static_assert(sizeof(LinkedListRenderList) == 0x6400, "LinkedListRenderList != 0x6400");
+
+		packedStruct LinkedListAllAssets {
+
+			packedStruct LinkedListAssetsList {
+			   LinkedListRenderList::LinkedListRenderElement * elements[8000];
+			} LinkedListAssetsList;
+			static_assert(sizeof(LinkedListAssetsList) == 0x7D00, "LinkedListAssetsList != 0x7D00"); // alloced at 00401BDF
+
+			DWORD unknown1; // set to one
+			LinkedListAssetsList* assetsList;
+			DWORD numDraws; // set to,, 4? but i believe that, holy fuck. i knew from previous bs this was the number of gameplay drawss on screen. im in css now, but im drawing 4 char sprites!!
+			DWORD unknown3; // 8000
+			DWORD unknown4; // 8000. this is the length
+
+		} LinkedListAllAssets;
+		static_assert(sizeof(LinkedListAllAssets) == 0x14, "LinkedListAllAssets != 0x14"); // created at 0041513E
+
+		/*
+
+			going off of nothing but vibes here, but i think i had the two lists reversed
+			which explains why i could never find the one at 5550b0 in the directx area, but could with 5550a0
+			justifications:
+				A0 is only 1600 long, sprite ids for chars go up to,,, what is it ~1000? 2 chars couldnt fit
+				B0 is 8000. plenty of space
+
+				B0 is offset by addr too, for example, sprite index probs!!!
+
+				this is beautiful.
+				i will now go sleep
+
+			as for how the game draws 2 of the same thing, twice at the same time, check out 0041618
+
+		*/
+
+		LinkedListRenderList* linkedListRenderList; // malloced at 0041507D with size 0x6400
+		DWORD linkedListAssetsCount; // 1600, the malloc was 0x6400, 0x6400 / 0x10 is 1600.
+
+		LinkedListAllAssets* linkedListAllAssets;
+
+		DWORD unknownCount1;
+		DWORD unknownCount1_sub;
+
+		DWORD unknownCount2;
+		DWORD unknownCount2_sub;
+
+} RenderList;
+#pragma pack(push,1)
+
+static_assert(sizeof(RenderList) == 7 * sizeof(DWORD), "RenderList != 0x1C (7 * 0x4)");
+
+static RenderList* renderList = (RenderList*)0x005550A8;
+
+// the following is horrible, but i want access to nested types. 
+
+typedef RenderList::LinkedListRenderList                                                            LinkedListRenderList;
+typedef RenderList::LinkedListRenderList::LinkedListRenderElement                                   LinkedListRenderElement;
+typedef RenderList::LinkedListRenderList::LinkedListRenderElement::LinkedListRenderData             LinkedListRenderData;
+//typedef RenderList::LinkedListRenderList::LinkedListRenderElement::LinkedListAssetsElementChoice    LinkedListAssetsElementChoice;
+
+typedef RenderList::LinkedListAllAssets                                                             LinkedListAllAssets;
+typedef RenderList::LinkedListAllAssets::LinkedListAssetsList									LinkedListAssetsList;
+
+
+
+extern PlayerData* playerDataArr;
+extern PlayerAuxData* playerAuxDataArr;
+extern EffectData* effectDataArr;
 
 extern bool shouldDisplayDebugInfo;
 void displayDebugInfo();
@@ -799,3 +1006,8 @@ extern bool useWind;
 extern int xWindVel;
 extern int changeWindDir;
 void setWind();
+const DWORD MBAA_FullCharacterReload = 0x00448fb0;
+void FullCharacterReload();
+const DWORD MBAA_UpdateCharPointers = 0x0045f650;
+void UpdateCharPointers(ActorData* actorData);
+DWORD getCancelStatus(int playerIndex, const char* move);

@@ -6,13 +6,13 @@
 #include "FancyMenu.h"
 #include "FancyInputDisplay.h"
 #include "TrainingMenu.h"
-#include "DirectXHook.h"
-//#include "version.h"
+//#include "version.h"	
 #include "..\Common\version.h"
 #include "..\Common\Common.h"
 
 #include "dllmain.h"
 #include <fstream>
+#include <filesystem>
 
 void debugLinkedList();
 void displayDebugInfo();
@@ -20,14 +20,20 @@ void debugImportantDraw();
 void _naked_InitDirectXHooks();
 void dualInputDisplay();
 void drawReplayMenu();
+void loadCustomShader();
+
+bool isValidTexture(DWORD addr);
+bool isValidResource(DWORD addr);
+bool isValidSurface(DWORD addr);
 
 //void BorderDraw(float x, float y, float w, float h, DWORD ARGB = 0x8042e5f4);
 void cursorDraw();
 unsigned directxFrameCount = 0;
-float _freqTimerYVal = 0.0f;
+double _freqTimerYVal = 0.0;
 bool logPowerInfo = false;
 bool logVerboseFps = false;
 float hitboxOpacity = 0.20f;
+float hitboxBorderOpacity = 0.90f;
 bool renderingEnable = true;
 
 //IDirectInput8* inputDevice = NULL;
@@ -36,12 +42,12 @@ Point mousePos; // no use getting this multiple times a frame
 
 // my inconsistent use of D3DXVECTOR2 vs point is bad. i should use point
 
-bool Point::inside(const Rect& rect) const {
+bool Point::isInside(const Rect& rect) const {
 	return (x >= rect.x1 && x <= rect.x2 && y >= rect.y1 && y <= rect.y2);
 }
 
-bool Point::outside(const Rect& rect) const {
-	return !inside(rect);
+bool Point::isOutside(const Rect& rect) const {
+	return !isInside(rect);
 }
 
 // -----
@@ -50,8 +56,8 @@ void DragManager::add(DragInfo* info) {
 	if (dragInfoData.contains(info)) {
 		log("DragManager had a duplicate id added. this should never happen");
 		return;
-	}
-
+	} 
+	
 	dragInfoData.insert(info);
 }
 
@@ -216,7 +222,7 @@ IDirect3DPixelShader9* createPixelShader(const char* pixelShaderCode) {
 		return NULL;
 	}
 
-	hr = pD3DDevice->CreatePixelShader((DWORD*)pShaderBuffer->GetBufferPointer(), &res);
+	hr = device->CreatePixelShader((DWORD*)pShaderBuffer->GetBufferPointer(), &res);
 
 	if (FAILED(hr)) {
 		log("createPixelShader died");
@@ -260,7 +266,7 @@ IDirect3DVertexShader9* createVertexShader(const char* shaderCode) {
 		return NULL;
 	}
 
-	hr = pD3DDevice->CreateVertexShader((DWORD*)pShaderBuffer->GetBufferPointer(), &res);
+	hr = device->CreateVertexShader((DWORD*)pShaderBuffer->GetBufferPointer(), &res);
 
 	if (FAILED(hr)) {
 		log("createVertexShader died");
@@ -274,7 +280,7 @@ IDirect3DVertexShader9* createVertexShader(const char* shaderCode) {
 }
 
 IDirect3DPixelShader9* loadPixelShaderFromFile(const std::wstring& filename) {
-
+	
 	std::ifstream file(filename, std::ios::binary | std::ios::ate);
 
 	if (!file.good()) {
@@ -292,7 +298,38 @@ IDirect3DPixelShader9* loadPixelShaderFromFile(const std::wstring& filename) {
 
 	buffer[size] = '\0';
 
+	log("loading custom shader!");
+
 	res = createPixelShader(buffer);
+
+	free(buffer);
+
+	return res;
+}
+
+
+IDirect3DVertexShader9* loadVertexShaderFromFile(const std::wstring& filename) {
+
+	std::ifstream file(filename, std::ios::binary | std::ios::ate);
+
+	if (!file.good()) {
+		log(L"unable to find %s for shader loading", filename.c_str());
+		return NULL;
+	}
+
+	IDirect3DVertexShader9* res = NULL;
+
+	std::streamsize size = file.tellg();
+	file.seekg(0, std::ios::beg);
+
+	char* buffer = (char*)malloc(size + 1);
+	file.read(buffer, size);
+
+	buffer[size] = '\0';
+
+	log("loading custom vertex shader!");
+
+	res = createVertexShader(buffer);
 
 	free(buffer);
 
@@ -301,9 +338,9 @@ IDirect3DPixelShader9* loadPixelShaderFromFile(const std::wstring& filename) {
 
 bool loadResource(int id, BYTE*& buffer, unsigned& bufferSize) {
 
-	HMODULE hModule = GetModuleHandle(TEXT("ETM-x86.dll"));
+	HMODULE hModule = GetModuleHandle(TEXT("Extended-Training-Mode-DLL.dll"));
 
-	HRSRC hResource = FindResourceA(hModule, MAKEINTRESOURCE(id), "PNG");
+	HRSRC hResource = FindResource(hModule, MAKEINTRESOURCE(id), L"PNG");
 	if (!hResource) {
 		log("couldnt find embedded resource?");
 		return false;
@@ -340,7 +377,7 @@ void _initDefaultFont(IDirect3DTexture9*& resTexture) {
 	unsigned pngSize = 0;
 	bool res = loadResource(IDB_PNG2, pngBuffer, pngSize);
 
-	hr = D3DXCreateTextureFromFileInMemory(pD3DDevice, pngBuffer, pngSize, &resTexture);
+	hr = D3DXCreateTextureFromFileInMemory(device, pngBuffer, pngSize, &resTexture);
 	if (FAILED(hr)) {
 		log("font createtexfromfileinmem failed??");
 		resTexture = NULL;
@@ -355,27 +392,27 @@ IDirect3DPixelShader9* getFontOutlinePixelShader() {
 			float4 texSize : register(c219);
 
 			float4 main(float2 texCoordIn : TEXCOORD0) : COLOR {
-
+									
 					float2 texOffset = 4.0 / texSize;
-
+	
 					//texOffset.y /= (4.0 / 3.0);
 
 					float2 texCoord = texCoordIn + (texOffset * 0.5);
 
 					float4 texColor = tex2D(textureSampler, texCoord);
-
+				
 					// this outline needs to be a bit different, since im trying to have it be outside the bounds of the drawn color.
 
 					if(texColor.a > 0.0) {
 						return float4(texColor.rgb, 1.0);
 					}
-
+	
 					float2 offsets[8] = { // order is adjusted to check diags last. performance.
-
+						
 						texCoord + float2(-texOffset.x, 0.0),
 						texCoord + float2(0.0, -texOffset.y),
 						texCoord + float2(0.0, texOffset.y),
-						texCoord + float2(texOffset.x, 0.0),
+						texCoord + float2(texOffset.x, 0.0),						
 
 						texCoord + float2(texOffset.x, -texOffset.y),
 						texCoord + float2(-texOffset.x, -texOffset.y),
@@ -394,7 +431,7 @@ IDirect3DPixelShader9* getFontOutlinePixelShader() {
 						}
 
 					}
-
+			
 					return float4(0.0, 0.0, 0.0, 0.0);
 
 			}
@@ -408,12 +445,12 @@ IDirect3DVertexShader9* getFontOutlineVertexShader() {
 				float4 position : POSITION;
 				float2 texCoord : TEXCOORD0;
 			};
-
+    
 			struct VS_OUTPUT {
 				float4 position : POSITION;
 				float2 texCoord : TEXCOORD0;
 			};
-
+    
 			VS_OUTPUT main(VS_INPUT input) {
 				VS_OUTPUT output;
 				output.position = input.position;
@@ -432,14 +469,14 @@ void _initDefaultFontOutline(IDirect3DTexture9*& fontTex) {
 
 	HRESULT hr;
 
-	hr = pD3DDevice->CreateTexture(fontTexWidth, fontTexHeight, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &texture, NULL);
+	hr = device->CreateTexture(fontTexWidth, fontTexHeight, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &texture, NULL);
 	if (FAILED(hr)) {
 		log("font createtexture failed");
 		return;
 	}
 
 	IDirect3DSurface9* oldRenderTarget = nullptr;
-	hr = pD3DDevice->GetRenderTarget(0, &oldRenderTarget);
+	hr = device->GetRenderTarget(0, &oldRenderTarget);
 	if (FAILED(hr)) {
 		log("font getrendertarget failed");
 		return;
@@ -451,7 +488,7 @@ void _initDefaultFontOutline(IDirect3DTexture9*& fontTex) {
 		return;
 	}
 
-	hr = pD3DDevice->SetRenderTarget(0, surface);
+	hr = device->SetRenderTarget(0, surface);
 	if (FAILED(hr)) {
 		log("font setrendertarget failed");
 		return;
@@ -461,17 +498,17 @@ void _initDefaultFontOutline(IDirect3DTexture9*& fontTex) {
 	IDirect3DVertexShader9* textOutlineVertexShader = getFontOutlineVertexShader();
 
 
-	pD3DDevice->SetPixelShader(textOutlinePixelShader);
-	pD3DDevice->SetVertexShader(textOutlineVertexShader);
+	device->SetPixelShader(textOutlinePixelShader);
+	device->SetVertexShader(textOutlineVertexShader);
 
 	D3DXVECTOR4 textureSize((float)fontTexWidth, (float)fontTexHeight, 0.0, 0.0);
-	pD3DDevice->SetPixelShaderConstantF(219, (float*)&textureSize, 1);
+	device->SetPixelShaderConstantF(219, (float*)&textureSize, 1);
 
-	pD3DDevice->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0);
+	device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0);
 
 
 
-	VertexData<PosTexVert, 3 * 2> tempVertData(D3DFVF_XYZ | D3DFVF_TEX1, &fontTex); // the deconstructor should handle this.
+	VertexData<PosTexVert, 3 * 2> tempVertData(D3DFVF_XYZ | D3DFVF_TEX1, &fontTex); // the deconstructor should handle this.	
 	tempVertData.alloc();
 
 	PosTexVert v1 = { D3DVECTOR(-1.0f, 1.0f, 0.5f), D3DXVECTOR2(0.0f, 0.0f) };
@@ -482,11 +519,11 @@ void _initDefaultFontOutline(IDirect3DTexture9*& fontTex) {
 	tempVertData.add(v1, v2, v3);
 	tempVertData.add(v2, v3, v4);
 
-	pD3DDevice->BeginScene();
+	device->BeginScene();
 
 	tempVertData.draw();
 
-	pD3DDevice->EndScene();
+	device->EndScene();
 
 	//hr = D3DXSaveTextureToFileA("fontTest.png", D3DXIFF_PNG, texture, NULL);
 	hr = D3DXSaveTextureToFileInMemory(&buffer, D3DXIFF_PNG, texture, NULL);
@@ -503,10 +540,10 @@ void _initDefaultFontOutline(IDirect3DTexture9*& fontTex) {
 	memcpy(fontBufferWithOutline, bufferPtr, bufferSize);
 	fontBufferSizeWithOutline = bufferSize;
 
-	pD3DDevice->SetRenderTarget(0, oldRenderTarget);
+	device->SetRenderTarget(0, oldRenderTarget);
 
-	pD3DDevice->SetPixelShader(NULL);
-	pD3DDevice->SetVertexShader(NULL);
+	device->SetPixelShader(NULL);
+	device->SetVertexShader(NULL);
 
 	oldRenderTarget->Release();
 	surface->Release();
@@ -531,64 +568,56 @@ void _initMeltyFont() {
 
 	IDirect3DTexture9* meltyTex = NULL;
 
-	hr = D3DXCreateTextureFromFileInMemory(pD3DDevice, pngBuffer, pngSize, &meltyTex);
+	hr = D3DXCreateTextureFromFileInMemory(device, pngBuffer, pngSize, &meltyTex);
 	if (FAILED(hr)) {
-		MessageBoxA(NULL, "inside initmeltyfont font createtexfromfileinmem failed??", "inside initmeltyfont font createtexfromfileinmem failed??", MB_ICONERROR);
 		log("font createtexfromfileinmem failed??");
 		return;
 	}
 
 	if (!res) {
-		MessageBoxA(NULL, "failed to load melty font resource", "failed to load melty font resource", MB_ICONERROR);
 		log("failed to load melty font resource");
 		return;
 	}
 
-	hr = pD3DDevice->CreateTexture(fontTexWidth, fontTexHeight, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &texture, NULL);
+	hr = device->CreateTexture(fontTexWidth, fontTexHeight, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &texture, NULL);
 	if (FAILED(hr)) {
-		MessageBoxA(NULL, "font createtexture failed", "font createtexture failed", MB_ICONERROR);
 		log("font createtexture failed");
 		return;
 	}
 
 	IDirect3DSurface9* oldRenderTarget = nullptr;
-	hr = pD3DDevice->GetRenderTarget(0, &oldRenderTarget);
+	hr = device->GetRenderTarget(0, &oldRenderTarget);
 	if (FAILED(hr)) {
-		MessageBoxA(NULL, "font getrendertarget failed", "font getrendertarget failed", MB_ICONERROR);
 		log("font getrendertarget failed");
 		return;
 	}
 
 	hr = texture->GetSurfaceLevel(0, &surface);
 	if (FAILED(hr)) {
-		MessageBoxA(NULL, "font getsurfacelevel failed", "font getsurfacelevel failed", MB_ICONERROR);
 		log("font getsurfacelevel failed");
 		return;
 	}
 
-	hr = pD3DDevice->SetRenderTarget(0, surface);
+	hr = device->SetRenderTarget(0, surface);
 	if (FAILED(hr)) {
-		MessageBoxA(NULL, "font setrendertarget failed", "font setrendertarget failed", MB_ICONERROR);
 		log("font setrendertarget failed");
 		return;
 	}
-	//MessageBoxA(NULL, "creating font outline pixel shader", "creating font outline pixel shader", MB_ICONERROR);
+
 	log("creating font outline pixel shader");
 	IDirect3DPixelShader9* textOutlinePixelShader = getFontOutlinePixelShader();
 	log("creating font outline vertex shader");
-	//MessageBoxA(NULL, "creating font outline vertex shader", "creating font outline vertex shader", MB_ICONERROR);
 	IDirect3DVertexShader9* textOutlineVertexShader = getFontOutlineVertexShader();
 
 	//device->SetPixelShader(textOutlinePixelShader);
 	//device->SetVertexShader(textOutlineVertexShader);
 
 	D3DXVECTOR4 textureSize((float)fontTexWidth, (float)fontTexHeight, 0.0, 0.0);
-	pD3DDevice->SetPixelShaderConstantF(219, (float*)&textureSize, 1);
+	device->SetPixelShaderConstantF(219, (float*)&textureSize, 1);
 
-	pD3DDevice->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0);
-	//pD3DDevice->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0xFF, 0, 0, 0xFF), 1.0f, 0);
-
-	VertexData<PosTexVert, 3 * 2> tempVertData(D3DFVF_XYZ | D3DFVF_TEX1, &meltyTex); // the deconstructor should handle this.
+	device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0);
+	
+	VertexData<PosTexVert, 3 * 2> tempVertData(D3DFVF_XYZ | D3DFVF_TEX1, &meltyTex); // the deconstructor should handle this.	
 	tempVertData.alloc();
 
 	PosTexVert v1 = { D3DVECTOR(-1.0f, 1.0f, 0.5f), D3DXVECTOR2(0.0f, 0.0f) };
@@ -599,31 +628,35 @@ void _initMeltyFont() {
 	tempVertData.add(v1, v2, v3);
 	tempVertData.add(v2, v3, v4);
 
-	pD3DDevice->BeginScene();
+	device->BeginScene();
 
 	tempVertData.draw();
 
-	pD3DDevice->EndScene();
+	device->EndScene();
 
 	//hr = D3DXSaveTextureToFileA("meltyFontTest.png", D3DXIFF_PNG, texture, NULL);
 	hr = D3DXSaveTextureToFileInMemory(&buffer, D3DXIFF_PNG, texture, NULL);
+	if (FAILED(hr)) {
+		log("_initMeltyFont D3DXSaveTextureToFileInMemory failed");
+		return;
+	}
 
 	BYTE* bufferPtr = (BYTE*)buffer->GetBufferPointer();
 	size_t bufferSize = buffer->GetBufferSize();
 
 	fontBufferMelty = (BYTE*)malloc(bufferSize);
 	if (fontBufferMelty == NULL) {
-		MessageBoxA(NULL, "font malloc failed what are you doing", "font malloc failed what are you doing", MB_ICONERROR);
+		log("font malloc failed, what are you doing");
 		return;
 	}
 
 	memcpy(fontBufferMelty, bufferPtr, bufferSize);
 	fontBufferMeltySize = bufferSize;
 
-	pD3DDevice->SetRenderTarget(0, oldRenderTarget);
+	device->SetRenderTarget(0, oldRenderTarget);
 
-	pD3DDevice->SetPixelShader(NULL);
-	pD3DDevice->SetVertexShader(NULL);
+	device->SetPixelShader(NULL);
+	device->SetVertexShader(NULL);
 
 	oldRenderTarget->Release();
 	surface->Release();
@@ -635,64 +668,6 @@ void _initMeltyFont() {
 
 	meltyTex->Release();
 
-	// D3DXVECTOR4 textureSize((float)fontTexWidth, (float)fontTexHeight, 0.0, 0.0);
-	// pD3DDevice->SetPixelShaderConstantF(219, (float*)&textureSize, 1);
-	//
-	// pD3DDevice->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0);
-	//
-	// VertexData<PosTexVert, 3 * 2> tempVertData(D3DFVF_XYZ | D3DFVF_TEX1, &meltyTex); // the deconstructor should handle this.
-	// tempVertData.alloc();
-	//
-	// PosTexVert v1 = { D3DVECTOR(-1.0f, 1.0f, 0.5f), D3DXVECTOR2(0.0f, 0.0f) };
-	// PosTexVert v2 = { D3DVECTOR(1.0f, 1.0f, 0.5f), D3DXVECTOR2(1.0f, 0.0f) };
-	// PosTexVert v3 = { D3DVECTOR(-1.0f, -1.0f, 0.5f), D3DXVECTOR2(0.0f, 1.0f) };
-	// PosTexVert v4 = { D3DVECTOR(1.0f, -1.0f, 0.5f), D3DXVECTOR2(1.0f, 1.0f) };
-	//
-	// tempVertData.add(v1, v2, v3);
-	// tempVertData.add(v2, v3, v4);
-	//
-	// pD3DDevice->BeginScene();
-	//
-	// tempVertData.draw();
-	//
-	// pD3DDevice->EndScene();
-	//
-	// //hr = D3DXSaveTextureToFileA("meltyFontTest.png", D3DXIFF_PNG, texture, NULL);
-		// hr = D3DXSaveTextureToFileInMemory(&buffer, D3DXIFF_PNG, texture, NULL);
-		// if (FAILED(hr)) {
-		// 	MessageBoxA(NULL, "_initMeltyFont D3DXSaveTextureToFileInMemory failed", "_initMeltyFont D3DXSaveTextureToFileInMemory failed", MB_ICONERROR);
-		// 	log("_initMeltyFont D3DXSaveTextureToFileInMemory failed");
-		// 	return;
-		// }
-		// //
-		// BYTE* bufferPtr = (BYTE*)buffer->GetBufferPointer();
-		// size_t bufferSize = buffer->GetBufferSize();
-		// //
-		// fontBufferMelty = (BYTE*)malloc(bufferSize);
-		// if (fontBufferMelty == NULL) {
-		// 	MessageBoxA(NULL, "font malloc failed what are you doing", "font malloc failed what are you doing", MB_ICONERROR);
-		// 	log("font malloc failed, what are you doing");
-		// 	return;
-		// }
-		// //
-		// memcpy(fontBufferMelty, bufferPtr, bufferSize);
-		// fontBufferMeltySize = bufferSize;
-	//
-	// pD3DDevice->SetRenderTarget(0, oldRenderTarget);
-	//
-	// device->SetPixelShader(NULL);
-	// device->SetVertexShader(NULL);
-	//
-	// oldRenderTarget->Release();
-	// surface->Release();
-	// buffer->Release();
-	// texture->Release();
-	//
-		// textOutlinePixelShader->Release();
-		// textOutlineVertexShader->Release();
-	//
-	// meltyTex->Release();
-	//MessageBoxA(NULL, "finished __initMeltyFont", "finished __initMeltyFont", MB_ICONERROR);
 }
 
 void _initFontFirstLoad() {
@@ -713,8 +688,8 @@ void _initFontFirstLoad() {
 	hasRan = true;
 
 	DWORD antiAliasBackup;
-	//pD3DDevice->GetRenderState(D3DRS_MULTISAMPLEANTIALIAS, &antiAliasBackup);
-	//pD3DDevice->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, FALSE);
+	device->GetRenderState(D3DRS_MULTISAMPLEANTIALIAS, &antiAliasBackup);
+	device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, FALSE);
 
 	//IDirect3DTexture9* fontTex = NULL;
 	_initDefaultFont(fontTexture);
@@ -726,14 +701,26 @@ void _initFontFirstLoad() {
 	_initMeltyFont();
 
 	//fontTex->Release();
-	//MessageBoxA(NULL, "loaded font buffer", "loaded font buffer", MB_ICONERROR);
+
 	log("loaded font BUFFER!!!");
-	pD3DDevice->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, antiAliasBackup);
+	device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, antiAliasBackup);
 }
 
 void initFont() {
 
 	_initFontFirstLoad();
+
+	/*
+	if (fontBuffer == NULL) {
+		log("initfont font buffer was null, dipping");
+		return;
+	}
+
+	if (fontTexture != NULL) {
+		fontTexture->Release();
+		fontTexture = NULL;
+	}
+	*/
 
 	if (fontTextureWithOutline != NULL) {
 		fontTextureWithOutline->Release();
@@ -749,10 +736,22 @@ void initFont() {
 
 	// this texture is D3DPOOL_MANAGED, and so doesnt need a reset on every reset call! yipee
 	// going to be real tho, what guarentee do i have that it is????
-
-	hr = D3DXCreateTextureFromFileInMemory(pD3DDevice, fontBufferMelty, fontBufferMeltySize, &fontTextureMelty);
+	/*hr = D3DXCreateTextureFromFileInMemory(device, fontBuffer, fontBufferSize, &fontTexture);
 	if (FAILED(hr)) {
-		MessageBoxA(NULL, "melty font createtexfromfileinmem failed??", "melty font createtexfromfileinmem failed??", MB_ICONERROR);
+		log("default font createtexfromfileinmem failed??");
+		return;
+	}*/
+
+	/*
+	hr = D3DXCreateTextureFromFileInMemory(device, fontBufferWithOutline, fontBufferSizeWithOutline, &fontTextureWithOutline); // this texture is D3DPOOL_MANAGED, and so doesnt need a reset on every reset call! yipee
+	if (FAILED(hr)) {
+		log("default outline font createtexfromfileinmem failed??");
+		return;
+	}
+	*/
+
+	hr = D3DXCreateTextureFromFileInMemory(device, fontBufferMelty, fontBufferMeltySize, &fontTextureMelty);
+	if (FAILED(hr)) {
 		log("melty font createtexfromfileinmem failed??");
 		return;
 	}
@@ -825,37 +824,37 @@ void __stdcall backupRenderState() {
 	_hasStateToRestore = true;
 
 	//IDirect3DSurface9* prevRenderTarget = NULL;
-	//pD3DDevice->GetRenderTarget(0, &prevRenderTarget);
+	//device->GetRenderTarget(0, &prevRenderTarget);
 	//log("rendertarget: %08X", prevRenderTarget);
 	//prevRenderTarget->Release();
 
 
 	// store state
-	pD3DDevice->GetPixelShader(&_pixelShaderBackup);
-	pD3DDevice->GetVertexShader(&_vertexShaderBackup);
-	pD3DDevice->GetTexture(0, &_textureBackup);
+	device->GetPixelShader(&_pixelShaderBackup);
+	device->GetVertexShader(&_vertexShaderBackup);
+	device->GetTexture(0, &_textureBackup);
 
-	pD3DDevice->GetRenderState(D3DRS_BLENDOP, &_D3DRS_BLENDOP);
-	pD3DDevice->GetRenderState(D3DRS_ALPHABLENDENABLE, &_D3DRS_ALPHABLENDENABLE);
-	pD3DDevice->GetRenderState(D3DRS_SRCBLEND, &_D3DRS_SRCBLEND);
-	pD3DDevice->GetRenderState(D3DRS_DESTBLEND, &_D3DRS_DESTBLEND);
-	pD3DDevice->GetRenderState(D3DRS_SEPARATEALPHABLENDENABLE, &_D3DRS_SEPARATEALPHABLENDENABLE);
-	pD3DDevice->GetRenderState(D3DRS_SRCBLENDALPHA, &_D3DRS_SRCBLENDALPHA);
-	pD3DDevice->GetRenderState(D3DRS_DESTBLENDALPHA, &_D3DRS_DESTBLENDALPHA);
+	device->GetRenderState(D3DRS_BLENDOP, &_D3DRS_BLENDOP);
+	device->GetRenderState(D3DRS_ALPHABLENDENABLE, &_D3DRS_ALPHABLENDENABLE);
+	device->GetRenderState(D3DRS_SRCBLEND, &_D3DRS_SRCBLEND);
+	device->GetRenderState(D3DRS_DESTBLEND, &_D3DRS_DESTBLEND);
+	device->GetRenderState(D3DRS_SEPARATEALPHABLENDENABLE, &_D3DRS_SEPARATEALPHABLENDENABLE);
+	device->GetRenderState(D3DRS_SRCBLENDALPHA, &_D3DRS_SRCBLENDALPHA);
+	device->GetRenderState(D3DRS_DESTBLENDALPHA, &_D3DRS_DESTBLENDALPHA);
 
-	pD3DDevice->GetRenderState(D3DRS_MULTISAMPLEANTIALIAS, &_D3DRS_MULTISAMPLEANTIALIAS);
-	pD3DDevice->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, FALSE);
+	device->GetRenderState(D3DRS_MULTISAMPLEANTIALIAS, &_D3DRS_MULTISAMPLEANTIALIAS);
+	device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, FALSE);
 
-	pD3DDevice->GetRenderState(D3DRS_ALPHATESTENABLE, &_D3DRS_ALPHATESTENABLE);
-	pD3DDevice->GetRenderState(D3DRS_ALPHAREF, &_D3DRS_ALPHAREF);
-	pD3DDevice->GetRenderState(D3DRS_ALPHAFUNC, &_D3DRS_ALPHAFUNC);
+	device->GetRenderState(D3DRS_ALPHATESTENABLE, &_D3DRS_ALPHATESTENABLE);
+	device->GetRenderState(D3DRS_ALPHAREF, &_D3DRS_ALPHAREF);
+	device->GetRenderState(D3DRS_ALPHAFUNC, &_D3DRS_ALPHAFUNC);
 
-	pD3DDevice->SetPixelShader(NULL);
-	pD3DDevice->SetVertexShader(NULL);
-	pD3DDevice->SetTexture(0, NULL);
+	device->SetPixelShader(NULL);
+	device->SetVertexShader(NULL);
+	device->SetTexture(0, NULL);
 
 	D3DVIEWPORT9 viewport;
-	pD3DDevice->GetViewport(&viewport);
+	device->GetViewport(&viewport);
 	vWidth = viewport.Width;
 	vHeight = viewport.Height;
 	//vWidth = (4.0f / 3.0f) * vHeight;
@@ -912,7 +911,7 @@ void __stdcall backupRenderState() {
 	mouseTopLeft.x = 0.0f;
 	mouseTopLeft.y = 0.0f;
 
-	// the border on top of the window is taken into account with this.
+	// the border on top of the window is taken into account with this. 
 	if (isWide) {
 		mouseTopLeft.x = (wWidth - (wHeight * (4.0f / 3.0f))) / 2.0f;
 	}
@@ -933,7 +932,7 @@ void __stdcall backupRenderState() {
 	}
 
 	// this deals with caster setting the transform matrices. they only seem to use the view matrix? but it would maybe be good to do the others
-	pD3DDevice->GetTransform(D3DTS_VIEW, &_D3DTS_VIEW);
+	device->GetTransform(D3DTS_VIEW, &_D3DTS_VIEW);
 
 	const D3DMATRIX defaultViewMatrix = {
 		1.0f, 0.0f, 0.0f, 0.0f,
@@ -942,7 +941,7 @@ void __stdcall backupRenderState() {
 		0.0f, 0.0f, 0.0f, 1.0f
 	};
 
-	pD3DDevice->SetTransform(D3DTS_VIEW, &defaultViewMatrix);
+	device->SetTransform(D3DTS_VIEW, &defaultViewMatrix);
 
 
 	POINT tempMousePos;
@@ -1006,7 +1005,7 @@ void __stdcall backupRenderState() {
 
 	//if (dragManager.hasDrag == NULL) {
 	//	TextDraw(mousePos.x - 4.0f, mousePos.y - 4.0f, 32, 0x8042e5f4, "%c", CURSOR);
-	//} else {
+	//} else {										   
 	//	TextDraw(mousePos.x - 4.0f, mousePos.y - 4.0f, 32, 0x8042e5f4, "%c", CURSOR_LOADING);
 	//}
 
@@ -1046,9 +1045,9 @@ void __stdcall restoreRenderState() {
 
 	_hasStateToRestore = false;
 
-	pD3DDevice->SetTexture(0, _textureBackup);
-	pD3DDevice->SetPixelShader(_pixelShaderBackup);
-	pD3DDevice->SetVertexShader(_vertexShaderBackup);
+	device->SetTexture(0, _textureBackup);
+	device->SetPixelShader(_pixelShaderBackup);
+	device->SetVertexShader(_vertexShaderBackup);
 
 	if (_textureBackup != NULL) {
 		_textureBackup->Release();
@@ -1061,21 +1060,21 @@ void __stdcall restoreRenderState() {
 		_vertexShaderBackup->Release();
 	}
 
-	pD3DDevice->SetRenderState(D3DRS_BLENDOP, _D3DRS_BLENDOP);
-	pD3DDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, _D3DRS_ALPHABLENDENABLE);
-	pD3DDevice->SetRenderState(D3DRS_SRCBLEND, _D3DRS_SRCBLEND);
-	pD3DDevice->SetRenderState(D3DRS_DESTBLEND, _D3DRS_DESTBLEND);
-	pD3DDevice->SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE, _D3DRS_SEPARATEALPHABLENDENABLE);
-	pD3DDevice->SetRenderState(D3DRS_SRCBLENDALPHA, _D3DRS_SRCBLENDALPHA);
-	pD3DDevice->SetRenderState(D3DRS_DESTBLENDALPHA, _D3DRS_DESTBLENDALPHA);
+	device->SetRenderState(D3DRS_BLENDOP, _D3DRS_BLENDOP);
+	device->SetRenderState(D3DRS_ALPHABLENDENABLE, _D3DRS_ALPHABLENDENABLE);
+	device->SetRenderState(D3DRS_SRCBLEND, _D3DRS_SRCBLEND);
+	device->SetRenderState(D3DRS_DESTBLEND, _D3DRS_DESTBLEND);
+	device->SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE, _D3DRS_SEPARATEALPHABLENDENABLE);
+	device->SetRenderState(D3DRS_SRCBLENDALPHA, _D3DRS_SRCBLENDALPHA);
+	device->SetRenderState(D3DRS_DESTBLENDALPHA, _D3DRS_DESTBLENDALPHA);
 
-	pD3DDevice->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, _D3DRS_MULTISAMPLEANTIALIAS);
+	device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, _D3DRS_MULTISAMPLEANTIALIAS);
 
-	pD3DDevice->SetRenderState(D3DRS_ALPHATESTENABLE, _D3DRS_ALPHATESTENABLE);
-	pD3DDevice->SetRenderState(D3DRS_ALPHAREF, _D3DRS_ALPHAREF);
-	pD3DDevice->SetRenderState(D3DRS_ALPHAFUNC, _D3DRS_ALPHAFUNC);
+	device->SetRenderState(D3DRS_ALPHATESTENABLE, _D3DRS_ALPHATESTENABLE);
+	device->SetRenderState(D3DRS_ALPHAREF, _D3DRS_ALPHAREF);
+	device->SetRenderState(D3DRS_ALPHAFUNC, _D3DRS_ALPHAFUNC);
 
-	pD3DDevice->SetTransform(D3DTS_VIEW, &_D3DTS_VIEW);
+	device->SetTransform(D3DTS_VIEW, &_D3DTS_VIEW);
 
 }
 
@@ -1091,7 +1090,7 @@ void LineDraw(float x1, float y1, float x2, float y2, DWORD ARGB, bool side) {
 	// this is going to need to be changed at different resolutions
 	float lineWidth = 1.0f / vHeight;
 
-	// i am,,, i bit confused on how exactly to do this.
+	// i am,,, i bit confused on how exactly to do this. 
 	// current vibes say,,, two very thin triangles.
 
 	// i would like,,, diag lines please too.
@@ -1328,6 +1327,45 @@ void BorderRectDrawBlend(float x, float y, float w, float h, DWORD ARGB) {
 
 // -----
 
+float getCharWidth(const unsigned char c, const float w) {
+	// values taken from the switch in below TextDraw func
+
+	float res = w;
+
+	switch (c) {
+	case ARROW_1:
+	case ARROW_2:
+	case ARROW_3:
+	case ARROW_4:
+	case ARROW_6:
+	case ARROW_7:
+	case ARROW_8:
+	case ARROW_9:
+	case BUTTON_A:
+	case BUTTON_B:
+	case BUTTON_C:
+	case BUTTON_D:
+	case BUTTON_A_GRAY:
+	case BUTTON_B_GRAY:
+	case BUTTON_C_GRAY:
+	case BUTTON_D_GRAY:
+	case ARCICON:
+	case MECHICON:
+	case HIMEICON:
+	case WARAICON:
+	case ARROW_0:
+	case ARROW_5:
+	case JOYSTICK:
+	case WHISK:
+		break;
+	default:
+		res *= 0.75;
+		break;
+	}
+
+	return res;
+}
+
 Rect TextDraw(float x, float y, float size, DWORD ARGB, const char* format) {
 	// i do hope that this allocing does not slow things down. i tried saving the va_args for when the actual print func was called, but it would not work
 
@@ -1358,15 +1396,14 @@ Rect TextDraw(float x, float y, float size, DWORD ARGB, const char* format) {
 	DWORD TempARGB = ARGB;
 
 	if (fontTexture == NULL) {
-		MessageBoxA(NULL, "null font text", "null font text", MB_ICONERROR);
 		log("fontTexture was null, im not drawing");
 		log("tried to draw \"%s\"", format);
 		return Rect();
 	}
 
 	DWORD antiAliasBackup;
-	//pD3DDevice->GetRenderState(D3DRS_MULTISAMPLEANTIALIAS, &antiAliasBackup);
-	//pD3DDevice->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, FALSE);
+	//device->GetRenderState(D3DRS_MULTISAMPLEANTIALIAS, &antiAliasBackup);
+	//device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, FALSE);
 
 	float origX = x;
 	float origY = y;
@@ -1420,7 +1457,7 @@ Rect TextDraw(float x, float y, float size, DWORD ARGB, const char* format) {
 			TempARGB = 0xFFFF8F8F;
 			str++;
 			continue;
-		case '@': // green
+		case '@': // green 
 			TempARGB = 0xFF8FFF8F;
 			str++;
 			continue;
@@ -1440,7 +1477,7 @@ Rect TextDraw(float x, float y, float size, DWORD ARGB, const char* format) {
 			TempARGB = 0xFF888888;
 			str++;
 			continue;
-		case '}': // reset
+		case '}': // reset 
 			TempARGB = ARGB;
 			str++;
 			continue;
@@ -1520,9 +1557,225 @@ Rect TextDraw(float x, float y, float size, DWORD ARGB, const char* format) {
 
 	res.x2 = MAX(res.x2, maxX2Value);
 
-	//pD3DDevice->SetTexture(0, NULL);
+	//device->SetTexture(0, NULL);
 
-	//pD3DDevice->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, antiAliasBackup);
+	//device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, antiAliasBackup);
+
+	return res;
+}
+
+Rect TextDrawRight(float x, float y, float size, DWORD ARGB, const char* format) {
+	// i do hope that this allocing does not slow things down. i tried saving the va_args for when the actual print func was called, but it would not work
+
+	if (format == NULL) {
+		return Rect();
+	}
+
+	if (true) { // this is stolen from 2v2. well i mean i cant steal from myself
+		// this is NOT accurate. .75 comes from default width
+		// i should probs,, either make a second switch statement or have a constexpr array
+		// i should consider having periods be thinner
+
+		float tempCharWidth = (fontRatio * size * 2.0f);
+		float textWidth = 0.0f;
+		const char* c = format;
+		while (*c != '\0') {
+			textWidth += getCharWidth(*c, tempCharWidth);
+			c++;
+		}
+
+		//x = 640.0f - x;
+		x -= textWidth;
+	}
+
+
+	Rect res(Point(x, y), Point(x, y + size));
+
+	float rectOrigXVal = x;
+	int maxX2Value = res.x2;
+
+	size *= 2.0f;
+
+	x /= 480.0f;
+	y /= 480.0f;
+	size /= 480.0f;
+
+	/*
+	static char buffer[1024];
+
+	va_list args;
+	va_start(args, format);
+	vsnprintf(buffer, 1024, format, args);
+	va_end(args);
+	*/
+
+	DWORD TempARGB = ARGB;
+
+	if (fontTexture == NULL) {
+		log("fontTexture was null, im not drawing");
+		log("tried to draw \"%s\"", format);
+		return Rect();
+	}
+
+	DWORD antiAliasBackup;
+	//device->GetRenderState(D3DRS_MULTISAMPLEANTIALIAS, &antiAliasBackup);
+	//device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, FALSE);
+
+	float origX = x;
+	float origY = y;
+
+	float charWidthOffset = (fontRatio * size) * 1.0f;
+	float charHeightOffset = size / 2.0; // melty font is weird
+
+	float w = charWidthOffset;
+	float h = charHeightOffset;
+
+	float charWidth = ((float)(fontSize >> 1)) / (float)fontTexWidth;
+	float charHeight = (((float)fontSize) / (float)fontTexWidth) / 2.0f;
+
+	const char* str = format;
+
+	while (*str) {
+
+		BYTE c = *str;
+
+		charWidthOffset = w * 0.75;
+
+		D3DXVECTOR2 charTopLeft(charWidth * (c & 0xF), charHeight * ((c - 0x00) / 0x10));
+
+		D3DXVECTOR2 charW(charWidth, 0.0);
+		D3DXVECTOR2 charH(0.0, charHeight);
+
+		switch (c) {
+		case '\r':
+		case '\n':
+			maxX2Value = MAX(maxX2Value, 480 * x);
+			res.x2 = rectOrigXVal;
+			x = origX;
+			origY += charHeightOffset;
+			res.y2 += (480.0f * charHeightOffset);
+			str++;
+			continue;
+		case ' ':
+			x += charWidthOffset;
+			res.x2 += (480.0f * charWidthOffset);
+			str++;
+			continue;
+		case '\t': // please dont use tabs. please
+			TempARGB = 0xFF42e5f4;
+			str++;
+			continue;
+		case '{': // blue
+			TempARGB = 0xFF8F8FFF;
+			str++;
+			continue;
+		case '~': // red
+			TempARGB = 0xFFFF8F8F;
+			str++;
+			continue;
+		case '@': // green 
+			TempARGB = 0xFF8FFF8F;
+			str++;
+			continue;
+		case '`': // yellow
+			TempARGB = 0xFFFFFF8F;
+			str++;
+			continue;
+		case '^': // purple
+			TempARGB = 0xFFFF8FFF;
+			str++;
+			continue;
+		case '*': // black
+			TempARGB = 0xFF8F8F8F;
+			str++;
+			continue;
+		case '$': // gray
+			TempARGB = 0xFF888888;
+			str++;
+			continue;
+		case '}': // reset 
+			TempARGB = ARGB;
+			str++;
+			continue;
+		case '\\': // in case you want to print one of the above chars, you can escape them
+			str++;
+			if (c == '\0') {
+				return res;
+			}
+			break;
+		case ARROW_1:
+		case ARROW_2:
+		case ARROW_3:
+		case ARROW_4:
+		case ARROW_6:
+		case ARROW_7:
+		case ARROW_8:
+		case ARROW_9:
+		case BUTTON_A:
+		case BUTTON_B:
+		case BUTTON_C:
+		case BUTTON_D:
+		case BUTTON_A_GRAY:
+		case BUTTON_B_GRAY:
+		case BUTTON_C_GRAY:
+		case BUTTON_D_GRAY:
+		case ARCICON:
+		case MECHICON:
+		case HIMEICON:
+		case WARAICON:
+			charWidthOffset = w;
+			break;
+		case ARROW_0:
+		case ARROW_5:
+			charWidthOffset = w;
+			break;
+		case JOYSTICK:
+		case WHISK:
+			charWidthOffset = w;
+			charW = D3DXVECTOR2(2.0f / 16.0f, 0.0);
+			charH = D3DXVECTOR2(0.0, 2.0f / 16.0f);
+			break;
+		case CURSOR:
+			charTopLeft.y = (8.0f + ((float)(directxFrameCount & 0b1))) / 16.0f;
+			charWidthOffset = w * 4;
+			charW = D3DXVECTOR2(4.0f / 16.0f, 0.0);
+			charH = D3DXVECTOR2(0.0, 1.0f / 16.0f);
+			break;
+		case CURSOR_LOADING:
+			charTopLeft.x = ((float)(directxFrameCount & 0b111)) / 8.0f;
+			charWidthOffset = w * 2;
+			charW = D3DXVECTOR2(2.0f / 16.0f, 0.0);
+			charH = D3DXVECTOR2(0.0, 2.0f / 16.0f);
+			break;
+		default:
+			break;
+		}
+
+		y = 1 - origY;
+
+		PosColTexVert v1{ D3DVECTOR(((x + 0) * 1.5f) - 1.0f, ((y + 0) * 2.0f) - 1.0f, 0.5f), TempARGB, charTopLeft };
+		PosColTexVert v2{ D3DVECTOR(((x + w) * 1.5f) - 1.0f, ((y + 0) * 2.0f) - 1.0f, 0.5f), TempARGB, charTopLeft + charW };
+		PosColTexVert v3{ D3DVECTOR(((x + 0) * 1.5f) - 1.0f, ((y - h) * 2.0f) - 1.0f, 0.5f), TempARGB, charTopLeft + charH };
+		PosColTexVert v4{ D3DVECTOR(((x + w) * 1.5f) - 1.0f, ((y - h) * 2.0f) - 1.0f, 0.5f), TempARGB, charTopLeft + charW + charH };
+
+		scaleVertex(v1.position);
+		scaleVertex(v2.position);
+		scaleVertex(v3.position);
+		scaleVertex(v4.position);
+
+		posColTexVertData.add(v1, v2, v3);
+		posColTexVertData.add(v2, v3, v4);
+
+		x += charWidthOffset;
+		res.x2 += (480.0f * charWidthOffset);
+		str++;
+	}
+
+	res.x2 = MAX(res.x2, maxX2Value);
+
+	//device->SetTexture(0, NULL);
+
+	//device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, antiAliasBackup);
 
 	return res;
 }
@@ -1530,6 +1783,13 @@ Rect TextDraw(float x, float y, float size, DWORD ARGB, const char* format) {
 Rect TextDraw(const Point& p, float size, DWORD ARGB, const char* format) {
 	return TextDraw(p.x, p.y, size, ARGB, format);
 }
+
+Rect TextDrawRight(const Point& p, float size, DWORD ARGB, const char* format) {
+	return TextDrawRight(p.x, p.y, size, ARGB, format);
+}
+
+
+// -----
 
 void TextDrawSimple(float x, float y, float size, DWORD ARGB, const char* format, ...) {
 
@@ -1755,24 +2015,24 @@ IDirect3DPixelShader9* getOutlinePixelShader() {
 
 					float2 texOffset = 1.0 / texSize;
 
-					texOffset.y /= (4.0 / 3.0); // THIS LINE IS CORRECT.
+					texOffset.y /= (4.0 / 3.0); // THIS LINE IS CORRECT. 
 
 					float2 texCoord = texCoordIn + (texOffset * 0.5); // move the tex coord into the "center" of the pixel, should it be plus or minus???
-
+					
 					float4 texColor = tex2D(textureSampler, texCoord);
-
+				
 					if(texColor.a <= 0.0) {
 						return texColor;
 					}
-
+					
 					// should diags have a radic(2) instead of 1,1?
-
+	
 					float2 offsets[8] = { // order is adjusted to check diags last. performance.
-
+						
 						texCoord + float2(-texOffset.x, 0.0),
 						texCoord + float2(0.0, -texOffset.y),
 						texCoord + float2(0.0, texOffset.y),
-						texCoord + float2(texOffset.x, 0.0),
+						texCoord + float2(texOffset.x, 0.0),						
 
 						texCoord + float2(texOffset.x, -texOffset.y),
 						texCoord + float2(-texOffset.x, -texOffset.y),
@@ -1782,9 +2042,9 @@ IDirect3DPixelShader9* getOutlinePixelShader() {
 
 
 					float4 tempColor;
-
+					
 					// having to go through all 8 cases fucks perfomance
-					// ooooo
+					// ooooo 
 					[unroll(8)] for(int i=0; i<8; i++) {
 
 						tempColor = tex2D(textureSampler, offsets[i]);
@@ -1793,7 +2053,7 @@ IDirect3DPixelShader9* getOutlinePixelShader() {
 						}
 
 					}
-
+			
 					return float4(texColor.rgb, shadeColor.a);
 			}
 
@@ -1806,12 +2066,12 @@ IDirect3DVertexShader9* getOutlineVertexShader() {
 				float4 position : POSITION;
 				float2 texCoord : TEXCOORD0;
 			};
-
+    
 			struct VS_OUTPUT {
 				float4 position : POSITION;
 				float2 texCoord : TEXCOORD0;
 			};
-
+    
 			VS_OUTPUT main(VS_INPUT input) {
 				VS_OUTPUT output;
 				output.position = input.position;
@@ -1836,11 +2096,11 @@ IDirect3DVertexShader9* getColorVertexShader() {
 			struct VS_INPUT {
 				float4 position : POSITION;
 			};
-
+    
 			struct VS_OUTPUT {
 				float4 position : POSITION;
 			};
-
+    
 			VS_OUTPUT main(VS_INPUT input) {
 				VS_OUTPUT output;
 				output.position = input.position;
@@ -1856,14 +2116,14 @@ void drawSingleHitbox(const BoxData& box, DWORD ARGB, bool shade) {
 	if (shade) {
 		RectDraw(box.x, box.y, box.w, box.h, (ARGB & 0x00FFFFFF) | (((BYTE)(255.0f * hitboxOpacity)) << 24)); // make sure to sync these alpha values with the ones in the outline shader
 	}
-	BorderDraw(box.x, box.y, box.w, box.h, (ARGB & 0x00FFFFFF) | 0xE0000000);
+	BorderDraw(box.x, box.y, box.w, box.h, (ARGB & 0x00FFFFFF) | (((BYTE)(255.0f * hitboxBorderOpacity)) << 24));
 }
 
 void drawSingleHitboxBlend(const BoxData& box, DWORD ARGB, bool shade) {
 	if (shade) {
 		RectDrawBlend(box.x, box.y, box.w, box.h, (ARGB & 0x00FFFFFF) | (((BYTE)(255.0f * hitboxOpacity)) << 24)); // make sure to sync these alpha values with the ones in the outline shader
 	}
-	BorderDrawBlend(box.x, box.y, box.w, box.h, (ARGB & 0x00FFFFFF) | 0xE0000000);
+	BorderDrawBlend(box.x, box.y, box.w, box.h, (ARGB & 0x00FFFFFF) | (((BYTE)(255.0f * hitboxBorderOpacity)) << 24));
 }
 
 void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
@@ -1871,7 +2131,7 @@ void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
 
 	/*
 	static HRESULT prevhr = 0xFFFFFFFF;
-	hr = pD3DDevice->TestCooperativeLevel();
+	hr = device->TestCooperativeLevel();
 
 	if (prevhr != hr) {
 		log("hresult: %08X", hr);
@@ -1898,7 +2158,7 @@ void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
 		return;
 	}
 
-	// draws a set of hitboxes of ONE color for ONE object.
+	// draws a set of hitboxes of ONE color for ONE object. 
 
 
 	IDirect3DSurface9* renderTargetSurf = NULL;
@@ -1909,7 +2169,7 @@ void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
 		IDirect3DSwapChain9* pSwapChain = NULL;
 		D3DPRESENT_PARAMETERS presentParams;
 
-		hr = pD3DDevice->GetSwapChain(0, &pSwapChain);
+		hr = device->GetSwapChain(0, &pSwapChain);
 
 		if (FAILED(hr)) {
 			log("get swap chain failed?");
@@ -1927,13 +2187,13 @@ void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
 
 			pSwapChain->Release();
 
-			pD3DDevice->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &renderTargetTex, NULL);
+			device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &renderTargetTex, NULL);
 
 			// shader registers are RESET on device loss!
 			// i should have been a farmer.
 			// it gets traumatic after a while.
 			D3DXVECTOR4 textureSize((float)(height * 4.0f / 3.0f), (float)height, 0.0, 0.0);
-			pD3DDevice->SetPixelShaderConstantF(219, (float*)&textureSize, 1);
+			device->SetPixelShaderConstantF(219, (float*)&textureSize, 1);
 
 			//hr = device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &renderTargetTex, NULL);
 			if (FAILED(hr)) {
@@ -1952,10 +2212,10 @@ void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
 	vertData.alloc();
 
 	IDirect3DSurface9* prevRenderTarget = NULL;
-	pD3DDevice->GetRenderTarget(0, &prevRenderTarget);
+	device->GetRenderTarget(0, &prevRenderTarget);
 
 	renderTargetTex->GetSurfaceLevel(0, &renderTargetSurf);
-	pD3DDevice->SetRenderTarget(0, renderTargetSurf);
+	device->SetRenderTarget(0, renderTargetSurf);
 
 	// might need to do this?
 	//device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0);
@@ -1975,7 +2235,7 @@ void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
 	static D3DRECT clearRect = { 0, 0, width, height };
 	//device->Clear(1, &clearRect, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0);
 	// WHEN RESETING TO A NON CENTERED CAMERA, THIS FUCKS UP. FIX IT
-	pD3DDevice->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0);
+	device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0);
 
 
 	clearRect = { width, height, 0, 0 }; // these are the hypothetical opposite max/min values each could have
@@ -2024,10 +2284,10 @@ void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
 		vertData.add(v2, v3, v4);
 	}
 
-	pD3DDevice->BeginScene();
-	pD3DDevice->SetTexture(0, NULL);
-	pD3DDevice->SetPixelShader(pColorShader);
-	pD3DDevice->SetVertexShader(vColorShader);
+	device->BeginScene();
+	device->SetTexture(0, NULL);
+	device->SetPixelShader(pColorShader);
+	device->SetVertexShader(vColorShader);
 
 	D3DXVECTOR4 rectColor;
 	rectColor.x = (float)((ARGB & 0x00FF0000) >> 16) / 255.0f;
@@ -2035,19 +2295,19 @@ void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
 	rectColor.z = (float)((ARGB & 0x000000FF) >> 0) / 255.0f;
 	rectColor.w = hitboxOpacity;
 
-	pD3DDevice->SetPixelShaderConstantF(218, (float*)&rectColor, 1);
+	device->SetPixelShaderConstantF(218, (float*)&rectColor, 1);
 
 	vertData.draw();
 
-	pD3DDevice->EndScene();
+	device->EndScene();
 
 	if (prevRenderTarget != NULL) {
-		pD3DDevice->SetRenderTarget(0, prevRenderTarget);
+		device->SetRenderTarget(0, prevRenderTarget);
 		prevRenderTarget->Release();
 		prevRenderTarget = NULL;
 	}
 	else {
-		pD3DDevice->SetRenderTarget(0, NULL);
+		device->SetRenderTarget(0, NULL);
 	}
 
 	if (renderTargetSurf != NULL) {
@@ -2068,14 +2328,14 @@ void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
 		vOutlineShader = getOutlineVertexShader();
 	}
 
-	pD3DDevice->BeginScene();
+	device->BeginScene();
 
 	// actually go and render what we just made to a real rendertarget
 	// depressingly expensive.
 
-	pD3DDevice->SetTexture(0, renderTargetTex);
-	pD3DDevice->SetPixelShader(pOutlineShader);
-	pD3DDevice->SetVertexShader(vOutlineShader);
+	device->SetTexture(0, renderTargetTex);
+	device->SetPixelShader(pOutlineShader);
+	device->SetVertexShader(vOutlineShader);
 
 	// actually draw that texture to the screen now
 
@@ -2104,7 +2364,7 @@ void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
 	static LPDIRECT3DVERTEXBUFFER9 v_buffer = NULL; // not reallocing this buffer constantly was HUGE for performance!
 
 	if (v_buffer == NULL) {
-		if (FAILED(pD3DDevice->CreateVertexBuffer(4 * sizeof(CUSTOMVERTEX), 0, vertFormat, D3DPOOL_MANAGED, &v_buffer, NULL))) {
+		if (FAILED(device->CreateVertexBuffer(4 * sizeof(CUSTOMVERTEX), 0, vertFormat, D3DPOOL_MANAGED, &v_buffer, NULL))) {
 			v_buffer = NULL;
 			log("drawBatchHitboxes createvertbuffer failed");
 			return;
@@ -2117,21 +2377,21 @@ void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
 	memcpy(pVoid, vertices, sizeof(vertices));
 	v_buffer->Unlock();
 
-	pD3DDevice->SetStreamSource(0, v_buffer, 0, sizeof(CUSTOMVERTEX));
-	pD3DDevice->SetFVF(vertFormat);
-	pD3DDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
+	device->SetStreamSource(0, v_buffer, 0, sizeof(CUSTOMVERTEX));
+	device->SetFVF(vertFormat);
+	device->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
 
-	pD3DDevice->EndScene();
+	device->EndScene();
 
-	pD3DDevice->SetPixelShader(NULL);
-	pD3DDevice->SetVertexShader(NULL);
-	pD3DDevice->SetTexture(0, NULL);
+	device->SetPixelShader(NULL);
+	device->SetVertexShader(NULL);
+	device->SetTexture(0, NULL);
 }
 
 void HitboxBatchDrawNoBlend(const BoxObjects* b) {
 
 	const DWORD* arrColors;
-	if (nCOLOR_BLIND_MODE)
+	if (XS_colorBlindMode)
 		arrColors = arrColorBlindColors;
 	else
 		arrColors = arrNormalColors;
@@ -2179,19 +2439,20 @@ void HitboxBatchDrawNoBlend(const BoxObjects* b) {
 
 	i = static_cast<int>(BoxType::Origin);
 	if ((*b)[i].size() == 1) {
+		LineDraw((*b)[i][0].x, ((*b)[i][0].y + (*b)[i][0].h), ((*b)[i][0].x + (*b)[i][0].w), ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
+		LineDraw(((*b)[i][0].x + (*b)[i][0].w / 2.0f), (*b)[i][0].y, ((*b)[i][0].x + (*b)[i][0].w / 2.0f), ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
+	}
 
-		if (nORIGIN_STYLE) {
-			//_drawLine2(0.0f, ((*b)[i][0].y + (*b)[i][0].h) / 480.0f, 1.3333f, ((*b)[i][0].y + (*b)[i][0].h) / 480.0f, arrColors[i]);
-			//_drawLine2(((*b)[i][0].x + (*b)[i][0].w / 2.0f) / 480.0f, 0.0f, ((*b)[i][0].x + (*b)[i][0].w / 2.0f) / 480.0f, 1.0f, arrColors[i]);
-			LineDraw(0.0f, ((*b)[i][0].y + (*b)[i][0].h), 640.0f, ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
-			LineDraw(((*b)[i][0].x + (*b)[i][0].w / 2.0f), 0.0f, ((*b)[i][0].x + (*b)[i][0].w / 2.0f), 480.0f, arrColors[i]);
-		}
-		else {
-			//_drawLine2((*b)[i][0].x / 480.0f, ((*b)[i][0].y + (*b)[i][0].h) / 480.0f, ((*b)[i][0].x + (*b)[i][0].w) / 480.0f, ((*b)[i][0].y + (*b)[i][0].h) / 480.0f, arrColors[i]);
-			//_drawLine2(((*b)[i][0].x + (*b)[i][0].w / 2.0f) / 480.0f, (*b)[i][0].y / 480.0f, ((*b)[i][0].x + (*b)[i][0].w / 2.0f) / 480.0f, ((*b)[i][0].y + (*b)[i][0].h) / 480.0f, arrColors[i]);
-			LineDraw((*b)[i][0].x, ((*b)[i][0].y + (*b)[i][0].h), ((*b)[i][0].x + (*b)[i][0].w), ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
-			LineDraw(((*b)[i][0].x + (*b)[i][0].w / 2.0f), (*b)[i][0].y, ((*b)[i][0].x + (*b)[i][0].w / 2.0f), ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
-		}
+	i = static_cast<int>(BoxType::ExtendedP1Origin);
+	if ((*b)[i].size() == 1) {
+		LineDraw(0.0f, ((*b)[i][0].y + (*b)[i][0].h), 640.0f, ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
+		LineDraw(((*b)[i][0].x + (*b)[i][0].w / 2.0f), 0.0f, ((*b)[i][0].x + (*b)[i][0].w / 2.0f), 480.0f, arrColors[i]);
+	}
+
+	i = static_cast<int>(BoxType::ExtendedP2Origin);
+	if ((*b)[i].size() == 1) {
+		LineDraw(0.0f, ((*b)[i][0].y + (*b)[i][0].h), 640.0f, ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
+		LineDraw(((*b)[i][0].x + (*b)[i][0].w / 2.0f), 0.0f, ((*b)[i][0].x + (*b)[i][0].w / 2.0f), 480.0f, arrColors[i]);
 	}
 
 }
@@ -2218,7 +2479,7 @@ void HitboxBatchDrawBlend(const BoxObjects* b) {
 	// i could have avoided a div stage, but ugh, another time
 
 	const DWORD* arrColors;
-	if (nCOLOR_BLIND_MODE)
+	if (XS_colorBlindMode)
 		arrColors = arrColorBlindColors;
 	else
 		arrColors = arrNormalColors;
@@ -2261,23 +2522,70 @@ void HitboxBatchDrawBlend(const BoxObjects* b) {
 
 	i = static_cast<int>(BoxType::Origin);
 	if ((*b)[i].size() == 1) {
-		if (nORIGIN_STYLE) {
-			//LineDrawBlend(0.0f, ((*b)[i][0].y + (*b)[i][0].h), 640.0f, ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
-			//LineDrawBlend(((*b)[i][0].x + (*b)[i][0].w / 2.0f), 0.0f, ((*b)[i][0].x + (*b)[i][0].w / 2.0f), 480.0f, arrColors[i]);
-			LineDrawBlend(0.0f, ((*b)[i][0].y + (*b)[i][0].h), 640.0f, ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
-			LineDrawBlend(((*b)[i][0].x + (*b)[i][0].w / 2.0f), 0.0f, ((*b)[i][0].x + (*b)[i][0].w / 2.0f), 480.0f, arrColors[i]);
-		}
-		else {
-			//LineDrawBlend((*b)[i][0].x, ((*b)[i][0].y + (*b)[i][0].h), ((*b)[i][0].x + (*b)[i][0].w), ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
-			//LineDrawBlend(((*b)[i][0].x + (*b)[i][0].w / 2.0f), (*b)[i][0].y, ((*b)[i][0].x + (*b)[i][0].w / 2.0f), ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
-			LineDrawBlend((*b)[i][0].x, ((*b)[i][0].y + (*b)[i][0].h), ((*b)[i][0].x + (*b)[i][0].w), ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
-			LineDrawBlend(((*b)[i][0].x + (*b)[i][0].w / 2.0f), (*b)[i][0].y, ((*b)[i][0].x + (*b)[i][0].w / 2.0f), ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
-		}
+		LineDrawBlend((*b)[i][0].x, ((*b)[i][0].y + (*b)[i][0].h), ((*b)[i][0].x + (*b)[i][0].w), ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
+		LineDrawBlend(((*b)[i][0].x + (*b)[i][0].w / 2.0f), (*b)[i][0].y, ((*b)[i][0].x + (*b)[i][0].w / 2.0f), ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
+	}
+
+	i = static_cast<int>(BoxType::ExtendedP1Origin);
+	if ((*b)[i].size() == 1) {
+		LineDrawBlend(0.0f, ((*b)[i][0].y + (*b)[i][0].h), 640.0f, ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
+		LineDrawBlend(((*b)[i][0].x + (*b)[i][0].w / 2.0f), 0.0f, ((*b)[i][0].x + (*b)[i][0].w / 2.0f), 480.0f, arrColors[i]);
+	}
+
+	i = static_cast<int>(BoxType::ExtendedP2Origin);
+	if ((*b)[i].size() == 1) {
+		LineDrawBlend(0.0f, ((*b)[i][0].y + (*b)[i][0].h), 640.0f, ((*b)[i][0].y + (*b)[i][0].h), arrColors[i]);
+		LineDrawBlend(((*b)[i][0].x + (*b)[i][0].w / 2.0f), 0.0f, ((*b)[i][0].x + (*b)[i][0].w / 2.0f), 480.0f, arrColors[i]);
 	}
 
 }
 
-// ----- horrid Profiler, as a treat
+void WikiHitboxDraw(const BoxObjects* b) {
+	const DWORD* arrColors;
+	arrColors = arrWikiColors;
+
+	int i;
+
+	i = static_cast<int>(BoxType::Collision);
+	if ((*b)[i].size() == 1) {
+		drawSingleHitbox((*b)[i][0], arrColors[i]);
+	}
+
+	i = static_cast<int>(BoxType::Hurtbox);
+	drawBatchHitboxes((*b)[i], arrColors[i]);
+	for (int j = 0; j < (*b)[i].size(); j++) {
+		drawSingleHitbox((*b)[i][j], arrColors[i], false);
+	}
+
+	i = static_cast<int>(BoxType::Hitbox);
+	drawBatchHitboxes((*b)[i], arrColors[i]);
+	for (int j = 0; j < (*b)[i].size(); j++) {
+		drawSingleHitbox((*b)[i][j], arrColors[i], false);
+	}
+
+	i = static_cast<int>(BoxType::Blue);
+	if ((*b)[i].size() == 1) {
+		drawSingleHitbox((*b)[i][0], arrColors[i]);
+	}
+
+	i = static_cast<int>(BoxType::Clash);
+	if ((*b)[i].size() == 1) {
+		drawSingleHitbox((*b)[i][0], arrColors[i]);
+	}
+
+	i = static_cast<int>(BoxType::Shield);
+	if ((*b)[i].size() == 1) {
+		drawSingleHitbox((*b)[i][0], arrColors[i]);
+	}
+
+	i = static_cast<int>(BoxType::Throw);
+	if ((*b)[i].size() == 1) {
+		drawSingleHitbox((*b)[i][0], arrColors[i]);
+	}
+
+}
+
+// ----- horrid Profiler, as a treat 
 
 std::vector<std::function<void(void)>> drawCalls;
 std::map<const char*, ProfileInfo > profilerData;
@@ -2286,7 +2594,7 @@ std::map<const char*, ProfileInfo > profilerData;
 
 void DrawHitboxes(BoxObjects* b) { // didnt need to be a pointer, but i would rather know im not passing by copy. also the optimizer better inline this(who am i kiding, its def not)
 	//boxDataList[static_cast<int>(type)].emplace_back(BoxData{x / 640.0f, y / 480.0f, w / 640.0f, h / 480.0f, player });
-	//boxDataList[static_cast<int>(type)].emplace_back(BoxData{ x, y , w , h });
+	//boxDataList[static_cast<int>(type)].emplace_back(BoxData{ x, y , w , h }); 
 	boxObjectList.emplace_back(b);
 }
 
@@ -2309,10 +2617,16 @@ void _drawHitboxes() {
 	profileFunction();
 
 	DWORD antiAliasBackup;
-	pD3DDevice->GetRenderState(D3DRS_MULTISAMPLEANTIALIAS, &antiAliasBackup);
-	pD3DDevice->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, FALSE);
+	device->GetRenderState(D3DRS_MULTISAMPLEANTIALIAS, &antiAliasBackup);
+	device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, FALSE);
 
-	if (nHITBOX_STYLE) {
+	if (wikiBoxMode) {
+		for (int i = 0; i < boxObjectList.size(); i++) {
+			WikiHitboxDraw(boxObjectList[i]);
+			delete boxObjectList[i];
+		}
+	}
+	else if (XS_hitboxStyle) {
 		for (int i = 0; i < boxObjectList.size(); i++) {
 			HitboxBatchDrawBlend(boxObjectList[i]);
 			delete boxObjectList[i];
@@ -2327,7 +2641,7 @@ void _drawHitboxes() {
 
 	boxObjectList.clear();
 
-	pD3DDevice->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, antiAliasBackup);
+	device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, antiAliasBackup);
 
 }
 
@@ -2343,7 +2657,7 @@ void _drawProfiler() {
 	DWORD col = 0xFF00FFFF;
 
 	if (doDrawProfiler) {
-		// how slow is this,,, im not sure how expensive map lookups are, but the keys to it could be constexpr. ugh
+		// how slow is this,,, im not sure how expensive map lookups are, but the keys to it could be constexpr. ugh 
 		// i also have the pointer strat. might go do that tbh
 		float profileInfoY = 256;
 		for (auto& [name, info] : profilerData) {
@@ -2445,6 +2759,8 @@ void _drawMiscInfo() {
 		overkillVerboseMode = !overkillVerboseMode;
 	}
 
+
+
 	if (debugMode) {
 
 
@@ -2512,7 +2828,7 @@ void _drawMiscInfo() {
 
 	float y = 0.2f * 480.0f;
 
-	unsigned availMem = pD3DDevice->GetAvailableTextureMem();
+	unsigned availMem = device->GetAvailableTextureMem();
 
 	TextDrawSimple(x, y, 10.0f, 0xFF42e5f4, "VRAM AVAIL: %.2f GB", ((float)availMem) / ((float)(1 << 30)));
 	y += 10.0f;
@@ -2542,7 +2858,7 @@ void _drawGeneralCalls() {
 
 	allocVertexBuffers();
 
-	pD3DDevice->BeginScene();
+	device->BeginScene();
 
 
 	posColVertData.draw();
@@ -2574,7 +2890,7 @@ void _drawGeneralCalls() {
 	//meltyVertData.draw();
 
 
-	pD3DDevice->EndScene();
+	device->EndScene();
 }
 
 // -----
@@ -2603,8 +2919,8 @@ std::array<char, 5> getBase64Hash() {
 	for (int i = 0; i < 6; i++) {
 		bits <<= 4;
 
-		//unsigned char temp = '';//GIT_HASH[i] < 'a' ? GIT_HASH[i] - '0' : (GIT_HASH[i] - 'a' + 0xA);
-		//bits |= temp;
+		unsigned char temp = GIT_HASH[i] < 'a' ? GIT_HASH[i] - '0' : (GIT_HASH[i] - 'a' + 0xA);
+		bits |= temp;
 	}
 
 	std::array<char, 5> res = { ' ', ' ', ' ', ' ', '\0' };
@@ -2627,13 +2943,13 @@ std::array<char, 5> getBase64Hash() {
 void _drawBuildInfo() {
 
 	DWORD col = 0xFF42e5f4;
-	if (true) {
+	if (BLEEDING) {
 		col = 0xFFbd1a0b;
 		// dirty should never occur under bleeding conditions
 	} else {
-		//if (GIT_DIRTY[0] == 'C') {
-		//	col = 0xFF42f4aa;
-		//}
+		if (GIT_DIRTY[0] == 'C') {
+			col = 0xFF42f4aa;
+		}
 	}
 
 	// only using 6 chars of the git hash, but that will be fine. base64 will let me move that down to 4
@@ -2645,7 +2961,7 @@ void _drawBuildInfo() {
 		firstRun = false;
 	}
 
-
+	
 
 	//TextDraw(640 - (7 * 10), 0, 10, col, str.data());
 	TextDraw(640 - (3.25 * 10), 0, 10, col, str.data());
@@ -2653,7 +2969,7 @@ void _drawBuildInfo() {
 }
 
 void drawPowerInfo() {
-
+	
 	static SYSTEM_POWER_STATUS powerStatus;
 	if (__frameDoneCount % (60 * 10) == 0) {
 		GetSystemPowerStatus(&powerStatus);
@@ -2756,19 +3072,19 @@ void drawFindWhisk() {
 	typedef struct WhiskState {
 		short x = rand() % 640;
 		short y = rand() % 480;
-
+		
 		short xVel = (rand() & 1 ? 1 : -1) * (1 + (rand() % (maxCrowdVel - 1))); // value is made line this since it cannot be 0
 		short yVel = (rand() & 1 ? 1 : -1) * (1 + (rand() % (maxCrowdVel - 1)));
 
 		BYTE icon = ARCICON + (rand() % 3);
-
+		
 		void update() {
-
+			
 			short nextX;
 			nextX = x + xVel;
 			if (nextX < 0 || nextX > 640) {
 				xVel = -xVel;
-			}
+			} 
 			nextX = x + xVel;
 			x = nextX;
 
@@ -2805,13 +3121,13 @@ void drawFindWhisk() {
 
 	static int prevmaxCrowdVel = maxCrowdVel;
 	if (prevmaxCrowdVel != maxCrowdVel || crowd.size() != crowdSize) {
-
+		
 		// simple, stupid, works
 		crowd.resize(0);
 		crowd.resize(crowdSize);
 
 		whisk = WhiskState();
-
+		
 		prevmaxCrowdVel = maxCrowdVel;
 	}
 
@@ -2837,7 +3153,7 @@ void drawRoaHiddenCharge() {
 	}
 
 	Point p(100, 100);
-
+	
 	if (*(BYTE*)(0x00555130 + 0x5 + (0 * 0xAFC)) == 31 && *(BYTE*)(0x00555130 + 0xC + (0 * 0xAFC)) == 0) {
 		TextDraw(p, 14, 0xFFFFFFFF, "%02d", *(BYTE*)(adMBAABase + dwP1RoaHiddenCharge));
 	}
@@ -2850,76 +3166,58 @@ void drawRoaHiddenCharge() {
 
 }
 
-void logFPS() {
-
-	constexpr int timerSize = 60;
-	static FreqTimer<timerSize> fpsTimer;
-	fpsTimer.tick();
-
-	for (int i = 0; i < timerSize; i++) {
-		//DWORD col = (i == fpsTimer.buffer.index) ? 0xFF42e5f4 : 0xFFbd1a0b;
-		//DWORD col = (i == fpsTimer.buffer.index) ? 0xFF42e5f4 : 0xFFbd1a0b;
-		DWORD col = 0xFF00FF00;
-		if (fpsTimer.buffer.data[i] > 61.0f) {
-			col = 0xFF0000FF;
-		}
-		else if (fpsTimer.buffer.data[i] < 59.0f) {
-			col = 0xFFFF0000;
-		}
-
-		const char* errorMsg = "";
-		if (fabsf(fpsTimer.buffer.data[i] - 60.0f) > 30.0f) {
-			errorMsg = "WHAT HAPPENED HERE";
-		}
-
-		if (logVerboseFps) {
-			TextDraw(0.0, 10.0 + (i * 7), 7, col, "%5.2lf %c %s", fpsTimer.buffer.data[i], (i == fpsTimer.buffer.index) ? '<' : ' ', errorMsg);
-		}
-	}
-
-	const char* fpsMethod = "CASTER";
-	if (maintainFPSState == 1) {
-		fpsMethod = "BEFORE";
-	}
-	else if (maintainFPSState == 2) {
-		fpsMethod = "AFTER";
-	}
-
-	FreqTimerData timerData = fpsTimer.getData();
-
-	if (nHIDE_EXTRAS) return;
-
-	if (logVerboseFps) {
-		TextDraw(0.0, 0.0, 10, 0xFF42e5f4, "avg:%6.2lf min:%6.2lf max:%6.2lf stdev:%6.2lf maintainfps: %s", timerData.mean, timerData.min, timerData.max, timerData.stdev, fpsMethod);
-	} else {
-		if (shouldDrawHud) {
-			TextDraw(0.0, 0.0, 10, 0xFF42e5f4, "%5.2lf", timerData.mean);
-		}
-	}
-
-	// this better not make it into a release
-	//log("fps: %5.2lf", timerData.mean);
-
-}
-
 bool doSaveScreenshot = false; // add a menu option for this lest i murder everyones pcs
 void saveScreenshot() {
 
 	// saves a screenshot, hopefully at full resolution
 
+	static bool prevDoSaveScreenshot = false;
+
 	if (!doSaveScreenshot) {
+		prevDoSaveScreenshot = doSaveScreenshot;
 		return;
 	}
+
+	const std::string baseScreenShotFolder = "ETMScreenShots";
+
+	static bool firstRun = true;
+	if (firstRun) {
+		firstRun = false;
+		if (!std::filesystem::is_directory(baseScreenShotFolder)) {
+			std::filesystem::create_directories(baseScreenShotFolder);
+		}
+	}
+
+
+	static int _frameIndex = 0;
+	static std::string folderName = "";
+
+	if (!prevDoSaveScreenshot && doSaveScreenshot) { // rising edge, generate a new folder, reset the counter
+		_frameIndex = 0;
+
+		time_t timeVal;
+		time(&timeVal);
+		struct tm* timeInfo = localtime(&timeVal);
+
+		char folderNameBuffer[32];
+		strftime(folderNameBuffer, sizeof(folderNameBuffer), "%Y-%m-%d %H-%M-%S", timeInfo);
+		folderName = baseScreenShotFolder + "/" + std::string(folderNameBuffer);
+
+		if (!std::filesystem::is_directory(folderName)) {
+			std::filesystem::create_directories(folderName);
+		}
+	}
+	prevDoSaveScreenshot = doSaveScreenshot;
 
 	//long long start = getMicroSec();
 
 	// in the future, this could (and probs should) be made threaded to not slow the game to a crawl. but i work with what i have
 
 	HRESULT hr;
-
+	
 	IDirect3DSurface9* surf = NULL;
 
-	hr = pD3DDevice->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &surf);
+	hr = device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &surf);
 
 	if (hr != S_OK) {
 		log("GetBackBuffer failed");
@@ -2929,12 +3227,12 @@ void saveScreenshot() {
 	D3DSURFACE_DESC sDesc;
 	surf->GetDesc(&sDesc);
 
-	RECT rect = { 0, 0, static_cast<LONG>(sDesc.Width), static_cast<LONG>(sDesc.Height)};
+	RECT rect = { 0, 0, sDesc.Width, sDesc.Height };
 
-	static int _frameIndex = 0;
+	
 	static char buffer[256];
 
-	snprintf(buffer, 256, "./ScreenShot/ugh%d.png", _frameIndex);
+	snprintf(buffer, 256, "./%s/ugh%d.png", folderName.c_str(), _frameIndex);
 	_frameIndex++;
 
 	//long long startSaveFile = getMicroSec();
@@ -2944,9 +3242,9 @@ void saveScreenshot() {
 	// dds was even faster
 	// 004bd280 shows how melty is getting the screen, and doing it faster
 	// also they use bmp
-
+	
 	hr = D3DXSaveSurfaceToFileA(buffer, D3DXIFF_PNG, surf, NULL, &rect);
-
+	
 	if (hr != S_OK) {
 		log("D3DXSaveSurfaceToFileA failed");
 		printDirectXError(hr);
@@ -3022,28 +3320,68 @@ void __stdcall _doDrawCalls() {
 	}
 	*/
 
-	/*static bool prevDisableFPSLimit = false;
+	static bool prevDisableFPSLimit = false;
 
 	if (prevDisableFPSLimit != disableFPSLimit) {
 		// ugh. long story but this changes each caster patch. just open the hook in ghidra and find,, dx end or something
-		patchByte(dwCasterBaseAddress + 0x66395af0, disableFPSLimit ? 0xC3 : 0x80);
+		// this is one of the stupidest things i have coded, ever.
+		// this no longer works. i ... really should have exposed a fps function in casters dll
+		//patchByte(dwCasterBaseAddress + 0x66395af0, disableFPSLimit ? 0xC3 : 0x80);
 		prevDisableFPSLimit = disableFPSLimit;
-	}*/
+
+		if (setDesiredFPS != NULL) {
+			setDesiredFPS(prevDisableFPSLimit ? 1000.0 : 60);
+		}
+		
+
+
+	}
+
+	// hihi gonp
+	//TextDraw(0, 0, 12, 0xFFFFFFFF, "test top left");
+	//TextDrawRight(640, 0, 12, 0xFFFFFFFF, "test top right");
 
 	//dualInputDisplay();
 
-	//profileFunction();
+	profileFunction();
 
 	directxFrameCount++;
 
-	//HRESULT hr = pD3DDevice->TestCooperativeLevel();
+	HRESULT hr = device->TestCooperativeLevel();
 
-	/*if (hr != S_OK) {
+	if (hr != S_OK) {
 		//log("skipping doDrawCalls");
 		//printDirectXError(hr);
 		return;
-	}*/
-	_freqTimerYVal = 0.0f;
+	}
+	_freqTimerYVal = 0.0f; 
+
+
+	/*
+	if (device != NULL) {
+		DWORD** temp = (DWORD**)0x005642cc;
+		if (*temp != 0 && **temp != 0) {
+			
+			DWORD testVal = **temp + 8;
+			//[[[0x005642cc]] + 8]
+			if (testVal != 0) {
+				DWORD omfg = *(DWORD*)testVal;
+				//log("is 005642cc ok? %08X %d", omfg, isValidTexture(omfg));
+				//log("is 005642cc ok? %08X %d", omfg, isValidSurface(omfg));
+
+				IDirect3DTexture9* t = (IDirect3DTexture9*)omfg;
+
+				HRESULT r = D3DXSaveTextureToFile(L"test.png", D3DXIFF_PNG, t, NULL);
+
+				log("trying to save something, %d", r);
+			}
+		}
+	}
+	*/
+
+	if (paletteTexture == NULL) {
+		createPaletteTexture();
+	}
 
 	//tempTest();
 	//KeyState::showControllerState();
@@ -3052,21 +3390,12 @@ void __stdcall _doDrawCalls() {
 	// i should move all this to renderingmodifications!
 	static KeyState lShiftKey(VK_LSHIFT);
 	static KeyState tKey('T');
-
-	if (true) {
-		#ifdef NDEBUG
-		//TextDraw(631, 0.0, 9, 0xFF42e5f4, "REL", res);
-		#else
-		TextDraw(500, 0.0, 9, 0xFFbd1a0b, "THIS IS A DEBUG BUILD", 0);
-		#endif
-	}
-
 	if (lShiftKey.keyHeld() && tKey.keyDown()) {
 		renderingEnable = !renderingEnable;
 
 		if (renderingEnable) {
 
-			// i can totally get melty to run faster than this if i properly disable the threaded waiting
+			// i can totally get melty to run faster than this if i properly disable the threaded waiting 
 			// rn its sorta consistent at ~300us jumping to 1000us sometimes. smells like threads?
 			// if i assume a worste case average of 500us, thats ~2000fps, a 33.33x speedup.
 			// im not sure if thats enough for what i want to do without setting some sorta distributed system up tho
@@ -3074,7 +3403,7 @@ void __stdcall _doDrawCalls() {
 			// before i move on to NEAT or something, please have something that waits until a move connects (but also registers if it doesnt somehow? a timeout ig?)
 
 			patchMemset(0x0040e48d, 0x50, 1);
-
+			
 			BYTE code1[5] = { 0xe8, 0x27, 0x4c, 0x02, 0x00 };
 			patchMemcpy(0x0040e494, &code1, 5);
 
@@ -3089,12 +3418,23 @@ void __stdcall _doDrawCalls() {
 			//patchMemset(0x0040e499, 0x90, 5); // idek what this does
 
 			// 0040e494 thisFuncCallsthefpsDoesalotofothershittoo and its push before it
-			//patchMemset(0x0040e48d, 0x90, 1);
+			patchMemset(0x0040e48d, 0x90, 1);
 			//patchMemset(0x0040e494, 0x90, 5);
 			// this func is what calls framedonecallback. we need that to still get called
-			//patchCall(0x0040e494, nakedFrameDoneCallback_RAW);
+			patchCall(0x0040e494, nakedFrameDoneCallback_RAW);
 
-			//patchCall(0x0040e49e, _naked_doDrawCalls);
+			patchCall(0x0040e49e, _naked_doDrawCalls);
+		}
+	}
+
+	//loadCharacterPalettes(); // calling this even when it isnt in use, might be bad	
+
+	static KeyState tickKey(VK_OEM_3);
+	if (lShiftKey.keyHeld() && tickKey.keyDown()) {
+		if (useCustomShaders) {
+			log("trying shaders");
+			loadCustomShader();
+			loadCharacterPalettes();
 		}
 	}
 
@@ -3108,7 +3448,7 @@ void __stdcall _doDrawCalls() {
 	static KeyState ctrlKey(VK_CONTROL);
 	if (ctrlKey.keyHeld() && lKey.keyDown()) {
 		PUSH_ALL;
-		//TODO emitCall(0x004783A0);
+		emitCall(0x004783A0);
 		POP_ALL;
 	}
 
@@ -3118,7 +3458,6 @@ void __stdcall _doDrawCalls() {
 	if (logPowerInfo) {
 		drawPowerInfo();
 	}
-	logFPS();
 	drawFindWhisk();
 	drawRoaHiddenCharge();
 	drawFancyInputDisplay();
@@ -3127,7 +3466,7 @@ void __stdcall _doDrawCalls() {
 	_drawMiscInfo();
 	displayDebugInfo();
 	_drawDebugMenu();
-	if (!nHIDE_EXTRAS) {
+	if (!XS_hideExtras) {
 		if (shouldDrawHud) {
 			_drawBuildInfo();
 		}
@@ -3151,7 +3490,71 @@ void __stdcall _doDrawCalls() {
 
 // -----
 
+void logFPS() {
 
+	if (!logVerboseFps) {
+		return;
+	}
+
+	constexpr int timerSize = 60;
+	static FreqTimer<timerSize> fpsTimer;
+	fpsTimer.tick();
+
+	for (int i = 0; i < timerSize; i++) {
+		//DWORD col = (i == fpsTimer.buffer.index) ? 0xFF42e5f4 : 0xFFbd1a0b;
+		//DWORD col = (i == fpsTimer.buffer.index) ? 0xFF42e5f4 : 0xFFbd1a0b;
+		DWORD col = 0xFF00FF00;
+		if (fpsTimer.buffer.data[i] > 61.0f) {
+			col = 0xFF0000FF;
+		}
+		else if (fpsTimer.buffer.data[i] < 59.0f) {
+			col = 0xFFFF0000;
+		}
+
+		const char* errorMsg = "";
+		if (fabsf(fpsTimer.buffer.data[i] - 60.0f) > 30.0f) {
+			errorMsg = "WHAT HAPPENED HERE";
+		}
+
+		if (logVerboseFps) {
+			TextDraw(-50.0, 10.0 + (i * 7), 7, col, "%5.2lf %c %s", fpsTimer.buffer.data[i], (i == fpsTimer.buffer.index) ? '<' : ' ', errorMsg);
+		}
+	}
+
+	const char* fpsMethod = "CASTER";
+	if (maintainFPSState == 1) {
+		fpsMethod = "BEFORE";
+	}
+	else if (maintainFPSState == 2) {
+		fpsMethod = "AFTER";
+	}
+
+	fpsMethod = "IVE BEEN THINKING";
+
+	FreqTimerData timerData = fpsTimer.getData();
+
+	if (XS_hideExtras) return;
+
+	static LARGE_INTEGER baseFreq;
+	static bool isFirstRun = true;
+	if (isFirstRun) {
+		isFirstRun = false;
+		QueryPerformanceFrequency(&baseFreq);
+	}
+
+	if (logVerboseFps) {
+		TextDraw(0.0, 0.0, 10, 0xFF42e5f4, "avg:%6.2lf min:%6.2lf max:%6.2lf stdev:%6.2lf maintainfps: %s", timerData.mean, timerData.min, timerData.max, timerData.stdev, fpsMethod);
+		TextDraw(0.0, 12, 10, 0xFF42e5f4, "perf freq: %d", baseFreq.LowPart);
+	} else {
+		if (shouldDrawHud) {
+			TextDraw(0.0, 0.0, 10, 0xFF42e5f4, "%5.2lf", timerData.mean);
+		}
+	}
+	
+	// this better not make it into a release
+	//log("fps: %5.2lf", timerData.mean);
+
+}
 
 __declspec(naked) void _naked_PresentHook() {
 	// just in case, im only hooking this one present call
@@ -3181,11 +3584,11 @@ __declspec(naked) void _naked_PresentHook() {
 	//maintainFPS(); // feels snappy? but good. caster puts theirs here
 	//frameStartCallback();
 	// this should stay here, as logging the fps right after a new frame is presented is correct
-	//logFPS();
+	logFPS();
 	/*if (maintainFPSState == 2) {
 		maintainFPS();
 	}*/
-
+	
 	POP_ALL;
 
 	__asm {
@@ -3196,22 +3599,22 @@ __declspec(naked) void _naked_PresentHook() {
 }
 
 __declspec(naked) void _naked_PresentHook2() {
-	//PUSH_ALL;
-	//_doDrawCalls();
-	//POP_ALL;
-	//
-	//emitCall(0x004bdbc0);
-	//
-	//PUSH_ALL;
-	//frameStartCallback();
-	//POP_ALL;
-	//
-	//emitJump(0x004333ed);
+	PUSH_ALL;
+	_doDrawCalls();
+	POP_ALL;
+
+	emitCall(0x004bdbc0);
+
+	PUSH_ALL;
+	frameStartCallback();
+	POP_ALL;
+
+	emitJump(0x004333ed);
 }
 
 __declspec(naked) void _naked_doDrawCalls() {
 	PUSH_ALL;
-	asmCall(_doDrawCalls)
+	_doDrawCalls();
 	POP_ALL;
 
 	__asm {
@@ -3220,9 +3623,9 @@ __declspec(naked) void _naked_doDrawCalls() {
 }
 
 __declspec(naked) void _naked_linkedListInspect() {
-
+	
 	PUSH_ALL;
-	asmCall(debugLinkedList)
+	debugLinkedList();
 	POP_ALL;
 
 	__asm {
@@ -3237,14 +3640,14 @@ __declspec(naked) void _naked_linkedListInspect2() {
 	//debugImportantDraw();
 	//POP_ALL;
 
-	//TODO emitCall(0x00433490);
+	emitCall(0x00433490);
 
 	PUSH_ALL;
-	asmCall(debugLinkedList)
-	asmCall(debugImportantDraw)
+	debugLinkedList();
+	debugImportantDraw();
 	POP_ALL;
 
-	//TODO emitJump(0x0040e49e);
+	emitJump(0x0040e49e);
 
 }
 
@@ -3253,7 +3656,7 @@ void cleanForDirectXReset() {
 	// i should make a class to manage all of them, make it easier for ppl
 	//Texture::_cleanForReset();
 
-	HRESULT hr = pD3DDevice->TestCooperativeLevel();
+	HRESULT hr = device->TestCooperativeLevel();
 	//log("RESET HR VAL");
 	//printDirectXError(hr);
 
@@ -3263,7 +3666,8 @@ void cleanForDirectXReset() {
 
 	// for unknown reasons, after pressing caster f4, if you alt tab/fullscreen unfull screen, it fixes it
 
-	log("reset resources");
+	log("attempting to reset resources");
+	
 
 	// fonttexture is managed, doesnt need release
 	if (renderTargetTex != NULL) {
@@ -3271,6 +3675,14 @@ void cleanForDirectXReset() {
 		renderTargetTex->Release();
 		renderTargetTex = NULL;
 	}
+
+	if (paletteTexture != NULL) {
+		log("reset paletteTexture");
+		paletteTexture->Release();
+		paletteTexture = NULL;
+	}
+
+	log("reset resources Done");
 }
 
 void reInitAfterDirectXReset() {
@@ -3285,6 +3697,8 @@ void reInitAfterDirectXReset() {
 	}
 	*/
 
+	log("reInitAfterDirectXReset was called");
+
 }
 
 DWORD _RESET_HOOKS = 0;
@@ -3292,8 +3706,8 @@ DWORD _DirectX_Reset_Func_ret;
 DWORD _DirectX_Reset_Func_Addr = 0;
 __declspec(naked) void _DirectX_Reset_Func() {
 	PUSH_ALL;
-	//log("DIRECTX RESET CALLED, CLEANING");
-	asmCall(cleanForDirectXReset)
+	log("DIRECTX RESET CALLED, CLEANING");
+	cleanForDirectXReset();
 	POP_ALL;
 	__asm {
 		pop _DirectX_Reset_Func_ret;
@@ -3302,7 +3716,7 @@ __declspec(naked) void _DirectX_Reset_Func() {
 	}
 
 	PUSH_ALL;
-	asmCall(reInitAfterDirectXReset)
+	reInitAfterDirectXReset();
 	POP_ALL;
 
 	__asm {
@@ -3314,7 +3728,7 @@ __declspec(naked) void _DirectX_Reset_Func() {
 DWORD _DirectX_BeginStateBlock_Func_Addr = 0;
 __declspec(naked) void _DirectX_BeginStateBlock_Func() {
 	PUSH_ALL;
-	//log("beginstateblockfunc called");
+	log("beginstateblockfunc called");
 	POP_ALL;
 	__asm {
 		mov _RESET_HOOKS, 1;
@@ -3325,8 +3739,8 @@ __declspec(naked) void _DirectX_BeginStateBlock_Func() {
 DWORD _DirectX_EvictManagedResources_Func_Addr = 0;
 __declspec(naked) void _DirectX_EvictManagedResources_Func() {
 	PUSH_ALL;
-	//log("_DirectX_EvictManagedResources_Func called, cleaning up memory");
-	asmCall(cleanForDirectXReset)
+	log("_DirectX_EvictManagedResources_Func called, cleaning up memory");
+	cleanForDirectXReset();
 	POP_ALL;
 	__asm {
 		jmp[_DirectX_EvictManagedResources_Func_Addr];
@@ -3336,8 +3750,8 @@ __declspec(naked) void _DirectX_EvictManagedResources_Func() {
 DWORD _DirectX_Present_Func_ret;
 DWORD _DirectX_Present_Func_Addr = 0;
 __declspec(naked) void _DirectX_Present_Func() {
-	// IMPORTANT. i am unsure if the hooked areas where ppl would be adding draw calls here,,
-	// some hooks for certain things might be after present. if so, things would get drawn a frame late.
+	// IMPORTANT. i am unsure if the hooked areas where ppl would be adding draw calls here,, 
+	// some hooks for certain things might be after present. if so, things would get drawn a frame late. 
 	// figure it out.
 	PUSH_ALL;
 	//log("IDirect3DDevice9_Present called!");
@@ -3349,7 +3763,7 @@ __declspec(naked) void _DirectX_Present_Func() {
 
 		cmp renderingEnable, 0; // insanity. is this hook even active? will masm throw a tantrum when i try using anything but a dword in it?
 		JE _SKIP;
-
+		
 		call[_DirectX_Present_Func_Addr];
 
 	_SKIP:
@@ -3370,7 +3784,7 @@ __declspec(naked) void _DirectX_Present_Func() {
 __declspec(naked) void _naked_InitDirectXHooks() {
 
 	PUSH_ALL;
-	//log("hooking directx");
+	log("hooking directx");
 	POP_ALL;
 
 	__asm {
@@ -3402,7 +3816,7 @@ __declspec(naked) void _naked_InitDirectXHooks() {
 		mov[ecx + 000000F0h], edx;
 	_DirectX_BeginStateBlock_Func_DONT:
 
-
+		
 		// i re enabled this hook. it might have problems!!
 		/*
 		// hook present, so we can draw on the screen
@@ -3416,7 +3830,7 @@ __declspec(naked) void _naked_InitDirectXHooks() {
 		mov[ecx + 00000044h], edx;
 	_DirectX_Present_Func_DONT:
 		*/
-
+		
 
 		// hook evict, so i can manage memory properly for once
 		mov eax, [device];
@@ -3471,7 +3885,7 @@ void logDeviceCapability() {
 
 	//IDirect3D9* pD3D9 = (IDirect3D9*)0x00767448;
 	//HRESULT hr = pD3D9->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps);
-	pD3DDevice->GetDeviceCaps(&caps);
+	device->GetDeviceCaps(&caps);
 
 	log("DEVICE INFO");
 	log("%32s D3DDEVTYPE        %08X", "DeviceType", caps.DeviceType);
@@ -3553,7 +3967,7 @@ void logDeviceCapability() {
 	log("D3DPSHADERCAPS2_0 INT   StaticFlowControlDepth %d", caps.PS20Caps.StaticFlowControlDepth);
 	log("D3DPSHADERCAPS2_0 INT   NumInstructionSlots %d", caps.PS20Caps.NumInstructionSlots);
 	log("-----");
-
+	
 	log("%32s                   %d.%d", "VertexShaderVersion", D3DSHADER_VERSION_MAJOR(caps.VertexShaderVersion), D3DSHADER_VERSION_MINOR(caps.VertexShaderVersion));
 	log("%32s                   %d.%d", "PixelShaderVersion",  D3DSHADER_VERSION_MAJOR(caps.PixelShaderVersion), D3DSHADER_VERSION_MINOR(caps.PixelShaderVersion));
 
@@ -3592,15 +4006,15 @@ bool HookDirectX() {
 	// this NEEDS to be first, before directx is hooked
 	initFont();
 
-	// idrk why, but ig im just
+	// idrk why, but ig im just 
 	// why does my code still work even when, nothing is hooked, and my resets arent there
 	// like,, the font texture is not being recreated and doesnt crash
 	// the only thing i can think of is i installed the steam ver this morning???
 	// did the steam ver do something to directx? did it change melty's settings??? why is this happening?
-	// additionally, INITING the directx hook in pausecallback vs in framedonecallback
-	// causes different things to happen.
+	// additionally, INITING the directx hook in pausecallback vs in framedonecallback 
+	// causes different things to happen. 
 	// the ONLY WAY this occurs, is if caster is,,, hooking and unhooking it periodically? on every call?
-	// actually, ok here.
+	// actually, ok here. 
 	// either caster is calling my hook, or im calling caster's hook. caster doesnt seem to sanitize
 	// or actually maybe i was relying on casters unsanitized state as my default?
 	// however, it actually seems like caster does not call my hooks,, and that was the issue?

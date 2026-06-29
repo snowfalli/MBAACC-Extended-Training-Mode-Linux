@@ -4,6 +4,8 @@ extern bool enableTAS;
 extern bool randomTAS;
 extern bool regenTAS;
 extern bool fixTAS2v2;
+extern bool enableRevTAS;
+extern byte revTasDoTrainingActionMem;
 
 int safeStoi(const std::string& s);
 
@@ -22,12 +24,81 @@ enum class TASCommand : uint8_t {
 	P3Meter = 7,
 	P4Meter = 8,
 	RNG = 9, // not implemented
-	Pause = 10, 
-	Unpause = 11, 
+	Pause = 10,
+	Unpause = 11,
 	StartFF = 12,
 	StopFF = 13,
 	FN1 = 14,
+	SetBuffer = 15,
+	WaitCancel = 16, // weird command. wait for .... something,, like the ability to non ex cancel. ugh
+	WaitHitbox = 17,
+	WaitCanMove = 18,
+	WaitAir = 19, // dont trust these, just use canmove
+	WaitGround = 20, // dont trust these, just use canmove
+	WaitNormalCancel = 21,
+	WaitSpecialCancel = 22,
+	HitboxFlagClear = 23, // internal use, for clearing the hitbox flag
+
 };
+
+static const char* getTASCommandName(TASCommand t) {
+
+	switch (t) {
+	case TASCommand::Nothing: 
+		return "Nothing";
+	case TASCommand::P1XPos:
+		return "P1XPos";
+	case TASCommand::P2XPos:
+		return "P2XPos";
+	case TASCommand::P3XPos:
+		return "P3XPos";
+	case TASCommand::P4XPos:
+		return "P4XPos";
+	case TASCommand::P1Meter:
+		return "P1Meter";
+	case TASCommand::P2Meter:
+		return "P2Meter";
+	case TASCommand::P3Meter:
+		return "P3Meter";
+	case TASCommand::P4Meter:
+		return "P4Meter";
+	case TASCommand::RNG:
+		return "RNG";
+	case TASCommand::Pause:
+		return "Pause";
+	case TASCommand::Unpause:
+		return "Unpause";
+	case TASCommand::StartFF:
+		return "StartFF";
+	case TASCommand::StopFF:
+		return "StopFF";
+	case TASCommand::FN1:
+		return "FN1";
+	case TASCommand::SetBuffer:
+		return "SetBuffer";
+	case TASCommand::WaitCancel:
+		return "WaitCancel";
+	case TASCommand::WaitHitbox:
+		return "WaitHitbox";
+	case TASCommand::WaitCanMove:
+		return "WaitCanMove";
+	case TASCommand::WaitAir:
+		return "WaitAir";
+	case TASCommand::WaitGround:
+		return "WaitGround";
+	case TASCommand::WaitNormalCancel:
+		return "WaitNormalCancel";
+	case TASCommand::WaitSpecialCancel:
+		return "WaitSpecialCancel";
+	case TASCommand::HitboxFlagClear:
+		return "HitboxFlagClear";
+	default:
+		break;
+	}
+
+	return "UNKNOWN VALUE";
+
+}
 
 #pragma pack(push,1)
 typedef struct TASItem {
@@ -54,6 +125,9 @@ typedef struct TASItem {
 		uint32_t commandDataU32;
 	};
 	
+	// remember when i was trying to keep this struct small? funny. but then again that type of programming hurts me in the long run
+	std::string waitCommand = ""; // i could do a const char but.. who cares
+
 	// -----
 
 	void setRand() {
@@ -94,7 +168,7 @@ typedef struct TASItem {
 	}
 
 	void logItem() {
-		log("%.4d %d %d%d%d%d", length, dir, a, b, c, d);
+		log("%10s L:%4d D:%d %d%d%d%d", getTASCommandName(command), length, dir, a, b, c, d);
 	}
 
 	inline void setLength(const std::string& s) {
@@ -130,7 +204,7 @@ typedef struct TASItem {
 #pragma pack(pop)
 
 static_assert(sizeof(TASCommand) == 1, "TASCommand must be size of 1");
-static_assert(sizeof(TASItem) == 8, "TASItem must be proper size!");
+//static_assert(sizeof(TASItem) == 8, "TASItem must be proper size!");
 
 class TASManager {
 public:

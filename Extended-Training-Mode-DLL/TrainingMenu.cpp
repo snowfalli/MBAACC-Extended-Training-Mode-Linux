@@ -72,7 +72,7 @@ int GetHotkeyPressed()
 	return -1;
 }
 
-void CheckNewHotkey(bool bAPress, KeyState& oHotkey, LPCWSTR sRegKey) {
+void CheckNewHotkey(bool bAPress, KeyState& oHotkey, LPCTSTR sRegKey) {
 	if (bAPress && nHOTKEY_CD_TIMER == 0) {
 		SetRegistryValue(sRegKey, 0);
 		nHOTKEY_CD_TIMER = 10;
@@ -144,346 +144,415 @@ void MenuWindow::SetLabel(const char* newLabel) {
 	ReadDataFile((void*)(&label), newLabel, strlen(newLabel));
 }
 
-// --- Vectors guide ---
-//Empty vectors are blank spaces (only need the one defined)
-//Vectors with one value are elements with only a label (like the vanilla "default" and "return" elements)
-//Vectors with more than one value are elements with selectable options
+Setting::Setting() {
 
-int nPAGE = 1;
-
-//Page 1
-int nREVERSAL_TYPE = defREVERSAL_TYPE;
-int nREVERSAL_SLOT_1 = defREVERSAL_SLOT_1;
-int nREV_SLOT_1_WEIGHT = defREV_SLOT_1_WEIGHT;
-int nREVERSAL_SLOT_2 = defREVERSAL_SLOT_2;
-int nREV_SLOT_2_WEIGHT = defREV_SLOT_2_WEIGHT;
-int nREVERSAL_SLOT_3 = defREVERSAL_SLOT_3;
-int nREV_SLOT_3_WEIGHT = defREV_SLOT_3_WEIGHT;
-int nREVERSAL_SLOT_4 = defREVERSAL_SLOT_4;
-int nREV_SLOT_4_WEIGHT = defREV_SLOT_4_WEIGHT;
-int nNO_REV_WEIGHT = defNO_REV_WEIGHT;
-int nREVERSAL_DELAY = defREVERSAL_DELAY;
-
-int nREV_ID_1 = defREV_ID;
-int nREV_ID_2 = defREV_ID;
-int nREV_ID_3 = defREV_ID;
-int nREV_ID_4 = defREV_ID;
-
-void DefaultP1(MenuInfo* menuInfo) {
-	nREVERSAL_TYPE = defREVERSAL_TYPE;
-	nREVERSAL_SLOT_1 = defREVERSAL_SLOT_1;
-	nREV_SLOT_1_WEIGHT = defREV_SLOT_1_WEIGHT;
-	nREVERSAL_SLOT_2 = defREVERSAL_SLOT_2;
-	nREV_SLOT_2_WEIGHT = defREV_SLOT_2_WEIGHT;
-	nREVERSAL_SLOT_3 = defREVERSAL_SLOT_3;
-	nREV_SLOT_3_WEIGHT = defREV_SLOT_3_WEIGHT;
-	nREVERSAL_SLOT_4 = defREVERSAL_SLOT_4;
-	nREV_SLOT_4_WEIGHT = defREV_SLOT_4_WEIGHT;
-	nNO_REV_WEIGHT = defNO_REV_WEIGHT;
-	nREVERSAL_DELAY = defREVERSAL_DELAY;
-
-	nREV_ID_1 = defREV_ID;
-	nREV_ID_2 = defREV_ID;
-	nREV_ID_3 = defREV_ID;
-	nREV_ID_4 = defREV_ID;
-
-	(menuInfo->elementList).listStart[(int)eREVERSALS::REVERSAL_TYPE]->selectedItem = defREVERSAL_TYPE;
-	(menuInfo->elementList).listStart[(int)eREVERSALS::REVERSAL_SLOT_1]->selectedItem = defREVERSAL_SLOT_1;
-	(menuInfo->elementList).listStart[(int)eREVERSALS::WEIGHT_1]->selectedItem = defREV_SLOT_1_WEIGHT;
-	(menuInfo->elementList).listStart[(int)eREVERSALS::REVERSAL_SLOT_2]->selectedItem = defREVERSAL_SLOT_2;
-	(menuInfo->elementList).listStart[(int)eREVERSALS::WEIGHT_2]->selectedItem = defREV_SLOT_2_WEIGHT;
-	(menuInfo->elementList).listStart[(int)eREVERSALS::REVERSAL_SLOT_3]->selectedItem = defREVERSAL_SLOT_3;
-	(menuInfo->elementList).listStart[(int)eREVERSALS::WEIGHT_3]->selectedItem = defREV_SLOT_3_WEIGHT;
-	(menuInfo->elementList).listStart[(int)eREVERSALS::REVERSAL_SLOT_4]->selectedItem = defREVERSAL_SLOT_4;
-	(menuInfo->elementList).listStart[(int)eREVERSALS::WEIGHT_4]->selectedItem = defREV_SLOT_4_WEIGHT;
-	(menuInfo->elementList).listStart[(int)eREVERSALS::NO_REVERSAL_WEIGHT]->selectedItem = defNO_REV_WEIGHT;
-	(menuInfo->elementList).listStart[(int)eREVERSALS::REVERSAL_DELAY]->selectedItem = defREVERSAL_DELAY;
 }
 
-//Page 2
-int nPENALTY_RESET = defPEN_RESET;
-int nGUARD_BAR_RESET = defGUARD_RESET;
-int nEX_GUARD = defEX_GUARD;
-int nP1_METER = defP1_METER;
-int nP2_METER = defP2_METER;
-int nP1_HEALTH = defP1_HEALTH;
-int nP2_HEALTH = defP2_HEALTH;
-int nHITS_UNTIL_BURST = defHITS_BURST;
-int nHITS_UNTIL_BUNKER = defHITS_BUNKER;
-int nHITS_UNTIL_FORCE_GUARD = defHITS_FORCE_GUARD;
-int nFORCE_GUARD_STANCE = defFORCE_GUARD_STANCE;
-
-int nTRUE_P1_METER = defTRUE_P1_METER;
-int nTRUE_P2_METER = defTRUE_P2_METER;
-int nTRUE_P1_HEALTH = defTRUE_P1_HEALTH;
-int nTRUE_P2_HEALTH = defTRUE_P2_HEALTH;
-int nTRUE_HITS_UNTIL_BURST = defTRUE_HITS_BURST;
-int nTRUE_HITS_UNTIL_BUNKER = defTRUE_HITS_BUNKER;
-int nTRUE_HITS_UNTIL_FORCE_GUARD = defTRUE_HITS_FORCE_GUARD;
-
-void DefaultP2(MenuInfo* menuInfo) {
-	nPENALTY_RESET = defPEN_RESET;
-	nGUARD_BAR_RESET = defGUARD_RESET;
-	nEX_GUARD = defEX_GUARD;
-	nP1_METER = defP1_METER;
-	nP2_METER = defP2_METER;
-	nP1_HEALTH = defP1_HEALTH;
-	nP2_HEALTH = defP2_HEALTH;
-	nHITS_UNTIL_BURST = defHITS_BURST;
-	nHITS_UNTIL_BUNKER = defHITS_BUNKER;
-	nHITS_UNTIL_FORCE_GUARD = defHITS_FORCE_GUARD;
-	nFORCE_GUARD_STANCE = defFORCE_GUARD_STANCE;
-
-	nTRUE_P1_METER = defTRUE_P1_METER;
-	nTRUE_P2_METER = defTRUE_P2_METER;
-	nTRUE_P1_HEALTH = defTRUE_P1_HEALTH;
-	nTRUE_P2_HEALTH = defTRUE_P2_HEALTH;
-	nTRUE_HITS_UNTIL_BURST = defTRUE_HITS_BURST;
-	nTRUE_HITS_UNTIL_BUNKER = defTRUE_HITS_BUNKER;
-	nTRUE_HITS_UNTIL_FORCE_GUARD = defTRUE_HITS_FORCE_GUARD;
-
-	(menuInfo->elementList).listStart[(int)eTRAINING::PENALTY_RESET]->selectedItem = defPEN_RESET;
-	(menuInfo->elementList).listStart[(int)eTRAINING::GUARD_BAR_RESET]->selectedItem = defGUARD_RESET;
-	(menuInfo->elementList).listStart[(int)eTRAINING::EX_GUARD]->selectedItem = defEX_GUARD;
-	(menuInfo->elementList).listStart[(int)eTRAINING::P1_METER]->selectedItem = defP1_METER;
-	(menuInfo->elementList).listStart[(int)eTRAINING::P2_METER]->selectedItem = defP2_METER;
-	(menuInfo->elementList).listStart[(int)eTRAINING::P1_HEALTH]->selectedItem = defP1_HEALTH;
-	(menuInfo->elementList).listStart[(int)eTRAINING::P2_HEALTH]->selectedItem = defP2_HEALTH;
-	(menuInfo->elementList).listStart[(int)eTRAINING::HITS_UNTIL_BURST]->selectedItem = defHITS_BURST;
-	(menuInfo->elementList).listStart[(int)eTRAINING::HITS_UNTIL_BUNKER]->selectedItem = defHITS_BUNKER;
-	(menuInfo->elementList).listStart[(int)eTRAINING::HITS_UNTIL_FORCE_GUARD]->selectedItem = defHITS_FORCE_GUARD;
-	(menuInfo->elementList).listStart[(int)eTRAINING::FORCE_GUARD_STANCE]->selectedItem = defFORCE_GUARD_STANCE;
+Setting::Setting(std::string label_) {
+	label = label_;
 }
 
-//Page 3
-int nHIGHLIGHTS = defHIGHLIGHTS;
-int nGUARD_HIGHLIGHT = defGUARD_HIGHLIGHT;
-int nHIT_HIGHLIGHT = defHIT_HIGHLIGHT;
-int nARMOR_HIGHLIGHT = defARMOR_HIGHLIGHT;
-int nTHROW_PROTECTION_HIGHLIGHT = defTHROW_PROT_HIGHLIGHT;
-int nIDLE_HIGHLIGHT = defIDLE_HIGHLIGHT;
+Setting::Setting(std::string label_, std::vector<std::string> itemLabels_, int* valuePtr_, int storageDefault_, int settingType_, REGKEY valueRegKey_, REGKEY storageRegKey_) {
+	label = label_;
+	itemLabels = itemLabels_;
+	settingType = settingType_;
+	if (valuePtr_ == nullptr) {
+		storageDefault = 1;
+		storage = 1;
+		return;
+	}
 
-void DefaultP3(MenuInfo* menuInfo) {
-	nHIGHLIGHTS = defHIGHLIGHTS;
-	nGUARD_HIGHLIGHT = defGUARD_HIGHLIGHT;
-	nHIT_HIGHLIGHT = defHIT_HIGHLIGHT;
-	nARMOR_HIGHLIGHT = defARMOR_HIGHLIGHT;
-	nTHROW_PROTECTION_HIGHLIGHT = defTHROW_PROT_HIGHLIGHT;
-	nIDLE_HIGHLIGHT = defIDLE_HIGHLIGHT;
-
-	(menuInfo->elementList).listStart[(int)eHIGHLIGHTS::HIGHLIGHTS]->selectedItem = defHIGHLIGHTS;
-	(menuInfo->elementList).listStart[(int)eHIGHLIGHTS::GUARD]->selectedItem = defGUARD_HIGHLIGHT;
-	(menuInfo->elementList).listStart[(int)eHIGHLIGHTS::HIT]->selectedItem = defHIT_HIGHLIGHT;
-	(menuInfo->elementList).listStart[(int)eHIGHLIGHTS::ARMOR]->selectedItem = defARMOR_HIGHLIGHT;
-	(menuInfo->elementList).listStart[(int)eHIGHLIGHTS::THROW_PROTECTION]->selectedItem = defTHROW_PROT_HIGHLIGHT;
-	(menuInfo->elementList).listStart[(int)eHIGHLIGHTS::IDLE]->selectedItem = defIDLE_HIGHLIGHT;
+	storage = storageDefault_;
+	storageDefault = storageDefault_;
+	valuePtr = valuePtr_;
+	if (valuePtr_ != nullptr)
+		valueDefault = *valuePtr_;
+	settingType = settingType_;
+	valueRegKey = valueRegKey_;
+	storageRegKey = storageRegKey_;
 }
 
-//Page 4
-int nRESET_TO_POSITIONS = defRESET_POS;
-int nP1_X_LOC = defP1_X;
-int nP1_ASSIST_X_LOC = defP1_ASSIST_X;
-int nP2_X_LOC = defP2_X;
-int nP2_ASSIST_X_LOC = defP2_ASSIST_X;
-
-int nTRUE_P1_X_LOC = defTRUE_P1_X;
-int nTRUE_P1_ASSIST_X_LOC = defTRUE_P1_ASSIST_X;
-int nTRUE_P2_X_LOC = defTRUE_P2_X;
-int nTRUE_P2_ASSIST_X_LOC = defTRUE_P2_ASSIST_X;
-
-void DefaultP4(MenuInfo* menuInfo) {
-	nRESET_TO_POSITIONS = defRESET_POS;
-	nP1_X_LOC = defP1_X;
-	nP1_ASSIST_X_LOC = defP1_ASSIST_X;
-	nP2_X_LOC = defP2_X;
-	nP2_ASSIST_X_LOC = defP2_ASSIST_X;
-
-	nTRUE_P1_X_LOC = defTRUE_P1_X;
-	nTRUE_P1_ASSIST_X_LOC = defTRUE_P1_ASSIST_X;
-	nTRUE_P2_X_LOC = defTRUE_P2_X;
-	nTRUE_P2_ASSIST_X_LOC = defTRUE_P2_ASSIST_X;
-
-	(menuInfo->elementList).listStart[(int)ePOSITIONS::RESET_TO_POSITIONS]->selectedItem = defRESET_POS;
-	(menuInfo->elementList).listStart[(int)ePOSITIONS::P1_POSITION]->selectedItem = defP1_X;
-	(menuInfo->elementList).listStart[(int)ePOSITIONS::P1_ASSIST_POSITION]->selectedItem = defP1_ASSIST_X;
-	(menuInfo->elementList).listStart[(int)ePOSITIONS::P2_POSITION]->selectedItem = defP2_X;
-	(menuInfo->elementList).listStart[(int)ePOSITIONS::P2_ASSIST_POSITION]->selectedItem = defP2_ASSIST_X;
+Setting::Setting(std::string label_, std::vector<std::string> itemLabels_, KeyState* hotkey_, REGKEY hotkeyRegKey) {
+	label = label_;
+	itemLabels = itemLabels_;
+	valueDefault = 0;
+	hotkey = hotkey_;
+	settingType = 1;
+	valueRegKey = hotkeyRegKey;
 }
 
-//Page 5
-int nSION_BULLETS = defSION_BULLETS;
-int nROA_VISIBLE_CHARGE = defROA_VISIBLE;
-int nROA_HIDDEN_CHARGE = defROA_HIDDEN;
-int nF_MAIDS_HEARTS = defMAIDS_HEARTS;
-int nRYOUGI_KNIFE = defRYOUGI_KNIFE;
+void Setting::_default() {
+	storage = storageDefault;
+	if (valuePtr != nullptr)
+		*valuePtr = valueDefault;
 
-void DefaultP5(MenuInfo* menuInfo) {
-	nSION_BULLETS = defSION_BULLETS;
-	nROA_VISIBLE_CHARGE = defROA_VISIBLE;
-	nROA_HIDDEN_CHARGE = defROA_HIDDEN;
-	nF_MAIDS_HEARTS = defMAIDS_HEARTS;
-	nRYOUGI_KNIFE = defRYOUGI_KNIFE;
+	if (element != nullptr)
+		element->selectedItem = storageDefault;
 
-	(menuInfo->elementList).listStart[(int)eCHARACTER::SION_BULLETS]->selectedItem = defSION_BULLETS;
-	(menuInfo->elementList).listStart[(int)eCHARACTER::ROA_VISIBLE_CHARGES]->selectedItem = defROA_VISIBLE;
-	(menuInfo->elementList).listStart[(int)eCHARACTER::ROA_HIDDEN_CHARGES]->selectedItem = defROA_HIDDEN;
-	(menuInfo->elementList).listStart[(int)eCHARACTER::F_MAIDS_HEARTS]->selectedItem = defMAIDS_HEARTS;
-	(menuInfo->elementList).listStart[(int)eCHARACTER::RYOUGI_KNIFE]->selectedItem = defRYOUGI_KNIFE;
+	if (hotkey != nullptr)
+		hotkey = nullptr;
+
+	if (storageRegKey != L"")
+		SetRegistryValue(storageRegKey, storageDefault);
+
+	if (valueRegKey != L"")
+		SetRegistryValue(valueRegKey, valueDefault);
 }
 
-//Page 6
-int nDISPLAY_HITBOXES = defDISPLAY_HITBOXES;
-int nHITBOX_STYLE = defHITBOX_STYLE;
-int nCOLOR_BLIND_MODE = defCOLOR_BLIND;
-int nORIGIN_STYLE = defORIGIN_STYLE;
-int nDRAW_GROUND = defDRAW_GROUND;
+Page::Page() {
 
-void DefaultP6(MenuInfo* menuInfo) {
-	nDISPLAY_HITBOXES = defDISPLAY_HITBOXES;
-	nHITBOX_STYLE = defHITBOX_STYLE;
-	nCOLOR_BLIND_MODE = defCOLOR_BLIND;
-	nORIGIN_STYLE = defORIGIN_STYLE;
-	nDRAW_GROUND = defDRAW_GROUND;
-
-	(menuInfo->elementList).listStart[(int)eHITBOXES::DISPLAY_HITBOXES]->selectedItem = defDISPLAY_HITBOXES;
-	(menuInfo->elementList).listStart[(int)eHITBOXES::HITBOX_STYLE]->selectedItem = defHITBOX_STYLE;
-	(menuInfo->elementList).listStart[(int)eHITBOXES::COLOR_BLIND_MODE]->selectedItem = defCOLOR_BLIND;
-	(menuInfo->elementList).listStart[(int)eHITBOXES::ORIGIN_STYLE]->selectedItem = defORIGIN_STYLE;
-	(menuInfo->elementList).listStart[(int)eHITBOXES::DRAW_GROUND]->selectedItem = defDRAW_GROUND;
 }
 
-//Page 7
-int nSAVE_STATE_SLOT = defSAVE_SLOT;
-int nLOAD_RNG = defLOAD_RNG;
-
-void DefaultP7(MenuInfo* menuInfo) {
-	nSAVE_STATE_SLOT = defSAVE_SLOT;
-	nLOAD_RNG = defLOAD_RNG;
-
-	(menuInfo->elementList).listStart[(int)eSAVE_STATES::SAVE_STATE_SLOT]->selectedItem = defSAVE_SLOT;
-	(menuInfo->elementList).listStart[(int)eSAVE_STATES::LOAD_RNG]->selectedItem = defLOAD_RNG;
+Page::Page(std::string label_) {
+	label = label_;
 }
 
-//Page 8
-int nFRAME_DATA = defFRAME_DATA;
-int nIN_GAME_FRAME_DISPLAY = defIN_GAME_FRAME_DISPLAY;
-int nSHOW_HITSTOP_AND_FREEZE = defSHOW_HITSTOP_AND_FREEZE;
-int nSHOW_INPUTS = defSHOW_INPUTS;
-int nSHOW_CANCEL_WINDOWS = defSHOW_CANCEL;
-int nSCROLL_DISPLAY = defSCROLL_DISPLAY;
-
-bool bCOLOR_GUIDE = defCOLOR_GUIDE;
-
-int nTRUE_SCROLL_DISPLAY = defTRUE_SCROLL_DISPLAY;
-
-void DefaultP8(MenuInfo* menuInfo) {
-	nFRAME_DATA = defFRAME_DATA;
-	nIN_GAME_FRAME_DISPLAY = defIN_GAME_FRAME_DISPLAY;
-	nSHOW_HITSTOP_AND_FREEZE = defSHOW_HITSTOP_AND_FREEZE;
-	nSHOW_INPUTS = defSHOW_INPUTS;
-	nSHOW_CANCEL_WINDOWS = defSHOW_CANCEL;
-	nSCROLL_DISPLAY = defSCROLL_DISPLAY;
-
-	bCOLOR_GUIDE = defCOLOR_GUIDE;
-
-	nTRUE_SCROLL_DISPLAY = defTRUE_SCROLL_DISPLAY;
-
-	(menuInfo->elementList).listStart[(int)eFRAME_DATA::FRAME_DATA]->selectedItem = defFRAME_DATA;
-	(menuInfo->elementList).listStart[(int)eFRAME_DATA::IN_GAME_FRAME_DISPLAY]->selectedItem = defIN_GAME_FRAME_DISPLAY;
-	(menuInfo->elementList).listStart[(int)eFRAME_DATA::SHOW_HITSTOP_AND_FREEZE]->selectedItem = defSHOW_HITSTOP_AND_FREEZE;
-	(menuInfo->elementList).listStart[(int)eFRAME_DATA::SHOW_INPUTS]->selectedItem = defSHOW_INPUTS;
-	(menuInfo->elementList).listStart[(int)eFRAME_DATA::SHOW_CANCEL_WINDOWS]->selectedItem = defSHOW_CANCEL;
-	(menuInfo->elementList).listStart[(int)eFRAME_DATA::SCROLL_DISPLAY]->selectedItem = defSCROLL_DISPLAY;
+void Page::add(Setting& setting_) {
+	settings.emplace_back(setting_);
 }
 
-//Page 9
-int nCUSTOM_RNG = defCUSTOM_RNG;
-int nRATE = defRATE;
-int nSEED = defSEED;
-
-int nTRUE_SEED = defTRUE_SEED;
-
-void DefaultP9(MenuInfo* menuInfo) {
-	nCUSTOM_RNG = defCUSTOM_RNG;
-	nRATE = defRATE;
-	nSEED = defSEED;
-
-	nTRUE_SEED = defTRUE_SEED;
-
-	(menuInfo->elementList).listStart[(int)eRNG::CUSTOM_RNG]->selectedItem = defCUSTOM_RNG;
-	(menuInfo->elementList).listStart[(int)eRNG::RATE]->selectedItem = defRATE;
-	(menuInfo->elementList).listStart[(int)eRNG::SEED]->selectedItem = defSEED;
+void Page::add(std::string label_) {
+	settings.emplace_back(label_);
 }
 
-//Page 10
-int nSHOW_STATS = defSHOW_STATS;
-int nACCURATE_COMBO_DAMAGE = defACCURATE_COMBO_DAMAGE;
-int nP1_INPUT_DISPLAY = defP1_INPUT;
-int nP2_INPUT_DISPLAY = defP2_INPUT;
-int nFRAME_DISPLAY_Y = defFRAME_DISPLAY_Y;
-
-int nTRUE_FRAME_DISPLAY_Y = defTRUE_FRAME_DISPLAY_Y;
-
-extern float fP1_LIST_INPUT_X = defP1_LIST_INPUT_X;
-extern float fP1_LIST_INPUT_Y = defP1_LIST_INPUT_Y;
-extern float fP2_LIST_INPUT_X = defP2_LIST_INPUT_X;
-extern float fP2_LIST_INPUT_Y = defP2_LIST_INPUT_Y;
-
-extern float fP1_ARCADE_INPUT_X = defP1_ARCADE_INPUT_X;
-extern float fP1_ARCADE_INPUT_Y = defP1_ARCADE_INPUT_Y;
-extern float fP2_ARCADE_INPUT_X = defP2_ARCADE_INPUT_X;
-extern float fP2_ARCADE_INPUT_Y = defP2_ARCADE_INPUT_Y;
-
-void DefaultP10(MenuInfo* menuInfo) {
-	nSHOW_STATS = defSHOW_STATS;
-	nACCURATE_COMBO_DAMAGE = defACCURATE_COMBO_DAMAGE;
-	nP1_INPUT_DISPLAY = defP1_INPUT;
-	nP2_INPUT_DISPLAY = defP2_INPUT;
-	nFRAME_DISPLAY_Y = defFRAME_DISPLAY_Y;
-
-	nTRUE_FRAME_DISPLAY_Y = defTRUE_FRAME_DISPLAY_Y;
-
-	(menuInfo->elementList).listStart[(int)eUI::SHOW_STATS]->selectedItem = defSHOW_STATS;
-	(menuInfo->elementList).listStart[(int)eUI::ACCURATE_COMBO_DAMAGE]->selectedItem = defACCURATE_COMBO_DAMAGE;
-	(menuInfo->elementList).listStart[(int)eUI::P1_INPUT_DISPLAY]->selectedItem = defP1_INPUT;
-	(menuInfo->elementList).listStart[(int)eUI::P2_INPUT_DISPLAY]->selectedItem = defP2_INPUT;
-	(menuInfo->elementList).listStart[(int)eUI::FRAME_DISPLAY_Y]->selectedItem = defFRAME_DISPLAY_Y;
+void Page::add(std::string label_, std::vector<std::string> itemLabels_, int* valuePtr_, REGKEY registryKey_) {
+	settings.emplace_back(label_, itemLabels_, valuePtr_, *valuePtr_, 0, registryKey_, registryKey_);
 }
 
-//Page 11
-int nGAME_SPEED = defGAME_SPEED;
-int nHIDE_HUD = defHIDE_HUD;
-int nHIDE_SHADOWS = defHIDE_SHADOWS;
-int nHIDE_EXTRAS = defHIDE_EXTRAS;
-int nBACKGROUND = defBACKGROUND;
-
-void DefaultP11(MenuInfo* menuInfo) {
-	nGAME_SPEED = defGAME_SPEED;
-	nHIDE_HUD = defHIDE_HUD;
-	nHIDE_SHADOWS = defHIDE_SHADOWS;
-	nHIDE_EXTRAS = defHIDE_EXTRAS;
-	nBACKGROUND = defBACKGROUND;
-
-	(menuInfo->elementList).listStart[(int)eSYSTEM::GAME_SPEED]->selectedItem = defGAME_SPEED;
-	(menuInfo->elementList).listStart[(int)eSYSTEM::HIDE_HUD]->selectedItem = defHIDE_HUD;
-	(menuInfo->elementList).listStart[(int)eSYSTEM::HIDE_SHADOWS]->selectedItem = defHIDE_SHADOWS;
-	(menuInfo->elementList).listStart[(int)eSYSTEM::HIDE_EXTRAS]->selectedItem = defHIDE_EXTRAS;
-	(menuInfo->elementList).listStart[(int)eSYSTEM::BACKGROUND]->selectedItem = defBACKGROUND;
+void Page::addCustom(std::string label_, int* valuePtr_, int storageDefault_, bool isBound, REGKEY valueRegKey_, REGKEY storageRegKey_) {
+	int settingType_ = isBound ? 3 : 4;
+	settings.emplace_back(label_, defaultCustomItems, valuePtr_, storageDefault_, settingType_, valueRegKey_, storageRegKey_);
 }
 
-//All pages
-uint8_t nEXTENDED_SETTINGS_PAGE = 0;
-uint8_t nEXTENDED_SETTINGS_CURSOR[XS_NUM_PAGES + 1] = { 0 };
+void Page::addNumeric(std::string label_, int min, int max, int* valuePtr_, REGKEY registryKey_) {
+	std::vector<std::string> itemLabels = {};
+	for (int i = min; i <= max; i ++) {
+		itemLabels.emplace_back(std::to_string(i));
+	}
+	settings.emplace_back(label_, itemLabels, valuePtr_, *valuePtr_, 0,  registryKey_, registryKey_);
+}
 
-bool bOldFN1Input = 0;
-bool bOldFN2Input = 0;
+void Page::addHotkey(std::string label_, KeyState* hotkey_, REGKEY registryKey_) {
+	settings.emplace_back(label_, hotkeyItems, hotkey_, registryKey_);
+}
 
-//Hotkey settings
+void Page::addDefault() {
+	settings.emplace_back("DEFAULT");
+}
 
-//Page 1
-int nHOTKEYS = 0; //The hotkey menu elements dont need to save their index, but they still need a location to save to
+void Page::addReturn() {
+	settings.emplace_back("RETURN");
+}
+
+void Page::addPage(std::string pageNumLabel) {
+	std::vector<std::string> pageNumLabels = { "X1", pageNumLabel, "X2" };
+	settings.emplace_back(" ", pageNumLabels, nullptr, 1, 4);
+}
+
+void Page::addSpace() {
+	settings.emplace_back("");
+}
+
+void Page::addFooter(std::string pageNumLabel) {
+	addDefault();
+	addSpace();
+	addReturn();
+	addSpace();
+	addPage(pageNumLabel);
+}
+
+Setting* Page::get(int i) {
+	return &settings[i];
+}
+
+int* Page::getValuePtr(int i) {
+	return settings[i].valuePtr;
+}
+
+int Page::getValue(int i) {
+	return *(settings[i].valuePtr);
+}
+
+int Page::getStorage(int i) {
+	return settings[i].storage;
+}
+
+void Page::setValue(int i, int value_) {
+	*(settings[i].valuePtr) = value_;
+}
+
+void Page::setStorage(int i, int storage_) {
+	settings[i].storage = storage_;
+}
+
+void Page::_default() {
+	for (auto setting : settings) {
+		setting._default();
+	}
+}
+
+MenuContainer::MenuContainer(std::string label_) {
+	label = label_;
+}
+
+void MenuContainer::add(Page& page_) {
+	pages.emplace_back(page_);
+}
+
+Page* MenuContainer::get(int i) {
+	return &pages[i];
+}
+
+MenuContainer XS_Menu("EXTENDED SETTINGS");
+MenuContainer HK_Menu("HOTKEY SETTINGS");
+
+int XS_reversalType = 1;
+int XS_reversalSlot1 = 0;
+int XS_weight1 = 1;
+int XS_reversalSlot2 = 0;
+int XS_weight2 = 1;
+int XS_reversalSlot3 = 0;
+int XS_weight3 = 1;
+int XS_reversalSlot4 = 0;
+int XS_weight4 = 1;
+int XS_noReversalWeight = 0;
+int XS_reversalDelay = 0;
+int* XS_reversalSlots[4] = { &XS_reversalSlot1, &XS_reversalSlot2, &XS_reversalSlot3, &XS_reversalSlot4 };
+int* XS_reversalWeights[4] = { &XS_weight1, &XS_weight2, &XS_weight3, &XS_weight4 };
+
+int XS_penaltyReset = 0;
+int XS_guardBarReset = 0;
+int XS_exGuard = 0;
+int XS_p1Meter = 10000;
+int XS_p2Meter = 10000;
+int XS_p1Health = 11400;
+int XS_p2Health = 11400;
+int XS_hitsUntilBurst = 0;
+int XS_hitsUntilBunker = 0;
+int XS_hitsUntilForceGuard = 0;
+int XS_forceGuardStance = 0;
+
+int XS_highlights = 0;
+int XS_guardHighlight = 0;
+int XS_hitHighlight = 0;
+int XS_armorHighlight = 0;
+int XS_throwProtectionHighlight = 0;
+int XS_idleHighlight = 0;
+
+int XS_resetToPositions = 0;
+int XS_p1Position = -16384;
+int XS_p1AssistPosition = -29184;
+int XS_p2Position = 16384;
+int XS_p2AssistPosition = 29184;
+
+int XS_sionBullets = 1;
+int XS_roaVisibleCharges = 1;
+int XS_roaHiddenCharges = 1;
+int XS_fMaidsHearts = 1;
+int XS_ryougiKnife = 1;
+
+int XS_displayHitboxes = 0;
+int XS_hitboxStyle = 0;
+int XS_colorBlindMode = 0;
+int XS_originStyle = 0;
+int XS_drawGround = 0;
+
+int XS_saveStateSlot = 1;
+int XS_syncSavesWithFiles = 0;
+int XS_loadRNG = 0;
+
+int XS_consoleData = 0;
+int XS_inGameFrameDisplay = 0;
+int XS_showHitstopAndFreeze = 0;
+int XS_showCounterhit = 0;
+int XS_showInputs = 0;
+int XS_showCancelWindows = 0;
+int XS_scrollDisplay = 0;
+
+bool XS_colorGuide = false;
+
+int XS_customRNG = 0;
+int XS_rate = 0;
+int XS_seed = 0;
+
+int XS_showStats = 0;
+int XS_accurateComboDamage = 0;
+int XS_p1InputDisplay = 0;
+int XS_p2InputDisplay = 0;
+
+float fP1_LIST_INPUT_X = defP1_LIST_INPUT_X;
+float fP1_LIST_INPUT_Y = defP1_LIST_INPUT_Y;
+float fP2_LIST_INPUT_X = defP2_LIST_INPUT_X;
+float fP2_LIST_INPUT_Y = defP2_LIST_INPUT_Y;
+
+float fP1_ARCADE_INPUT_X = defP1_ARCADE_INPUT_X;
+float fP1_ARCADE_INPUT_Y = defP1_ARCADE_INPUT_Y;
+float fP2_ARCADE_INPUT_X = defP2_ARCADE_INPUT_X;
+float fP2_ARCADE_INPUT_Y = defP2_ARCADE_INPUT_Y;
+
+int XS_gameSpeed = 0;
+int XS_hideHUD = 0;
+int XS_hideShadows = 0;
+int XS_hideExtras = 0;
+int XS_background = 0;
+
+void initExtendedMenu() {
+	Page reversals("REVERSALS");
+	reversals.add("REVERSALS", { "OFF", "ON", "ON GUARD", "ON HIT", "ON WAKEUP", "ON SHIELD" }, &XS_reversalType);
+	reversals.addSpace();
+	reversals.addCustom("REVERSAL SLOT 1", &XS_reversalSlot1, 1, false);
+	reversals.addNumeric("WEIGHT 1", 0, 10, &XS_weight1);
+	reversals.addCustom("REVERSAL SLOT 2", &XS_reversalSlot2, 1, false);
+	reversals.addNumeric("WEIGHT 2", 0, 10, &XS_weight2);
+	reversals.addCustom("REVERSAL SLOT 3", &XS_reversalSlot3, 1, false);
+	reversals.addNumeric("WEIGHT 3", 0, 10, &XS_weight3);
+	reversals.addCustom("REVERSAL SLOT 4", &XS_reversalSlot4, 1, false);
+	reversals.addNumeric("WEIGHT 4", 0, 10, &XS_weight4);
+	reversals.addSpace();
+	reversals.addNumeric("NO REVERSAL WEIGHT", 0, 10, &XS_noReversalWeight);
+	reversals.addSpace();
+	reversals.addNumeric("REVERSAL DELAY", 0, 20, &XS_reversalDelay);
+	reversals.addSpace();
+	reversals.addFooter("PAGE 1");
+	XS_Menu.add(reversals);
+
+	Page training("TRAINING");
+	training.add("PENALTY RESET", { "NORMAL", "INSTANT" }, &XS_penaltyReset);
+	training.add("GUARD BAR RESET", { "NORMAL", "INSTANT" }, &XS_guardBarReset);
+	training.add("EX GUARD", { "OFF", "ON", "RANDOM" }, &XS_exGuard);
+	training.addSpace();
+	training.addCustom("P1 METER", &XS_p1Meter, 1, true);
+	training.addCustom("P2 METER", &XS_p2Meter, 1, true);
+	training.addSpace();
+	training.addCustom("P1 HEALTH", &XS_p1Health, 2, true);
+	training.addCustom("P2 HEALTH", &XS_p2Health, 2, true);
+	training.addSpace();
+	training.addCustom("HITS UNTIL BURST", &XS_hitsUntilBurst, 0 , true);
+	training.addCustom("HITS UNTIL BUNKER", &XS_hitsUntilBunker, 0, true);
+	training.addCustom("HITS UNTIL FORCE GUARD", &XS_hitsUntilForceGuard, 0, true);
+	training.add("FORCE GUARD STANCE", { "STAND", "CROUCH" }, &XS_forceGuardStance);
+	training.addSpace();
+	training.addFooter("PAGE 2");
+	XS_Menu.add(training);
+
+	Page highlights("HIGHLIGHTS");
+	highlights.add("HIGHLIGHTS", offONItems, &XS_highlights, sHIGHLIGHTS);
+	highlights.addSpace();
+	highlights.add("GUARD", { "OFF", "RED", "YELLOW", "GREEN", "BLUE", "PURPLE", "BLACK" }, &XS_guardHighlight, sBLOCKING_HIGHLIGHT);
+	highlights.add("HIT", { "OFF", "RED", "YELLOW", "GREEN", "BLUE", "PURPLE", "BLACK" }, &XS_hitHighlight, sHIT_HIGHLIGHT);
+	highlights.add("ARMOR", { "OFF", "RED", "YELLOW", "GREEN", "BLUE", "PURPLE", "BLACK" }, &XS_armorHighlight, sARMOR_HIGHLIGHT);
+	highlights.add("THROW PROTECTION", { "OFF", "RED", "YELLOW", "GREEN", "BLUE", "PURPLE", "BLACK" }, &XS_throwProtectionHighlight, sTHROW_PROTECTION_HIGHLIGHT);
+	highlights.add("IDLE", { "OFF", "RED", "YELLOW", "GREEN", "BLUE", "PURPLE", "BLACK" }, &XS_idleHighlight, sIDLE_HIGHLIGHT);
+	highlights.addSpace();
+	highlights.addFooter("PAGE 3");
+	XS_Menu.add(highlights);
+
+	Page positions("POSITIONS");
+	positions.add("RESET TO POSITIONS", offONItems, &XS_resetToPositions);
+	positions.addSpace();
+	positions.addCustom("P1 POSITION", &XS_p1Position, 1, true);
+	positions.addCustom("P1 ASSIST POSITION", &XS_p1AssistPosition, 1, true);
+	positions.addSpace();
+	positions.addCustom("P2 POSITION", &XS_p2Position, 1, true);
+	positions.addCustom("P2 ASSIST POSITION", &XS_p2AssistPosition, 1, true);
+	positions.addSpace();
+	positions.add("MOVE TO POSITIONS");
+	positions.add("SET CURRENT POSITIONS");
+	positions.add("INVERT");
+	positions.addSpace();
+	positions.addFooter("PAGE 4");
+	XS_Menu.add(positions);
+
+	Page character("CHARACTER");
+	character.add("SION BULLETS", { "INFINITE", "NORMAL", "12", "11", "10", "9", "8", "7", "6", "5", "4", "3", "2", "1" }, &XS_sionBullets);
+	character.addSpace();
+	character.add("ROA VISIBLE CHARGE", { "INFINITE", "NORMAL", "1", "2", "3", "4", "5", "6", "7", "8", "9" }, &XS_roaVisibleCharges);
+	character.add("ROA HIDDEN CHARGE", { "INFINITE", "NORMAL", "1", "2", "3", "4", "5", "6", "7", "8", "9" }, &XS_roaHiddenCharges);
+	character.addSpace();
+	character.add("F-MAIDS HEARTS", { "INFINITE", "NORMAL", "4", "3", "2", "1", "0"}, &XS_fMaidsHearts);
+	character.addSpace();
+	character.add("RYOUGI KNIFE", { "INFINITE", "NORMAL" }, &XS_ryougiKnife);
+	character.addSpace();
+	character.addFooter("PAGE 5");
+	XS_Menu.add(character);
+
+	Page hitboxes("HITBOXES");
+	hitboxes.add("DISPLAY HITBOXES", offONItems, &XS_displayHitboxes);
+	hitboxes.add("HITBOX STYLE", { "LAYERED", "BLENDED" }, &XS_hitboxStyle, sHITBOX_STYLE);
+	hitboxes.add("COLOR BLIND MODE", offONItems, &XS_colorBlindMode, sCOLOR_BLIND_MODE);
+	hitboxes.addSpace();
+	hitboxes.add("ORIGIN STYLE", { "STANDARD", "EXTENDED" }, &XS_originStyle, sORIGIN_STYLE);
+	hitboxes.addSpace();
+	hitboxes.add("DRAW GROUND", offONItems, &XS_drawGround, sDRAW_GROUND);
+	hitboxes.addSpace();
+	hitboxes.addFooter("PAGE 6");
+	XS_Menu.add(hitboxes);
+
+	Page savestates("SAVE STATES");
+	savestates.add("SAVE STATE SLOT", { "NONE", "SLOT 01", "SLOT 02", "SLOT 03" }, &XS_saveStateSlot);
+	savestates.addSpace();
+	savestates.add("SAVE STATE");
+	savestates.add("CLEAR ALL SAVES");
+	savestates.addSpace();
+	savestates.add("SYNC SAVES WITH FILES", offONItems, &XS_syncSavesWithFiles);
+	savestates.add("IMPORT SAVE");
+	savestates.add("EXPORT SAVE");
+	savestates.addSpace();
+	savestates.add("LOAD RNG", { "OFF", "ON" }, &XS_loadRNG);
+	savestates.addSpace();
+	savestates.addFooter("PAGE 7");
+	XS_Menu.add(savestates);
+
+	Page framedata("FRAME DATA");
+	framedata.add("CONSOLE DATA", { "NORMAL", "ADVANCED" }, &XS_consoleData, sCONSOLE_DATA);
+	framedata.add("IN-GAME FRAME DISPLAY", { "OFF", "ON" }, &XS_inGameFrameDisplay, sFRAME_DISPLAY);
+	framedata.addSpace();
+	framedata.add("SHOW HITSTOP & FREEZE", { "OFF", "ON" }, &XS_showHitstopAndFreeze, sDISPLAY_FREEZE);
+	framedata.add("SHOW COUNTERHIT", { "OFF", "ON" }, &XS_showCounterhit, sDISPLAY_COUNTERHIT);
+	framedata.add("SHOW INPUTS", { "OFF", "ON" }, &XS_showInputs, sDISPLAY_INPUTS);
+	framedata.add("SHOW CANCEL WINDOWS", { "OFF", "ON" }, &XS_showCancelWindows, sDISPLAY_CANCELS);
+	framedata.addSpace();
+	framedata.addCustom("SCROLL DISPLAY", &XS_scrollDisplay, 2, true);
+	framedata.addSpace();
+	framedata.add("COLOR GUIDE");
+	framedata.addSpace();
+	framedata.addFooter("PAGE 8");
+	XS_Menu.add(framedata);
+
+	Page rng("RNG");
+	rng.add("CUSTOM RNG", { "OFF", "SEED", "VALUE" }, &XS_customRNG);
+	rng.addSpace();
+	rng.add("RATE", { "EVERY FRAME", "EVERY RESET" }, &XS_rate);
+	rng.addCustom("SEED / VALUE", &XS_seed, 1, false);
+	rng.addSpace();
+	rng.addFooter("PAGE 9");
+	XS_Menu.add(rng);
+
+	Page ui("UI");
+	ui.add("SHOW STATS", offONItems, &XS_showStats, sDISPLAY_STATS);
+	ui.add("ACCURATE COMBO DAMAGE", offONItems, &XS_accurateComboDamage, sACCURATE_COMBO_DAMAGE);
+	ui.addSpace();
+	ui.add("P1 INPUT DISPLAY", { "OFF", "LIST", "ARCADE", "BOTH" }, &XS_p1InputDisplay, sP1_INPUT_DISPLAY);
+	ui.add("P2 INPUT DISPLAY", { "OFF", "LIST", "ARCADE", "BOTH" }, &XS_p2InputDisplay, sP2_INPUT_DISPLAY);
+	ui.addSpace();
+	ui.addFooter("PAGE 10");
+	XS_Menu.add(ui);
+
+	Page system("SYSTEM");
+	system.add("GAME SPEED", { "100%", "75%", "50%", "25%" }, &XS_gameSpeed);
+	system.addSpace();
+	system.add("HIDE HUD", offONItems, &XS_hideHUD, sHIDE_HUD);
+	system.add("HIDE SHADOWS", offONItems, &XS_hideShadows, sHIDE_SHADOWS);
+	system.add("HIDE EXTRAS", offONItems, &XS_hideExtras, sHIDE_EXTRAS);
+	system.addSpace();
+	system.add("BACKGROUND", { "NORMAL", "WHITE", "GRAY", "BLACK", "RED", "YELLOW", "GREEN", "BLUE", "PURPLE" }, &XS_background);
+	system.addSpace();
+	system.addFooter("PAGE 11");
+	XS_Menu.add(system);
+}
 
 KeyState oFreezeHotkey(0);
+KeyState oAdvanceFrameHotkey(0);
 KeyState oNextFrameHotkey(0);
 KeyState oPrevFrameHotkey(0);
 KeyState oToggleHitboxesHotkey(0);
@@ -493,17 +562,67 @@ KeyState oQueueReversalHotkey(0);
 KeyState oIncrementRNGHotkey(0);
 KeyState oDecrementRNGHotkey(0);
 
-//Page 2
-
 KeyState oSaveStateHotkey(0);
 KeyState oPrevSaveSlotHotkey(0);
 KeyState oNextSaveSlotHotkey(0);
 KeyState oFrameBarLeftHotkey(0);
 KeyState oFrameBarRightHotkey(0);
 
-//All pages
-uint8_t nHOTKEY_SETTINGS_PAGE = 0;
-uint8_t nHOTKEY_SETTINGS_CURSOR[HK_NUM_PAGES + 1] = { 0 };
+void initHotkeyMenu() {
+	Page page1("HOTKEY SETTINGS");
+	page1.addHotkey("FREEZE", &oFreezeHotkey, sFREEZE_KEY_REG);
+	page1.addHotkey("ADVANCE FRAME", &oAdvanceFrameHotkey, sADVANCE_FRAME_KEY_REG);
+	page1.addHotkey("NEXT FRAME", &oNextFrameHotkey, sNEXT_FRAME_KEY_REG);
+	page1.addHotkey("PREV FRAME", &oPrevFrameHotkey, sPREV_FRAME_KEY_REG);
+	page1.addHotkey("TOGGLE HITBOXES", &oToggleHitboxesHotkey, sTOGGLE_HITBOXES_KEY_REG);
+	page1.addHotkey("TOGGLE FRAME BAR", &oToggleFrameBarHotkey, sTOGGLE_FRAME_BAR_KEY_REG);
+	page1.addHotkey("TOGGLE HIGHLIGHTS", &oToggleHighlightsHotkey, sTOGGLE_HIGHLIGHTS_KEY_REG);
+	page1.addHotkey("QUEUE REVERSAL", &oQueueReversalHotkey, sQUEUE_REVERSAL_KEY_REG);
+	page1.addSpace();
+	page1.addReturn();
+	page1.addSpace();
+	page1.addPage("PAGE 1");
+	HK_Menu.add(page1);
+
+	Page page2("HOTKEY SETTINGS");
+	page2.addHotkey("SAVE STATE", &oSaveStateHotkey, sSAVE_STATE_KEY_REG);
+	page2.addHotkey("PREV SAVE SLOT", &oPrevSaveSlotHotkey, sPREV_SAVE_SLOT_KEY_REG);
+	page2.addHotkey("NEXT SAVE SLOT", &oNextSaveSlotHotkey, sNEXT_SAVE_SLOT_KEY_REG);
+	page2.addHotkey("FRAME BAR LEFT", &oFrameBarLeftHotkey, sFRAME_BAR_LEFT_KEY_REG);
+	page2.addHotkey("FRAME BAR RIGHT", &oFrameBarRightHotkey, sFRAME_BAR_RIGHT_KEY_REG);
+	page2.addHotkey("INCREMENT RNG", &oIncrementRNGHotkey, sINCREMENT_RNG_KEY_REG);
+	page2.addHotkey("DECREMENT RNG", &oDecrementRNGHotkey, sDECREMENT_RNG_KEY_REG);
+	page2.addSpace();
+	page2.addReturn();
+	page2.addSpace();
+	page2.addPage("PAGE 2");
+	HK_Menu.add(page2);
+}
+
+void initMenuFromRegistry() {
+	for (auto& page : XS_Menu.pages) {
+		for (auto& setting : page.settings) {
+			if (setting.valueRegKey != L"") {
+				ReadFromRegistry(setting.valueRegKey, setting.valuePtr);
+			}
+			if (setting.storageRegKey != L"") {
+				ReadFromRegistry(setting.storageRegKey, &setting.storage);
+			}
+		}
+	}
+
+	if (XS_p1InputDisplay != 0 || XS_p2InputDisplay != 0) {
+		*(bool*)(adMBAABase + 0x001585f8) = true; // vanilla training input display setting
+	}
+
+	for (auto& page : HK_Menu.pages) {
+		for (auto& setting : page.settings) {
+			if (setting.valueRegKey != L"") {
+				setting.hotkey->setKeyFromRegistry(setting.valueRegKey);
+			}
+		}
+	}
+}
 
 int nHOTKEY_CD_TIMER = 0;
 
@@ -524,8 +643,8 @@ const std::map<std::string, const char*> MAIN_INFORMATION_MAP = {
 	{"XS_0_9", "Set weight of \\@COLOR@<015, 183, 255, 255>reversal slot 4."},
 	{"XS_0_11", "Set weight of \\@COLOR@<015, 183, 255, 255>no reversal."},
 	{"XS_0_13", "Set \\@COLOR@<015, 183, 255, 255>delay before a reversal is performed."},
-	{"XS_0_15_n", DEFAULT_INFO},
-	{"XS_0_17_n", RETURN_INFO},
+	{"XS_0_15", DEFAULT_INFO},
+	{"XS_0_17", RETURN_INFO},
 	{"XS_0_19", PAGE_INFO},
 
 	//TRAINING
@@ -540,8 +659,8 @@ const std::map<std::string, const char*> MAIN_INFORMATION_MAP = {
 	{"XS_1_11", "Set \\@COLOR@<015, 183, 255, 255>hits until the dummy will bunker."},
 	{"XS_1_12", "Set \\@COLOR@<015, 183, 255, 255>hits until the dummy will guard with forced stance."},
 	{"XS_1_13", "Set \\@COLOR@<015, 183, 255, 255>stance to force the dummy to guard with."},
-	{"XS_1_15_n", DEFAULT_INFO},
-	{"XS_1_17_n", RETURN_INFO},
+	{"XS_1_15", DEFAULT_INFO},
+	{"XS_1_17", RETURN_INFO},
 	{"XS_1_19", PAGE_INFO},
 
 	//HIGHLIGHTS
@@ -551,8 +670,8 @@ const std::map<std::string, const char*> MAIN_INFORMATION_MAP = {
 	{"XS_2_4", "Set color to highlight \\@COLOR@<015, 183, 255, 255>Armor state."},
 	{"XS_2_5", "Set color to highlight \\@COLOR@<015, 183, 255, 255>Throw Protection state."},
 	{"XS_2_6", "Set color to highlight \\@COLOR@<015, 183, 255, 255>Idle state."},
-	{"XS_2_8_n", DEFAULT_INFO},
-	{"XS_2_10_n", RETURN_INFO},
+	{"XS_2_8", DEFAULT_INFO},
+	{"XS_2_10", RETURN_INFO},
 	{"XS_2_12", PAGE_INFO},
 
 	//POSITIONS
@@ -561,11 +680,12 @@ const std::map<std::string, const char*> MAIN_INFORMATION_MAP = {
 	{"XS_3_3", "Set \\@COLOR@<015, 183, 255, 255>P1 assist position on reset."},
 	{"XS_3_5", "Set \\@COLOR@<015, 183, 255, 255>P2 position on reset."},
 	{"XS_3_6", "Set \\@COLOR@<015, 183, 255, 255>P2 assist position on reset."},
-	{"XS_3_8_n", "Move \\@COLOR@<015, 183, 255, 255>players to the set positions."},
-	{"XS_3_9_n", "Swap \\@COLOR@<015, 183, 255, 255>P1 and P2 positions."},
-	{"XS_3_11_n", DEFAULT_INFO},
-	{"XS_3_13_n", RETURN_INFO},
-	{"XS_3_15", PAGE_INFO},
+	{"XS_3_8", "Move \\@COLOR@<015, 183, 255, 255>players to the set positions."},
+	{"XS_3_9", "Set \\@COLOR@<015, 183, 255, 255>positions to current positions."},
+	{"XS_3_10", "Swap \\@COLOR@<015, 183, 255, 255>P1 and P2 positions."},
+	{"XS_3_12", DEFAULT_INFO},
+	{"XS_3_14", RETURN_INFO},
+	{"XS_3_16", PAGE_INFO},
 
 	//CHARACTER
 	{"XS_4_0", "Set \\@COLOR@<015, 183, 255, 255>Sion bullets on reset."},
@@ -573,8 +693,8 @@ const std::map<std::string, const char*> MAIN_INFORMATION_MAP = {
 	{"XS_4_3", "Set \\@COLOR@<015, 183, 255, 255>C-Roa hidden charges on reset."},
 	{"XS_4_5", "Set \\@COLOR@<015, 183, 255, 255>F-Maids hearts on reset."},
 	{"XS_4_7", "Set \\@COLOR@<015, 183, 255, 255>Ryougi knives."},
-	{"XS_4_9_n", DEFAULT_INFO},
-	{"XS_4_11_n", RETURN_INFO},
+	{"XS_4_9", DEFAULT_INFO},
+	{"XS_4_11", RETURN_INFO},
 	{"XS_4_13", PAGE_INFO},
 
 	//HITBOXES
@@ -583,39 +703,41 @@ const std::map<std::string, const char*> MAIN_INFORMATION_MAP = {
 	{"XS_5_2", "Set \\@COLOR@<015, 183, 255, 255>color-blind mode."},
 	{"XS_5_4", "Set \\@COLOR@<015, 183, 255, 255>draw style of player origins."},
 	{"XS_5_6", "Set \\@COLOR@<015, 183, 255, 255>ground draw."},
-	{"XS_5_8_n", DEFAULT_INFO},
-	{"XS_5_10_n", RETURN_INFO},
+	{"XS_5_8", DEFAULT_INFO},
+	{"XS_5_10", RETURN_INFO},
 	{"XS_5_12", PAGE_INFO},
 
 	//SAVE STATES
 	{"XS_6_0", "Set \\@COLOR@<015, 183, 255, 255>save slot."},
-	{"XS_6_2_n", "Save \\@COLOR@<015, 183, 255, 255>current state."},
-	{"XS_6_3_n", "Clear \\@COLOR@<015, 183, 255, 255>all saved states."},
-	{"XS_6_5_n", "Import \\@COLOR@<015, 183, 255, 255>save from file."},
-	{"XS_6_6_n", "Export \\@COLOR@<015, 183, 255, 255>save to file."},
-	{"XS_6_8", "Set \\@COLOR@<015, 183, 255, 255>RNG loading."},
-	{"XS_6_10_n", DEFAULT_INFO},
-	{"XS_6_12_n", RETURN_INFO},
-	{"XS_6_14", PAGE_INFO},
+	{"XS_6_2", "Save \\@COLOR@<015, 183, 255, 255>current state."},
+	{"XS_6_3", "Clear \\@COLOR@<015, 183, 255, 255>all saved states."},
+	{"XS_6_5", "Sync \\@COLOR@<015, 183, 255, 255>saves with files in ETMSaveStates." },
+	{"XS_6_6", "Import \\@COLOR@<015, 183, 255, 255>save from file."},
+	{"XS_6_7", "Export \\@COLOR@<015, 183, 255, 255>save to file."},
+	{"XS_6_9", "Set \\@COLOR@<015, 183, 255, 255>RNG loading."},
+	{"XS_6_11", DEFAULT_INFO},
+	{"XS_6_13", RETURN_INFO},
+	{"XS_6_15", PAGE_INFO},
 
 	//FRAME DATA
-	{"XS_7_0",  "Set \\@COLOR@<015, 183, 255, 255>frame data display level (console only)."},
+	{"XS_7_0",  "Set \\@COLOR@<015, 183, 255, 255>console data detail level."},
 	{"XS_7_1", "Set \\@COLOR@<015, 183, 255, 255>in-game frame display."},
 	{"XS_7_3", "Set \\@COLOR@<015, 183, 255, 255>hitstop and freeze display."},
-	{"XS_7_4", "Set \\@COLOR@<015, 183, 255, 255>input display (console only)."},
-	{"XS_7_5", "Set \\@COLOR@<015, 183, 255, 255>cancel window display (console only)."},
-	{"XS_7_7", "Scroll \\@COLOR@<015, 183, 255, 255>frame display."},
-	{"XS_7_9_n", "Show \\@COLOR@<015, 183, 255, 255>color guide."},
-	{"XS_7_11_n", DEFAULT_INFO},
-	{"XS_7_13_n", RETURN_INFO},
-	{"XS_7_15", PAGE_INFO},
+	{"XS_7_4", "Set \\@COLOR@<015, 183, 255, 255>counterhit display (in-game only)."},
+	{"XS_7_5", "Set \\@COLOR@<015, 183, 255, 255>input display (console only)."},
+	{"XS_7_6", "Set \\@COLOR@<015, 183, 255, 255>cancel window display (console only)."},
+	{"XS_7_8", "Scroll \\@COLOR@<015, 183, 255, 255>frame display."},
+	{"XS_7_10", "Show \\@COLOR@<015, 183, 255, 255>color guide."},
+	{"XS_7_12", DEFAULT_INFO},
+	{"XS_7_14", RETURN_INFO},
+	{"XS_7_16", PAGE_INFO},
 
 	//RNG
 	{"XS_8_0", "Set \\@COLOR@<015, 183, 255, 255>RNG mode."},
 	{"XS_8_2", "Set \\@COLOR@<015, 183, 255, 255>rate of RNG setting."},
 	{"XS_8_3", "Set \\@COLOR@<015, 183, 255, 255>seed / value of RNG to be set."},
-	{"XS_8_5_n", DEFAULT_INFO},
-	{"XS_8_7_n", RETURN_INFO},
+	{"XS_8_5", DEFAULT_INFO},
+	{"XS_8_7", RETURN_INFO},
 	{"XS_8_9", PAGE_INFO},
 
 	//UI
@@ -624,8 +746,8 @@ const std::map<std::string, const char*> MAIN_INFORMATION_MAP = {
 	{"XS_9_3", "Set \\@COLOR@<015, 183, 255, 255>P1 input display."},
 	{"XS_9_4", "Set \\@COLOR@<015, 183, 255, 255>P2 input display."},
 	{"XS_9_6", "Set \\@COLOR@<015, 183, 255, 255>Y-Position of frame display."},
-	{"XS_9_7_n", DEFAULT_INFO},
-	{"XS_9_10_n", RETURN_INFO},
+	{"XS_9_7", DEFAULT_INFO},
+	{"XS_9_10", RETURN_INFO},
 	{"XS_9_12", PAGE_INFO},
 
 	//SYSTEM
@@ -634,22 +756,23 @@ const std::map<std::string, const char*> MAIN_INFORMATION_MAP = {
 	{"XS_10_3", "Set \\@COLOR@<015, 183, 255, 255>shadow display."},
 	{"XS_10_4", "Set \\@COLOR@<015, 183, 255, 255>extras display."},
 	{"XS_10_6", "Set \\@COLOR@<015, 183, 255, 255>background color."},
-	{"XS_10_8_n", DEFAULT_INFO},
-	{"XS_10_10_n", RETURN_INFO},
+	{"XS_10_8", DEFAULT_INFO},
+	{"XS_10_10", RETURN_INFO},
 	{"XS_10_12", PAGE_INFO},
 
 	//HOTKEYS 1
 	{"HK_0_0", "Set hotkey to \\@COLOR@<015, 183, 255, 255>freeze the game."},
-	{"HK_0_1", "Set hotkey to \\@COLOR@<015, 183, 255, 255>advance to the next frame."},
-	{"HK_0_2", "Set hotkey to \\@COLOR@<015, 183, 255, 255>rewind to the previous frame."},
-	{"HK_0_3", "Set hotkey to \\@COLOR@<015, 183, 255, 255>toggle hitbox display."},
-	{"HK_0_4", "Set hotkey to \\@COLOR@<015, 183, 255, 255>toggle the in-game frame bar."},
-	{"HK_0_5", "Set hotkey to \\@COLOR@<015, 183, 255, 255>toggle highlights."},
-	{"HK_0_6", "Set hotkey to \\@COLOR@<015, 183, 255, 255>queue up a reversal regardless of settings."},
-	{"HK_0_7", "Set hotkey to \\@COLOR@<015, 183, 255, 255>increment the RNG Seed / Value."},
-	{"HK_0_8", "Set hotkey to \\@COLOR@<015, 183, 255, 255>decrement the RNG Seed / Value."},
-	{"HK_0_10_n", RETURN_INFO},
-	{"HK_0_12", PAGE_INFO},
+	{"HK_0_1", "Set hotkey to \\@COLOR@<015, 183, 255, 255>advance to a new frame." },
+	{"HK_0_2", "Set hotkey to \\@COLOR@<015, 183, 255, 255>load the next saved frame."},
+	{"HK_0_3", "Set hotkey to \\@COLOR@<015, 183, 255, 255>load the previous saved frame."},
+	{"HK_0_4", "Set hotkey to \\@COLOR@<015, 183, 255, 255>toggle hitbox display."},
+	{"HK_0_5", "Set hotkey to \\@COLOR@<015, 183, 255, 255>toggle the in-game frame bar."},
+	{"HK_0_6", "Set hotkey to \\@COLOR@<015, 183, 255, 255>toggle highlights."},
+	{"HK_0_7", "Set hotkey to \\@COLOR@<015, 183, 255, 255>queue up a reversal regardless of settings."},
+	{"HK_0_8", "Set hotkey to \\@COLOR@<015, 183, 255, 255>increment the RNG Seed / Value."},
+	{"HK_0_9", "Set hotkey to \\@COLOR@<015, 183, 255, 255>decrement the RNG Seed / Value."},
+	{"HK_0_11", RETURN_INFO},
+	{"HK_0_13", PAGE_INFO},
 
 	//HOTKEYS 2
 	{"HK_1_0", "Set hotkey to \\@COLOR@<015, 183, 255, 255>save the current game state."},
@@ -657,11 +780,12 @@ const std::map<std::string, const char*> MAIN_INFORMATION_MAP = {
 	{"HK_1_2", "Set hotkey to \\@COLOR@<015, 183, 255, 255>select the next save slot."},
 	{"HK_1_3", "Set hotkey to \\@COLOR@<015, 183, 255, 255>scroll the frame bar to the left."},
 	{"HK_1_4", "Set hotkey to \\@COLOR@<015, 183, 255, 255>scroll the frame bar to the right."},
-	{"HK_1_6_n", RETURN_INFO},
+	{"HK_1_6", RETURN_INFO},
 	{"HK_1_8", PAGE_INFO},
 };
 
 const std::map<std::string, const char*> SUB_INFORMATION_MAP = {
+	//REVERSALS
 	{"XS_0_0_0", "No reversal."}, {"XS_0_0_1", "Reversal after recovery."}, {"XS_0_0_2", "Reversal after guarding."}, {"XS_0_0_3", "Reversal after being hit."},
 	{"XS_0_0_4", "Reversal after wakeup."}, {"XS_0_0_4", "Reversal after successful shield."},
 
@@ -686,6 +810,7 @@ const std::map<std::string, const char*> SUB_INFORMATION_MAP = {
 	{"XS_0_13_11", "11 frames."}, {"XS_0_13_12", "12 frames."}, {"XS_0_13_13", "13 frames."}, {"XS_0_13_14", "14 frames."}, {"XS_0_13_15", "15 frames."},
 	{"XS_0_13_16", "16 frames."}, {"XS_0_13_17", "17 frames."}, {"XS_0_13_18", "18 frames."}, {"XS_0_13_19", "19 frames."}, {"XS_0_13_20", "20 frames."},
 
+	//TRAINING
 	{"XS_1_0_0", "Normal."}, {"XS_1_0_1", "Instant."},
 	{"XS_1_1_0", "Normal."}, {"XS_1_1_1", "Instant."},
 	{"XS_1_2_0", "No EX Guard."}, {"XS_1_2_1", "EX Guard all hits."}, {"XS_1_2_2", "EX Guard at random (50% chance)."},
@@ -701,6 +826,7 @@ const std::map<std::string, const char*> SUB_INFORMATION_MAP = {
 	{"XS_1_12_0", "_FORCEGUARD"}, {"XS_1_12_1", "_FORCEGUARD"}, {"XS_1_12_2", "_FORCEGUARD"},
 	{"XS_1_13_0", "Force standing guard."}, {"XS_1_13_1", "Force crouching guard."},
 
+	//HIGHLIGHTS
 	{"XS_2_0_0", "No highlights."}, {"XS_2_0_1", "Enable highlights."},
 
 	{"XS_2_2_0", "Do not highlight guard state."}, {"XS_2_2_1", "Highlight guard state in red."}, {"XS_2_2_2", "Highlight guard state in yellow."}, {"XS_2_2_3", "Highlight guard state in green."},
@@ -718,6 +844,7 @@ const std::map<std::string, const char*> SUB_INFORMATION_MAP = {
 	{"XS_2_6_0", "Do not highlight idle state."}, {"XS_2_6_1", "Highlight idle state in red."}, {"XS_2_6_2", "Highlight idle state in yellow."}, {"XS_2_6_3", "Highlight idle state in green."},
 	{"XS_2_6_4", "Highlight idle state in blue."}, {"XS_2_6_5", "Highlight idle state in purple."}, {"XS_2_6_6", "Highlight idle state in black."},
 
+	//POSITIONS
 	{"XS_3_0_0", "Do not reset to custom positions."}, {"XS_3_0_1", "Reset to custom positions."},
 
 	{"XS_3_2_0", "_POS1"}, {"XS_3_2_1", "_POS1"}, {"XS_3_2_2", "_POS1"},
@@ -726,6 +853,7 @@ const std::map<std::string, const char*> SUB_INFORMATION_MAP = {
 	{"XS_3_5_0", "_POS2"}, {"XS_3_5_1", "_POS2"}, {"XS_3_5_2", "_POS2"},
 	{"XS_3_6_0", "_POS2A"}, {"XS_3_6_1", "_POS2A"}, {"XS_3_6_2", "_POS2A"},
 
+	//CHARACTER
 	{"XS_4_0_0", "Refill bullets on recovery."}, {"XS_4_0_1", "Reset to 13 bullets."}, {"XS_4_0_2", "Reset to 1 bullet."}, {"XS_4_0_3", "Reset to 2 bullets."}, {"XS_4_0_4", "Reset to 3 bullets."},
 	{"XS_4_0_5", "Reset to 4 bullets."}, {"XS_4_0_6", "Reset to 5 bullets."}, {"XS_4_0_7", "Reset to 6 bullets."}, {"XS_4_0_8", "Reset to 7 bullets."}, {"XS_4_0_9", "Reset to 8 bullets."},
 	{"XS_4_0_10", "Reset to 9 bullets."}, {"XS_4_0_11", "Reset to 10 bullets."}, {"XS_4_0_12", "Reset to 11 bullets."}, {"XS_4_0_13", "Reset to 12 bullets."},
@@ -743,40 +871,47 @@ const std::map<std::string, const char*> SUB_INFORMATION_MAP = {
 
 	{"XS_4_7_0", "Restore knife on recovery."}, {"XS_4_7_1", "Reset to 1 knife."},
 
+	//HITBOXES
 	{"XS_5_0_0", "Do not show hitboxes."}, {"XS_5_0_1", "Show hitboxes."},
-	{"XS_5_1_0", "Show indiviudal box borders."}, {"XS_5_1_1", "Hide box borders within overlap."},
+	{"XS_5_1_0", "Show individual box borders."}, {"XS_5_1_1", "Hide box borders within overlap."},
 	{"XS_5_2_0", "Use default box colors."}, {"XS_5_2_1", "Use color-blind friendly box colors."},
 
 	{"XS_5_4_0", "Draw player origins as a small blue cross."}, {"XS_5_4_1", "Draw player origins extending to the edge of the screen."},
 
 	{"XS_5_6_0", "Do not draw the ground."}, {"XS_5_6_1", "Draw a blue line at ground-level."},
 
+	//SAVE STATES
 	{"XS_6_0_0", "No slot selected."}, {"XS_6_0_1", "Slot 1."}, {"XS_6_0_2", "Slot 2."}, {"XS_6_0_3", "Slot 3."},
 
-	{"XS_6_8_0", "Do not load RNG saved with state."}, {"XS_6_8_1", "Load RNG saved with state."},
+	{"XS_6_5_0", "Do not sync saves."}, {"XS_6_5_1", "Sync saves."},
 
+	{"XS_6_9_0", "Do not load RNG saved with state."}, {"XS_6_9_1", "Load RNG saved with state."},
+
+	//FRAME DATA
 	{"XS_7_0_0", "Show the basic level of information."}, {"XS_7_0_1", "Show all information."},
 	{"XS_7_1_0", "Do not show the framebar in-game."}, {"XS_7_1_1", "Show the framebar in-game."},
 
 	{"XS_7_3_0", "Do not show frames where both players are frozen."}, {"XS_7_3_1", "Show all frames."},
-	{"XS_7_4_0", "Do not show inputs."}, {"XS_7_4_1", "Show inputs."},
-	{"XS_7_5_0", "Do not show cancel windows."}, {"XS_7_5_1", "Show cancel windows."},
+	{"XS_7_4_0", "Do not show counterhit." }, { "XS_7_4_1", "Show counterhit."},
+	{"XS_7_5_0", "Do not show inputs."}, {"XS_7_5_1", "Show inputs."},
+	{"XS_7_6_0", "Do not show cancel windows."}, {"XS_7_6_1", "Show cancel windows."},
 
-	{"XS_7_7_0", "_SCROLL"}, {"XS_7_7_1", "_SCROLL"}, {"XS_7_7_2", "_SCROLL"},
+	{"XS_7_8_0", "_SCROLL"}, {"XS_7_8_1", "_SCROLL"}, {"XS_7_8_2", "_SCROLL"},
 
+	//RNG
 	{"XS_8_0_0", "No custom RNG."}, {"XS_8_0_1", "Use a seed for custom RNG."}, {"XS_8_0_2", "Use a value for custom RNG."},
 
 	{"XS_8_2_0", "Set RNG every frame."}, {"XS_8_2_1", "Set RNG every reset."},
 	{"XS_8_3_1", "_RNG"},
 
+	//UI
 	{"XS_9_0_0", "Do not show health and guard values."}, {"XS_9_0_1", "Show health and guard values."},
 	{"XS_9_1_0", "Show default combo damage values."}, {"XS_9_1_1", "Show accurate combo damage values."},
 
 	{"XS_9_3_0", "No P1 input display."}, {"XS_9_3_1", "Display P1 inputs as a list."}, {"XS_9_3_2", "Display P1 inputs on an arcade layout."}, {"XS_9_3_3", "Display P1 inputs both ways."},
 	{"XS_9_4_0", "No P2 input display."}, {"XS_9_4_1", "Display P2 inputs as a list."}, {"XS_9_4_2", "Display P2 inputs on an arcade layout."}, {"XS_9_4_3", "Display P2 inputs both ways."},
 
-	{"XS_9_6_0", "_BARY"}, {"XS_9_6_1", "_BARY"}, {"XS_9_6_2", "_BARY"},
-
+	//SYSTEM
 	{"XS_10_0_0", "Play the game at 100% speed."}, {"XS_10_0_1", "Play the game at 75% speed."}, {"XS_10_0_2", "Play the game at 50% speed."}, {"XS_10_0_3", "Play the game at 25% speed."},
 
 	{"XS_10_2_0", "Do not hide the HUD."}, {"XS_10_2_1", "Hide the HUD."},

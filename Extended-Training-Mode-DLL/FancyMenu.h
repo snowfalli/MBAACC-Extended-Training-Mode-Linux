@@ -57,7 +57,7 @@ public:
 
 	void draw(Point& p);
 
-	using MenuVariant = std::variant<Menu<int>, Menu<float>, Menu<int*>>; // remember that you must add all types here! but dont try a type that isnt 4 bytes. i think. or well wait a bool* is 4 bytes. but that fucked everything?
+	using MenuVariant = std::variant<Menu<int>, Menu<float>, Menu<int*>, Menu<float*>>; // remember that you must add all types here! but dont try a type that isnt 4 bytes. i think. or well wait a bool* is 4 bytes. but that fucked everything?
 	std::vector<MenuVariant> items;
 	
 	template <typename U = int> // i wish i didnt need this
@@ -85,6 +85,42 @@ extern Menu<int>* disableFpsMenuOption;
 extern bool enableEffectColors;
 extern float effectColorHue;
 extern bool enableCursor;
+extern bool displayComboTimer;
+extern bool displayHitstunBar;
+
+extern int p1LoadMoon;
+extern int p1LoadChar;
+extern int p1LoadPal;
+
+extern int p2LoadMoon;
+extern int p2LoadChar;
+extern int p2LoadPal;
+
+extern bool reloadCheckFile;
+
+extern int dummyTechDelay;
+extern int dummyBurstChance;
+extern int dummyDelayBurstChance;
+extern int dummyBunkerChance;
+extern int dummyDelayBunkerChance;
+
+extern bool freezeCamera;
+extern float customCameraZoom;
+extern int customCameraX;
+extern int customCameraY;
+
+extern bool compactView;
+
+extern int autoAdvanceFrames;
+extern bool doAutoAdvance;
+
+extern bool customLoadReplay;
+extern int enableMouseControls;
+
+extern char customLoadReplayPath[256];
+extern char* customLoadReplayPathPtr;
+
+extern bool wikiBoxMode;
 
 void drawFancyMenu();
 

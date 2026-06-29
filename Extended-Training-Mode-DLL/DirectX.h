@@ -15,10 +15,8 @@
 #include <functional>
 
 #include <d3d9.h>
-#include <d3dx9math.h>
-#include <d3d9types.h>
-
-#include "DirectXHook.h"
+#include <D3dx9math.h>
+#include <D3D9Types.h>
 
 void __stdcall ___log(const char* msg);
 
@@ -33,6 +31,7 @@ extern IDirect3DDevice9* device;
 extern bool logPowerInfo;
 extern bool logVerboseFps;
 extern float hitboxOpacity;
+extern float hitboxBorderOpacity;
 extern bool renderingEnable;
 
 extern int enableWaraSearch;
@@ -44,12 +43,19 @@ extern int showRoaHiddenCharge;
 
 extern bool doSaveScreenshot;
 
+extern bool arePaletteTexturesLoaded;
+void FullCharacterReload();
+extern bool useCustomShaders;
+extern IDirect3DTexture9* paletteTexture;
+void createPaletteTexture();
+
 //extern IDirectInput8* inputDevice;
 
 
 void _naked_InitDirectXHooks();
 void dualInputDisplay();
 void cursorDraw();
+void loadCharacterPalettes();
 
 extern bool lClick;
 extern bool mClick;
@@ -90,7 +96,7 @@ typedef struct DragInfo {
 		};
 		Rect bounds;
 	};
-
+	
 	bool enable = false;
 
 	DragInfo() {}
@@ -168,9 +174,9 @@ public:
 };
 
 template <typename T>
-class Quad {
+class Quad { 
 public:
-	// really should have made this class more complex to allow for easier texture usage, and also i need to make my point class better. but i also need to actually use that class
+	// really should have made this class more complex to allow for easier texture usage, and also i need to make my point class better. but i also need to actually use that class 
 	Quad() {}
 
 	Quad(const T& v1_, const T& v2_, const T& v3_, const T& v4_) {
@@ -193,7 +199,7 @@ public:
 	}
 
 	Quad(const Rect& pos, const Rect& texPos = Rect({ 0.0f, 0.0f }, { 0.0f, 0.0f }), DWORD col = 0xFF42E5F4) {
-		v1 = T(pos.x1, pos.y1, 0.0f, 1.0f, texPos.x1, texPos.y1, col);
+		v1 = T(pos.x1, pos.y1, 0.0f, 1.0f, texPos.x1, texPos.y1, col); 
 		v2 = T(pos.x2, pos.y1, 0.0f, 1.0f, texPos.x2, texPos.y1, col);
 		v3 = T(pos.x1, pos.y2, 0.0f, 1.0f, texPos.x1, texPos.y2, col);
 		v4 = T(pos.x2, pos.y2, 0.0f, 1.0f, texPos.x2, texPos.y2, col);
@@ -224,8 +230,7 @@ public:
 
 	void alloc() {
 		if (vertexBuffer == NULL) {
-			if (FAILED(pD3DDevice->CreateVertexBuffer(vertexCount * sizeof(T), 0, vertexFormat, D3DPOOL_MANAGED, &vertexBuffer, NULL))) {
-				MessageBoxA(NULL, "failed to alloc a vertex buffer!", "failed to alloc a vertex buffer!", MB_ICONERROR);
+			if (FAILED(device->CreateVertexBuffer(vertexCount * sizeof(T), 0, vertexFormat, D3DPOOL_MANAGED, &vertexBuffer, NULL))) {
 				log("failed to alloc a vertex buffer!");
 				vertexBuffer = NULL;
 			}
@@ -290,7 +295,7 @@ public:
 			// this log call was getting called to often, and would fuck things up
 			return;
 		}
-
+		
 		vertexData[vertexIndex++] = v1;
 		vertexData[vertexIndex++] = v2;
 		vertexData[vertexIndex++] = v3;
@@ -321,7 +326,7 @@ public:
 		}
 
 		if (texture != NULL && *texture != NULL) {
-			pD3DDevice->SetTexture(0, *texture);
+			device->SetTexture(0, *texture);
 		}
 
 		// ideally i should be scaling the vertices in here, but is it worth it?
@@ -342,9 +347,9 @@ public:
 			primCount /= 2;
 		}
 
-		pD3DDevice->SetStreamSource(0, vertexBuffer, 0, sizeof(T));
-		pD3DDevice->SetFVF(vertexFormat);
-		pD3DDevice->DrawPrimitive(primType, 0, primCount);
+		device->SetStreamSource(0, vertexBuffer, 0, sizeof(T));
+		device->SetFVF(vertexFormat);
+		device->DrawPrimitive(primType, 0, primCount);
 
 		// i could use DrawIndexedPrimitive here? check if faster.
 		// would be super nice, esp for text drawing at the minimum
@@ -353,7 +358,7 @@ public:
 		vertexIndex = 0;
 
 		if (texture != NULL && *texture != NULL) {
-			pD3DDevice->SetTexture(0, NULL);
+			device->SetTexture(0, NULL);
 		}
 	}
 
@@ -388,7 +393,7 @@ typedef struct PosColTexVert {
 } PosColTexVert;
 
 typedef struct MeltyVert { // if having all these initializers causes slowdown, ill cry
-
+	
 	union {
 		D3DVECTOR position = D3DVECTOR(0.0f, 0.0f, 0.0f);
 		struct {
@@ -406,7 +411,7 @@ typedef struct MeltyVert { // if having all these initializers causes slowdown, 
 			float v;
 		};
 	};
-
+	
 	MeltyVert() {}
 
 	MeltyVert(float x, float y, D3DXVECTOR2 uv_, DWORD col = 0xFFFFFFFF) {
@@ -467,6 +472,7 @@ IDirect3DPixelShader9* createPixelShader(const char* pixelShaderCode);
 IDirect3DVertexShader9* createVertexShader(const char* shaderCode);
 
 IDirect3DPixelShader9* loadPixelShaderFromFile(const std::wstring& filename);
+IDirect3DVertexShader9* loadVertexShaderFromFile(const std::wstring& filename);
 
 inline unsigned scaleNextPow2(unsigned v) {
 	v--;
@@ -506,8 +512,10 @@ enum class BoxType {
 	Clash, // yellow
 	Blue, // what is this
 	Shield, // Purple, also like,,, vaki??
-	Reflect, //
+	Reflect, // 
 	Throw,
+	ExtendedP1Origin,
+	ExtendedP2Origin,
 
 	_Count, // dont use
 };
@@ -614,19 +622,19 @@ inline void scaleVertex(D3DVECTOR& v) {
 
     ret;
 
-	might be faster,
-	but would require the struct to be alignas(16)
-	at the very least, it is not slower, despite doing
+	might be faster, 
+	but would require the struct to be alignas(16) 
+	at the very least, it is not slower, despite doing 
 	2x mults.
 	very weird
-
+	
 	*/
 }
 
 inline void scaleVertex(MeltyVert& v) {
 	v.position.x += topLeftPos.x;
 	v.position.y += topLeftPos.y;
-
+	
 	v.position.x *= renderModificationFactor.x;
 	v.position.y *= renderModificationFactor.y;
 }
@@ -661,7 +669,6 @@ void BorderRectDrawBlend(float x, float y, float w, float h, DWORD ARGB = 0x8042
 
 // -----
 
-
 Rect TextDraw(float x, float y, float size, DWORD ARGB, const char* format);
 
 Rect TextDraw(const Point& p, float size, DWORD ARGB, const char* format);
@@ -680,6 +687,27 @@ Rect TextDraw(const Point& p, float size, DWORD ARGB, const char* format, Args..
 	// if this isnt inlined ill kill someone
 	return TextDraw(p.x, p.y, size, ARGB, format, args...);
 }
+
+Rect TextDrawRight(float x, float y, float size, DWORD ARGB, const char* format);
+
+Rect TextDrawRight(const Point& p, float size, DWORD ARGB, const char* format);
+
+template<typename... Args>
+Rect TextDrawRight(float x, float y, float size, DWORD ARGB, const char* format, Args... args) {
+
+	static char buffer[4096];
+	snprintf(buffer, 4096, format, args...);
+
+	return TextDraw(x, y, size, ARGB, buffer);
+}
+
+template<typename... Args>
+Rect TextDrawRight(const Point& p, float size, DWORD ARGB, const char* format, Args... args) {
+	// if this isnt inlined ill kill someone
+	return TextDraw(p.x, p.y, size, ARGB, format, args...);
+}
+
+// -----
 
 void TextDrawSimple(float x, float y, float size, DWORD ARGB, const char* format, ...);
 
@@ -711,7 +739,10 @@ constexpr DWORD arrNormalColors[] = {
 	0xFFFFFF00, // clash
 	0xFF0000FF, // projectile
 	0xFFF54298, // shield
-	0xFFC00080
+	0xFFC00080, // reflect
+	0xFFFF8080, // throw
+	0xFFF45142, //P1 extended origin
+	0xFF42E5F4, //P2 extended origin
 };
 
 constexpr DWORD arrColorBlindColors[] = {
@@ -722,14 +753,31 @@ constexpr DWORD arrColorBlindColors[] = {
 	0xFFFFFF00, // clash
 	0xFF00ffcf, // projectile
 	0xFFffffff, // shield
-	0xFFC00080
+	0xFFC00080, // reflect
+	0xFFFF8080, // throw
+	0xFFF45142, //P1 extended origin
+	0xFF42E5F4, //P2 extended origin
+};
+
+constexpr DWORD arrWikiColors[] = {
+	0xFF42E5F4, // origin
+	0xFFC2C2C2, // collision
+	0xFFDD4444, // hitbox
+	0xFF44DD44, // hurtbox
+	0xFFDDDD44, // clash
+	0xFF00ffcf, // projectile
+	0xFFffffff, // shield
+	0xFFC00080, // reflect
+	0xFFFF8080, // throw
+	0xFFF45142, //P1 extended origin
+	0xFF42E5F4, //P2 extended origin
 };
 
 void HitboxBatchDrawNoBlend(const BoxObjects* b);
 
 void HitboxBatchDrawBlend(const BoxObjects* b);
 
-// ----- horrid Profiler, as a treat
+// ----- horrid Profiler, as a treat 
 
 extern std::vector<std::function<void(void)>> drawCalls;
 typedef struct ProfileInfo {
@@ -802,6 +850,20 @@ extern int verboseShowVel;
 extern int verboseShowAccel;
 extern int verboseShowUntech;
 extern int verboseShowDamage;
+extern int verboseShowJumpcancel;
+extern int verboseShowGravity;
+extern int verboseShowVars;
+
+extern int verboseShowPlayerHA6;
+extern int verboseShowEffectHA6;
+extern int verboseShowPatternData;
+extern int verboseShowStateData;
+extern int verboseShowMovementData;
+extern int verboseShowSineData;
+extern int verboseShowAnimationData;
+extern int verboseShowAttackData;
+extern int verboseShowEFs;
+extern int verboseShowIFs;
 
 extern bool overkillVerboseMode;
 extern bool doDrawProfiler;

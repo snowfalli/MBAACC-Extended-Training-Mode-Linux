@@ -16,14 +16,17 @@ int main(int argc, char* argv[])
     consoleMode |= ENABLE_PROCESSED_INPUT;
     consoleMode |= ENABLE_LINE_INPUT;
     consoleMode |= ENABLE_ECHO_INPUT;
+    //consoleMode &= (0xFFFFFFFF - ENABLE_VIRTUAL_TERMINAL_PROCESSING); //disabled virtual terminal for testing wine compatability
     SetConsoleMode(hConsoleHandle, consoleMode);
 
-    /*if (!writeDLL()) {
+    vtEnabled = false;//consoleMode & ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+
+    if (!writeDLL()) {
         fprintf(stderr, "FAILED TO WRITE DLL\n");
         fprintf(stderr, "press any key to exit\n");
         getchar();
         return 1;
-    }*/
+    }
 
     /*while (true) {
         KeyState::updateControllers();
@@ -76,13 +79,12 @@ int main(int argc, char* argv[])
         vPathTokens.pop_back();
         std::string sInstallPath = std::accumulate(vPathTokens.begin(), vPathTokens.end(), std::string{});
         //std::string sDLLPath = sInstallPath + "Extended-Training-Mode-DLL.dll";
-         std::string sDLLPath = "ETM-x86.dll";//std::wstring sDLLPath = getDLLPath();
+        std::wstring sDLLPath = getDLLPath();
         while (!std::ifstream(sDLLPath).good())
         {
-            std::wstring wsErrorString(sDLLPath.begin(), sDLLPath.end());
-            wsErrorString = L"UNABLE TO FIND " + wsErrorString;
-            int nReturnVal = MessageBoxW(NULL, wsErrorString.c_str(), L"", MB_ICONERROR | MB_RETRYCANCEL);
-            switch (nReturnVal)
+            std::wstring sErrorString = L"UNABLE TO FIND " + sDLLPath;
+            //int nReturnVal = MessageBoxA(NULL, sErrorString.c_str(), "", MB_ICONERROR | MB_RETRYCANCEL);
+            switch (MessageBoxW(NULL, sErrorString.c_str(), L"", MB_ICONERROR | MB_RETRYCANCEL))
             {
             case IDRETRY:
                 continue;
@@ -95,7 +97,7 @@ int main(int argc, char* argv[])
         // Not needed currently, but if we ever need it this can be uncommented
         //SetRegistryValue(L"InstallPath", sInstallPath);
 
-        /*try
+        try
         {
             sOnlineVersion = GetLatestVersion();
             if (sOnlineVersion != "" && sOnlineVersion != VERSION && false)
@@ -156,7 +158,7 @@ int main(int argc, char* argv[])
         {
             sOnlineVersion = "";
             LogError("Cannot fetch latest version");
-        }*/
+        }
 
 
         std::srand((unsigned int)std::time(nullptr));
@@ -188,20 +190,20 @@ int main(int argc, char* argv[])
 
 
             SetConsoleCursorPosition(hConsoleHandle, { 0, 0 });
-            std::cout << "===========================================================================\x1b[K" << "\n";
-            std::cout << "|   Fang, gonp, and meepster99(Inana)'s Extended Training Mode Mod " << VERSION << "   |\x1b[K" << "\n";
-            std::cout << "|                                                                         |\x1b[K" << "\n";
-            std::cout << "|   " << GITHUB_RELEASE << "   |\x1b[K" << "\n";
+            std::cout << "===========================================================================" << "\n";
+            std::cout << "|   Fang, gonp, and meepster99(Inana)'s Extended Training Mode Mod " << VERSION << "   |" << "\n";
+            std::cout << "|                                                                         |" << "\n";
+            std::cout << "|   " << GITHUB_RELEASE << "   |" << "\n";
             if (bNeedToAnnounceNewVersion && nCurrentTime % 3 != 0)
-                std::cout << "|   NEW VERSION " << sOnlineVersion << " AVAILABLE ON GITHUB                                  |\x1b[K" << "\n";
+                std::cout << "|   NEW VERSION " << sOnlineVersion << " AVAILABLE ON GITHUB                                  |" << "\n";
             else
-                std::cout << "|                                                                         |\x1b[K" << "\n";
-            std::cout << "===========================================================================\x1b[K" << "\n";
+                std::cout << "|                                                                         |" << "\n";
+            std::cout << "===========================================================================" << "\n";
 
             SetConsoleCursorPosition(hConsoleHandle, { 0, 6 });
-            std::cout << "\x1b[K";
 
             GetExitCodeProcess(hMBAAHandle, &dwExitCode);
+            //std::cout << "handle: " << (hMBAAHandle == 0x0) << " exit" << (dwExitCode != 259) << std::endl;
             if (hMBAAHandle == 0x0 || dwExitCode != 259)    //259 is the not-closed return code
             {
                 // I'm not sure why, but when MBAA closes, for a really short
@@ -214,18 +216,25 @@ int main(int argc, char* argv[])
                 hMBAAHandle = 0x0;
 
                 SetConsoleCursorPosition(hConsoleHandle, { 0, 7 });
-                std::string sLookingForMelty = "Please launch Melty Blood with CCCaster        \x1b[K";
+                std::string sLookingForMelty = "Please launch Melty Blood with CCCaster        ";
                 for (int i = 0; i < nCurrentTime % 8; i++)
                     sLookingForMelty[39 + i] = '.';
                 std::cout << sLookingForMelty;
                 SetConsoleCursorPosition(hConsoleHandle, { 0, 8 });
-                std::cout << "\x1b[J";
+                //std::cout << "\x1b[J";
 
                 hMBAAHandle = GetProcessByName(L"MBAA.exe");
+                /*if (hMBAAHandle == 0) {
+                    hMBAAHandle = GetProcessByName(L"MBAA.exeexe");
+                }*/
+
+                //std::cout << hMBAAHandle << std::endl;
 
                 // don't do anything until we re-attach to mbaa
-                if (hMBAAHandle == 0x0)
+                if (hMBAAHandle == 0x0) {
+                    //Sleep(10000); // debug only pls remove this
                     continue;
+                }
 
                 LogInfo("Attached to MBAA");
 
@@ -242,44 +251,41 @@ int main(int argc, char* argv[])
             ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwVersusCheck), &nVersusCheck, 4, 0);
             ReadProcessMemory(hMBAAHandle, (LPVOID)(dwBaseAddress + dwTrainingMenu), &nTrainingMenuPtr, 4, 0);
             if(nGameMode == 1 && nVersusCheck == 1) //Versus
+            //if(false)
             {
                 SetConsoleCursorPosition(hConsoleHandle, { 0, 7 });
-                std::cout << "Cannot attach to versus mode....\x1b[K";
+                std::cout << "Cannot attach to versus mode....        ";
                 //LogInfo("MBAA is in versus mode");
                 continue;
             }
             else if (nTrainingMenuPtr != 0 && !bInjected) //Training menu is open
+            //else if(false)
             {
                 SetConsoleCursorPosition(hConsoleHandle, { 0, 7 });
-                std::cout << "Cannot attach while training menu is open....\x1b[K";
+                std::cout << "Cannot attach while training menu is open....        ";
                 continue;
             }
             else if (nGameMode == 4112 || (nGameMode == 1 && nVersusCheck == 2)) //Training OR Replay
+            //else if(true)
             {
                 SetConsoleCursorPosition(hConsoleHandle, { 0, 7 });
-                std::cout << "Attached to MBAA.exe\x1b[K" << "\n\x1b[K\n";
+                std::cout << "Attached to MBAA.exe        \n\n";
 
                 if (!bInjected)
                 {
                     DWORD dwPID = GetProcessPID(L"MBAA.exe");
-					LogInfo("injecting");
-                    int res = 1;
-                    try {
-                        res = InjectIntoMBAA(dwPID, sDLLPath);
-                    } catch (...) {
-                        LogError("Failed to inject");
-                    }
-                    if (res == 0)
+                    if (InjectIntoMBAA(dwPID, sDLLPath) != 0)
                     {
-                        LogInfo("Injection was a success");
-
                         bInjected = true;
-					}
+
+                        // Set some initial stuff in the DLL
+                    }
                 }
             }
 
             long long start = getMicroSec();
 
+            CONSOLEHANDLE = hConsoleHandle;
             FrameDisplay(hMBAAHandle);
 
             long long totalTime = getMicroSec() - start;

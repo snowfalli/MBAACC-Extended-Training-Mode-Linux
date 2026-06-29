@@ -4,6 +4,9 @@
 #include "Logger.h"
 #include "..\Common\Common.h"
 
+extern bool vtEnabled;
+extern HANDLE CONSOLEHANDLE;
+
 extern char cGameState; // 1:In-Game 2:Title 3:Logos 8:Loading 9:Arcade Cutscene 10:Next Stage 12:Options 20:CSS 25:Main Menu
 extern char cP1Freeze; //Used for EXFlashes where initiator still moves (ex. Satsuki 214C winds up during flash)
 extern char cP2Freeze;
@@ -54,13 +57,13 @@ extern int outBufferIndex;
 extern char outBuffer[outBufferSize];
 void writeBuffer(const char* fmt, ...);
 
-void displayBuffer();
+void displayBuffer(COORD dwCursorPosition = { 0, 9 });
 
 void CheckGameState(HANDLE hMBAAHandle);
 
 void UpdateGlobals(HANDLE hMBAAHandle);
 
-struct Player
+struct FrameDisplayPlayerData
 {
 	char cExists = 0; //0x0
 	char padding0[0xF];
@@ -114,7 +117,10 @@ struct Player
 	char cMacroInput = 0; //0x2EE
 	char padding18[0x26];
 	bool bIsOnRight = false; //0x315
-	char padding19[0xA];
+	char padding19[0x3];
+	bool bDoLanding = false;
+	char padding20[0x2];
+	DWORD dwPatternDataPointer = 0x0;
 	DWORD dwAnimationDataPointer = 0x0; //0x320
 	DWORD dwAttackDataPointer = 0x0; //0x324
 
@@ -160,8 +166,9 @@ struct Player
 	int nActiveProjectileCount = 0;
 	bool bLastOnRight = false;
 	char cLastStance = 0;
+	bool bBoxInvuln = false;
 
-	Player(char _cPlayerNumber, DWORD _adPlayerBase, DWORD _adInactionable) {
+	FrameDisplayPlayerData(char _cPlayerNumber, DWORD _adPlayerBase, DWORD _adInactionable) {
 		cPlayerNumber = _cPlayerNumber;
 		adPlayerBase = _adPlayerBase;
 		adInactionable = _adInactionable;
@@ -169,17 +176,17 @@ struct Player
 
 };
 
-extern Player P1;
-extern Player P2;
-extern Player P3;
-extern Player P4;
+extern FrameDisplayPlayerData FD_P1;
+extern FrameDisplayPlayerData FD_P2;
+extern FrameDisplayPlayerData FD_P3;
+extern FrameDisplayPlayerData FD_P4;
 
-extern Player* paPlayerArray[4];
+extern FrameDisplayPlayerData* FD_PlayerArray[4];
 
-extern Player* Main1;
-extern Player* Main2;
-extern Player* Assist1;
-extern Player* Assist2;
+extern FrameDisplayPlayerData* FD_Main1;
+extern FrameDisplayPlayerData* FD_Main2;
+extern FrameDisplayPlayerData* FD_Assist1;
+extern FrameDisplayPlayerData* FD_Assist2;
 
 void CheckProjectiles(HANDLE hMBAAHandle);
 
@@ -187,18 +194,59 @@ void UpdatePlayers(HANDLE hMBAAHandle);
 
 void PrintColorGuide();
 
-void CalculateAdvantage(Player& P1, Player& P2);
+void CalculateAdvantage(FrameDisplayPlayerData& P1, FrameDisplayPlayerData& P2);
 
 void ResetBars(HANDLE hMBAAHandle);
 
-void UpdateBars(Player& P, Player& Assist);
+void UpdateBars(FrameDisplayPlayerData& P, FrameDisplayPlayerData& Assist);
 
-void IncrementActive(Player& P);
+void NoVTUpdateBars(FrameDisplayPlayerData& P, FrameDisplayPlayerData& Assist);
 
-void HandleInactive(Player& P);
+void IncrementActive(FrameDisplayPlayerData& P);
 
-void BarHandling(HANDLE hMBAAHandle, Player& P1, Player& P2, Player& P1Assist, Player& P2Assist);
+void HandleInactive(FrameDisplayPlayerData& P);
 
-void PrintFrameDisplay(HANDLE hMBAAHandle, Player& P1, Player& P2, Player& P3, Player& P4);
+void BarHandling(HANDLE hMBAAHandle, FrameDisplayPlayerData& P1, FrameDisplayPlayerData& P2, FrameDisplayPlayerData& P1Assist, FrameDisplayPlayerData& P2Assist);
+
+void PrintFrameDisplay(HANDLE hMBAAHandle, FrameDisplayPlayerData& P1, FrameDisplayPlayerData& P2, FrameDisplayPlayerData& P3, FrameDisplayPlayerData& P4);
+
+void NoVTPrintFrameDisplay(HANDLE hMBAAHandle, FrameDisplayPlayerData& P1, FrameDisplayPlayerData& P2, FrameDisplayPlayerData& P3, FrameDisplayPlayerData& P4);
 
 void FrameDisplay(HANDLE hMBAAHandle);
+
+void PrintClear();
+
+void FullClear();
+
+// Foreground color -> \x1b[38;2;R;G;Bm
+// Background color -> \x1b[48;2;R;G;Bm
+const std::string FD_CLEAR = "\x1b[0m";
+const std::string FD_ITALICS = "\x1b[3m";
+const std::string FD_UNDERLINE = "\x1b[4m";
+const std::string FD_INACTIONABLE = "\x1b[38;2;255;255;255m\x1b[48;2;65;200;0m";
+const std::string FD_JUMP = "\x1b[38;2;177;177;255m\x1b[48;2;241;224;132m";
+const std::string FD_HITSTUN = "\x1b[38;2;255;255;255m\x1b[48;2;140;140;140m";
+const std::string FD_BLOCKSTUN = "\x1b[38;2;255;255;255m\x1b[48;2;180;180;180m";
+const std::string FD_ACTIONABLE = "\x1b[38;2;92;92;92m\x1b[48;2;0;0;0m";
+const std::string FD_ADVANTAGE = "\x1b[38;2;255;255;255m\x1b[48;2;0;0;0m";
+const std::string FD_NEUTRAL = "\x1b[38;2;255;255;255m\x1b[48;2;32;90;0m";
+const std::string FD_THROW_ACTIVE = "\x1b[38;2;255;255;255m\x1b[48;2;192;0;128m";
+const std::string FD_THROWN = "\x1b[38;2;255;255;255m\x1b[48;2;110;110;110m";
+const std::string FD_CLASH = "\x1b[38;2;255;255;255m\x1b[48;2;225;184;0m";
+const std::string FD_SHIELD = "\x1b[38;2;255;255;255m\x1b[48;2;145;194;255m";
+const std::string FD_INACTIONABLE_INVULN = "\x1b[38;2;160;160;160m\x1b[48;2;255;255;255m";
+const std::string FD_ACTIONABLE_INVULN = "\x1b[38;2;100;100;100m\x1b[48;2;255;255;255m";
+const std::string FD_FREEZE = "\x1b[38;2;255;255;255m\x1b[48;2;60;60;60m";
+const std::string FD_HITSTOP = "\x1b[38;2;255;255;255m\x1b[48;2;60;80;128m";
+const std::string FD_ACTIVE = "\x1b[38;2;255;255;255m\x1b[48;2;255;0;0m";
+const std::string FD_ASSIST_ACTIVE = "\x1b[38;2;255;255;255m\x1b[48;2;255;128;0m";
+const std::string FD_BUTTON_PRESSED = "\x1b[38;2;255;255;255m\x1b[48;2;128;128;128m";
+const std::string FD_A_PRESSED = "\x1b[38;2;255;143;169m\x1b[48;2;170;27;58m";
+const std::string FD_B_PRESSED = "\x1b[38;2;255;255;137m\x1b[48;2;169;91;7m";
+const std::string FD_C_PRESSED = "\x1b[38;2;143;255;195m\x1b[48;2;18;132;62m";
+const std::string FD_D_PRESSED = "\x1b[38;2;137;255;255m\x1b[48;2;21;66;161m";
+
+const std::string FD_SPECIAL_GUIDE_BG = "\x1b[48;2;65;200;0m";
+const std::string SPECIAL_CANCEL_FONTS[4] = { "\x1b[38;2;255;255;255m", "\x1b[38;2;128;80;128m", "\x1b[38;2;0;0;0m", "\x1b[38;2;128;80;128m" };
+const std::string FD_NORMAL_GUIDE_FG = "\x1b[38;2;255;255;255m";
+const std::string NORMAL_CANCEL_FONTS[4] = { "\x1b[48;2;65;200;0m", "\x1b[48;2;65;150;30m", "\x1b[48;2;65;80;65m", "\x1b[48;2;65;150;30m" };

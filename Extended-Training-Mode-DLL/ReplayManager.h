@@ -5,7 +5,7 @@
 #include "FancyMenu.h"
 
 // forward decleration of menu class
-template <typename T>
+template <typename T = int>
 class Menu;
 
 #pragma pack(push,1)
@@ -152,7 +152,7 @@ public:
 	std::string getReplayList();
 
 	void drawMenu();
-
+		
 	int replayPage = 0;
 	int pageCount = 0;
 	int replaysPerPage = 25;

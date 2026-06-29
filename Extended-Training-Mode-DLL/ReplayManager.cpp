@@ -15,7 +15,7 @@
 //#include <set>
 #include <filesystem>
 
-
+extern int showReplayMenu;
 
 
 //#include "DirectX.h"
@@ -195,6 +195,9 @@ void Round::setInputs() {
 
 		//log("attempting p%d index %5d len %5d", i, currentItemIndex[i], currentItemLength[i]);
 
+		// the first 224 ( i think ) frames of gameplay are the standby thing. 
+		// i really, really do not know why i programmed this in such a way that its this hard to just, see what frame of gameplay im in in theround
+
 		inputItems[i][currentItemIndex[i]].setMeltyInput(i);
 
 		//rollForward(i);
@@ -232,7 +235,7 @@ bool Replay::load(const std::string& filePath_) {
 
 	std::ifstream file(filePath, std::ios::binary | std::ios::ate);
 	if (!file.good()) {
-		//log("couldnt find %s", filePath);
+		log("couldnt find %s", filePath);
 		return false;
 	}
 
@@ -376,6 +379,8 @@ void ReplayManager::load(const std::string& filePath_) {
 
 	replays.insert(replay);
 	//activeReplay = replays.size() - 1;
+	//activeReplay = replay;
+	
 
 	log("replay manager load succeeded");
 
@@ -388,6 +393,8 @@ void ReplayManager::initReplay(Replay* r) {
 	}
 
 	log("%s", r->filePath.c_str());
+
+	activeReplay = r; // is this all i needed?
 
 }
 
@@ -417,11 +424,13 @@ void ReplayManager::reset() {
 		return;
 	}
 
-
+	log("reseting active replay");
 	activeReplay->reset();
 }
 
 void ReplayManager::rollForward() {
+
+	//log("replay # %d %08X", replays.size(), (DWORD)activeReplay);
 	if (replays.size() == 0) {
 		return;
 	}
@@ -461,7 +470,7 @@ Replay* ReplayManager::getReplay(int index) {
 
 	auto it = std::next(replays.begin(), index);
 
-	return *it;
+	return *it; 
 
 }
 
@@ -492,6 +501,9 @@ void ReplayManager::loadAllReplays() {
 }
 
 std::string ReplayManager::getReplayList() {
+
+	// this is called every frame when the replay menu is opened!
+	// thats ass!
 
 	std::string res = "\n";
 
@@ -528,11 +540,10 @@ std::string ReplayManager::getReplayList() {
 
 
 	return res;
-
 }
 
 void ReplayManager::initMenu() {
-
+	
 	if (wasMenuInit) {
 		return;
 	}
@@ -562,7 +573,7 @@ void ReplayManager::initMenu() {
 	replayMenu.add<int>("Replays:",
 		[this](int inc, int& opt) mutable -> void {
 
-			float testMouseY = mousePos.y - 75.0f;
+			float testMouseY = mousePos.y - 75.0f; // horrid magic number
 
 			testMouseY *= 0.1f;
 
@@ -575,7 +586,7 @@ void ReplayManager::initMenu() {
 
 		},
 		[this](int opt) mutable -> std::string {
-			return this->getReplayList();
+			return this->getReplayList(); // calling this frame is horrid
 		},
 		std::wstring(L"P1InputDisplay")
 	);
@@ -584,11 +595,12 @@ void ReplayManager::initMenu() {
 
 void ReplayManager::drawMenu() {
 
+	// this code is ass and is why i got some criticism on my code interview. why cant i put things where they should be
+	// putting the replay load code here is so dumb
+
 	initMenu();
 
 	Point dupe = anchorPoint;
-
-	showCSS = !replayMenu.unfolded;
 
 	if (replayMenu.unfolded && firstUnfold) {
 		firstUnfold = false;
@@ -602,6 +614,21 @@ void ReplayManager::drawMenu() {
 // -----
 
 void drawReplayMenu() {
-	//replayManager.drawMenu();
+
+	static KeyState lShiftKey(VK_LSHIFT);
+	if (lShiftKey.keyHeld() && rClick) {
+		showReplayMenu = !showReplayMenu;
+		SetRegistryValue(L"showReplayMenu", showReplayMenu);
+	}
+
+	
+	showCSS = !replayManager.replayMenu.unfolded || !showReplayMenu;
+
+
+
+	if (showReplayMenu) {
+		replayManager.drawMenu();
+	}
+
 }
 
