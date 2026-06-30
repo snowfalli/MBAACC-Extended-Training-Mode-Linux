@@ -128,15 +128,15 @@ std::wstring getFilePath() {
 
 int needUpdate() {
 
-	// https://api.github.com/repos/fangdreth/MBAACC-Extended-Training-Mode/releases/tags/bleeding-edge
+	// https://api.github.com/repos/snowfalli/MBAACC-Extended-Training-Mode-Linux/releases/tags/bleeding-edge
 
-	/*HINTERNET hInternet = InternetOpen(L"GitHubAPI", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
+	HINTERNET hInternet = InternetOpen(L"GitHubAPI", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
 	if (hInternet == NULL) {
 		log("InternetOpen failed: % d", GetLastError());
 		return -1;
 	}
 
-	HINTERNET hConnect = InternetOpenUrlW(hInternet, L"https://api.github.com/repos/fangdreth/MBAACC-Extended-Training-Mode/releases/tags/bleeding-edge", NULL, 0, INTERNET_FLAG_RELOAD, 0);
+	HINTERNET hConnect = InternetOpenUrlW(hInternet, L"https://api.github.com/repos/snowfalli/MBAACC-Extended-Training-Mode-Linux/releases/tags/bleeding-edge", NULL, 0, INTERNET_FLAG_RELOAD, 0);
 	if (hConnect == NULL) {
 		log("InternetOpenUrlW failed: %d", GetLastError());
 		InternetCloseHandle(hInternet);
@@ -178,10 +178,9 @@ int needUpdate() {
 	time_t releaseTime = toTimestamp(githubTimestamp);
 
 	log("release time: %lld", releaseTime);
-	log("compile time: %lld", compileTime);*/
+	log("compile time: %lld", compileTime);
 
-	//return true;
-	return false;// 10 minute buffer bc compile time and release time are offset.
+	return releaseTime > compileTime + 600; //10 minute buffer bc compile time and release time are offset.
 }
 
 bool update() {
@@ -203,7 +202,7 @@ bool update() {
 		return false;
 	}
 
-	HINTERNET hConnect = InternetOpenUrlW(hInternet, L"https://github.com/fangdreth/MBAACC-Extended-Training-Mode/releases/download/bleeding-edge/MBAACC-Extended-Training-Mode-Launcher.exe", NULL, 0, INTERNET_FLAG_RELOAD, 0);
+	HINTERNET hConnect = InternetOpenUrlW(hInternet, L"https://github.com/snowfalli/MBAACC-Extended-Training-Mode-Linux/releases/download/bleeding-edge/MBAACC-Extended-Training-Mode-Launcher.exe", NULL, 0, INTERNET_FLAG_RELOAD, 0);
 	if (hConnect == NULL) {
 		log("InternetOpenUrlW failed: %d", GetLastError());
 		InternetCloseHandle(hInternet);
