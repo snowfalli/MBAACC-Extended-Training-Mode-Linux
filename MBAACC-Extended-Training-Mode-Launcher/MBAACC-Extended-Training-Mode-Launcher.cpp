@@ -236,27 +236,25 @@ bool update() {
 	return true;
 }
 
-void launchTrainingMode() {
-
-	writeExe();
-
-	STARTUPINFO si = { sizeof(STARTUPINFO) };
+void launchEXE(const char* path) {
+    STARTUPINFO si = { sizeof(STARTUPINFO) };
 	PROCESS_INFORMATION pi;
-
-	// launch the updated launcher.
-	CreateProcessW(
-		getExePath().c_str(),
+    CreateProcessW(
+		path,
 		NULL,
 		NULL,
 		NULL,
 		FALSE,
-		CREATE_NEW_PROCESS_GROUP,
+		0,
 		NULL,
 		NULL,
 		&si,
 		&pi
 	);
-
+}
+void launchTrainingMode() {
+	writeExe();
+	launchEXE(getExePath().c_str());
 }
 
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
@@ -287,23 +285,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			log("update failed");
 			return 1;
 		}
-
-		STARTUPINFO si = { sizeof(STARTUPINFO) };
-		PROCESS_INFORMATION pi;
-
 		// launch the updated launcher.
-		CreateProcessW(
-			path.c_str(),
-			NULL,
-			NULL,
-			NULL,
-			FALSE,
-			CREATE_NEW_PROCESS_GROUP,
-			NULL,
-			NULL,
-			&si,
-			&pi
-		);
+		launchEXE(path.c_str());
 
 		log("update successful, exiting gracefully\n");
 		return 0;
