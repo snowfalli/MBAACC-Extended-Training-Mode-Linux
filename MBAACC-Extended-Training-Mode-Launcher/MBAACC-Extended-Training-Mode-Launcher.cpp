@@ -236,7 +236,7 @@ bool update() {
 	return true;
 }
 
-void launchEXE(const char* path) {
+void launchEXE(LPCWSTR path) {
     STARTUPINFO si = { sizeof(STARTUPINFO) };
 	PROCESS_INFORMATION pi;
     CreateProcessW(
