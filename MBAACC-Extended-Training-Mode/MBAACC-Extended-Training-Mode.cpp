@@ -2,6 +2,8 @@
 
 int main(int argc, char* argv[])
 {
+    FreeConsole(); //remove created console
+    AttachConsole(ATTACH_PARENT_PROCESS); //attach console to parent ie launcher console
 
     // disable quick edit mode, aka "i clicked in the console window and idk how why it hangs" mode
     // https://learn.microsoft.com/en-us/windows/console/setconsolemode
