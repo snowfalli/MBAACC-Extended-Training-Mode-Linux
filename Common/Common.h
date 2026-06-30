@@ -99,9 +99,9 @@ const std::string MoonMap[10] = {
 };
 
 const std::string VERSION = "v2.1";
-const std::string GITHUB_LATEST = "https://api.github.com/repos/fangdreth/MBAACC-Extended-Training-Mode/releases/latest";
-const std::string GITHUB_DOWNLOAD = "https://github.com/fangdreth/MBAACC-Extended-Training-Mode/releases/download/";
-const std::string GITHUB_RELEASE = "https://github.com/fangdreth/MBAACC-Extended-Training-Mode/releases";
+const std::string GITHUB_LATEST = "https://api.github.com/repos/snowfalli/MBAACC-Extended-Training-Mode-Linux/releases/latest";
+const std::string GITHUB_DOWNLOAD = "https://github.com/snowfalli/MBAACC-Extended-Training-Mode-Linux/releases/download/";
+const std::string GITHUB_RELEASE = "https://github.com/snowfalli/MBAACC-Extended-Training-Mode-Linux/releases";
 const std::string EXE_NAME = "MBAACC-Extended-Training-Mode.exe";
 const std::string DLL_NAME = "Extended-Training-Mode-DLL.dll";
 const std::string UPDATER_NAME = "MBAACC-Extended-Training-Mode-Updater.exe";
