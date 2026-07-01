@@ -14,7 +14,7 @@
 
 
 #pragma push_macro("optimize")
-#pragma optimize("t", on) 
+#pragma optimize("t", on)
 
 typedef long long longlong;
 typedef unsigned long long ulonglong;
@@ -23,7 +23,7 @@ typedef uint32_t uint;
 void enemyReversal();
 void frameStartCallback();
 void dualInputDisplayReset();
-void doFastReversePenalty(); 
+void doFastReversePenalty();
 void drawFancyMenu();
 void rollFancyInputDisplay(int n);
 void loadCustomShader();
@@ -33,7 +33,7 @@ TASManager TASManagerObj[4];
 bool fn1Press2v2[4] = { false, false, false, false };
 void doWeird2v2Fixes() {
 	// FN1 needs to be written at a different point than it is. this is a horrid fix, that may result in the button press being 1f late, or more, but i just want this done
-	 
+
 	for (int i = 0; i < 4; i++) {
 		if (fn1Press2v2[i]) {
 			*(BYTE*)((*(DWORD*)0x76E6AC) + 0x25 + (i * 0x14)) = 1;
@@ -44,7 +44,7 @@ void doWeird2v2Fixes() {
 
 // have all pointers as DWORDS, or a goofy object type, fangs way of doing things was right as to not have pointers get incremented by sizeof(unsigned)
 // or i could make all pointers u8*, but that defeats half the point of what i did
-// or,, making address a class which allowed for CONST ONLY derefing 
+// or,, making address a class which allowed for CONST ONLY derefing
 // or i could allow for writing and integrate the virtualprotect stuff into it?
 
 DWORD addrEndScene = 0x663fb900;
@@ -249,7 +249,7 @@ void __stdcall writeLog(const char* msg) {
 	}
 
 	FILE* file = fopen("Extended-Training-Mode-DLL.log", "a");
-	fprintf(file, "%s\n", msg); 
+	fprintf(file, "%s\n", msg);
 	fclose(file);
 
 }
@@ -343,7 +343,7 @@ void timeMeltyCall(DWORD patchAddr, const char* funcName) {
 	// actually i shouldnt even need callAddr, with math
 	// 0x0040e499 0x00024ff2 -> 0x00433490
 	// 0x0040e499 + 0x00024ff2 + 5. please note that the call offset is signed
-	
+
 	// i need to maintain state of where to go. ill use a map despite that being very stupid
 	// can i even,, use my emitcall funcs with variables omfg
 
@@ -476,7 +476,7 @@ void __stdcall drawText(int x, int y, const char* text, int textSize = 16, ADDRE
 		5.34375,     // '}'
 		9.34375,     // '~'
 	};
-	
+
 	float tempWidth = 0;
 	const char* c = text;
 
@@ -515,7 +515,7 @@ void __stdcall drawTextWithBorder(int x, int y, int w, int h, const char* text)
 
 	/*
 	drawText(x, y, w, h, text, 0xFF, 0xFF);
-	
+
 	drawText(x - 1, y, w, h, text, 0xFF, 0x00);
 	drawText(x + 1, y, w, h, text, 0xFF, 0x00);
 	drawText(x, y - 1, w, h, text, 0xFF, 0x00);
@@ -592,7 +592,7 @@ void __stdcall drawBorderWithHighlight(int x, int y, int w, int h, DWORD ARGB = 
 	BYTE r = (ARGB & 0x00FF0000) >> 16;
 	BYTE g = (ARGB & 0x0000FF00) >> 8;
 	BYTE b = (ARGB & 0x000000FF) >> 0;
-	
+
 	drawRect(x, y, w, h, r, g, b, 0x38);
 }
 
@@ -617,7 +617,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 	int xPos = effect->subObj.xPos + effect->subObj.thrownXOffset;
 	int yPos = effect->subObj.yPos + effect->subObj.thrownYOffset;
 	bool facingLeft = effect->subObj.facingLeft;
-	
+
 	AnimationData* animationData = effect->subObj.animationDataPtr;
 	//DWORD objFramePtr = (DWORD)animationData;
 
@@ -644,9 +644,9 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 	// what is that 49.
 	float xCamTemp = ((((float)(xPos - cameraX) * cameraZoom) / 128.0f) * (windowWidth / 640.0f) + windowWidth / 2.0f);
 	//float xCamTemp = ((((float)(xPos - cameraX) * cameraZoom) / 128.0f - 49.0f) * (windowWidth / 640.0f) + windowWidth / 2.0f);
-	
+
 	float yCamTemp = ((((float)(yPos - cameraY) * cameraZoom) / 128.0f - 49.0f) * (windowHeight / 480.0f) + windowHeight);
-	
+
 	xCamTemp = floor(xCamTemp);
 	yCamTemp = floor(yCamTemp);
 
@@ -688,7 +688,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 		//drawBorder((int)x1Cord, (int)y1Cord, (int)(x2Cord - x1Cord), (int)(y2Cord - y1Cord), drawColor);
 		//DrawHitbox(x1Cord, y1Cord, (x2Cord - x1Cord), (y2Cord - y1Cord), BoxType::Origin, playerIndex);
 		//(*res)[static_cast<int>(boxType)].emplace_back(BoxData(x1Cord, y1Cord, (x2Cord - x1Cord), (y2Cord - y1Cord)));
-		
+
 		(*res)[static_cast<int>(boxType)].emplace_back(BoxData(x1Cord, y1Cord, (x2Cord - x1Cord), (y2Cord - y1Cord)));
 		/*
 		if (facingLeft) {
@@ -707,7 +707,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 	// should have made a box/poit class
 	DWORD animDataPtr = *(DWORD*)(objAddr + 0x320);
 	bool isPat = *(BYTE*)(animDataPtr + 0x0);
-	
+
 	// non hitboxes
 	//if (*(DWORD*)(objFramePtr + 0x4C) != 0) {
 	if(animationData->nonHitboxData != NULL) {
@@ -737,7 +737,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 					break;
 				case 0xB:
 					drawColor = 0xFFFFFF00;
-					boxType = BoxType::Clash; 
+					boxType = BoxType::Clash;
 					break;
 				default:
 					if (index < 0xC) {
@@ -775,7 +775,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 			if (isPat) {
 				scaleCords(xOrig, yOrig, x1Cord, y1Cord, x2Cord, y2Cord);
 			}
-			
+
 			//drawBorderWithHighlight((int)x1Cord, (int)y1Cord, (int)(x2Cord - x1Cord), (int)(y2Cord - y1Cord), drawColor);
 			//DrawHitbox(x1Cord, y1Cord, (x2Cord - x1Cord), (y2Cord - y1Cord), boxType, playerIndex);
 
@@ -793,7 +793,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 		boxType = BoxType::Hitbox;
 		unsigned highestHitboxIndex = animationData->highestHitboxIndex;
 		for (unsigned index = 0; index < highestHitboxIndex; index++) {
-			
+
 			if (animationData->hitboxData->boxes[index] == NULL) {
 				continue;
 			}
@@ -806,7 +806,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 			tempFloat = (float)isRight * (windowWidth / 640.0f) * cameraZoom;
 			x1Cord = ((float)x1) * (tempFloat + tempFloat) + (float)xCamTemp;
 			x2Cord = ((float)x2) * (float)isRight * (windowWidth / 640.0f) * cameraZoom + (float)xCamTemp;
-	
+
 			y1Cord = ((float)y1) * (windowHeight / 480.0f) * cameraZoom + (float)yCamTemp;
 			y2Cord = ((float)y2) * (windowHeight / 480.0f) * cameraZoom + (float)yCamTemp;
 
@@ -850,7 +850,7 @@ bool drawObject(DWORD objAddr, bool isProjectile, int playerIndex)
 		{
 			if (*(char*)(*(DWORD*)(animDataPtr + adAnimationData_StateDataPointer) + adStateData_Stance) == 1)
 			{
-	
+
 				boxType = BoxType::Throw;
 
 				short x1 = 0;
@@ -943,7 +943,7 @@ int getPatternFromInput(PlayerData* PD, const char input[20])
 					readableInput[j] = inputCopy[j];
 				}
 			}
-			
+
 			bool isMatch = true;
 			for (int k = 0; k < length; k++)
 			{
@@ -1210,7 +1210,7 @@ byte getShieldCancel(PlayerData* playerData, int pat) {
 	else if (specialFlag == 0) { //if normal or movement
 		retVal = exOnly;
 	}
-	
+
 	ID = getIDFromPattern(playerData, pat, 2);
 	if (ID == -1) return retVal;
 	flagsets = *(WORD*)playerData->cmdFileDataPtr->cmdDataPtr->array[ID]->flagsets;
@@ -1271,7 +1271,7 @@ void drawStats()
 		nResetOffset = 320.0f * fScroll;
 
 	static char buffer[256];
-	
+
 	int nP1Health = pP1->subObj.health; // this works on maids too
 	int nP1RedHealth = pP1->subObj.redHealth;
 	int nP1RedHealthX;
@@ -1321,7 +1321,7 @@ void drawStats()
 	//drawTextWithBorder(369 + nResetOffset, 67, 6, 9, buffer);
 	TextDraw(367 + nResetOffset, 67, 6, 0xFFFFFFFF, buffer);
 
-	
+
 	// on p1 health bar
 	drawRect(114.0f - nResetOffset, 39.0f, 1.0f, 3.0f, 0xFF000000);
 	drawRect(167.0f - nResetOffset, 39.0f, 1.0f, 3.0f, 0xFF000000);
@@ -1487,7 +1487,7 @@ void drawStats()
 			TextDraw(240, y, 10, 0xFFFFFFFF, "x%0.2f", pActiveP1->subObj.meterGainMultiplier / 255.0f);
 			RectDraw(240, y + 11, 38.0f * (float)meterMultTimer / pActiveP1->subObj.meterMultTimerTotal, 2, 0xFF20A020);
 		}
-		
+
 		exGuardMultTimer = pActiveP2->subObj.exGuardMeterPenaltyTimer;
 		otgMeterMult = playerAuxDataArr[1].comboCalcData[playerAuxDataArr[1].comboCalcIndex].otgMeterMult / 100.0f;
 		meterMultTimer = pActiveP2->subObj.meterMultTimer;
@@ -1505,9 +1505,9 @@ void drawStats()
 			TextDraw(362, y, 10, 0xFFFFFFFF, "x%0.2f", pActiveP2->subObj.meterGainMultiplier / 255.0f);
 			RectDraw(362, y + 11, 38.0f * (float)meterMultTimer / pActiveP2->subObj.meterMultTimerTotal, 2, 0xFF20A020);
 		}
-		
+
 	}
-		
+
 }
 
 void drawComboTimer()
@@ -1607,7 +1607,7 @@ void drawHitstunBar()
 				}
 				else if (opponent->subObj.hitstunTimeRemaining == -3) { //knockdown
 					width = 1.0f;
-					bgWidth = 1.0f;	
+					bgWidth = 1.0f;
 				}
 
 				int untechDecay = 0;
@@ -1644,7 +1644,7 @@ void drawHitstunBar()
 					width *= 276.0f;
 					RectDraw(xPos, yPos + 43.0f, width, 2, ARGB);
 				}
-				
+
 			}
 		}
 	}
@@ -1763,7 +1763,7 @@ void highlightStates()
 				patchMemcpy(animDataAddr + 0x18, arrDefaultHighlightSetting.data(), 3);
 			}
 
-			
+
 		};
 
 	/*
@@ -1801,7 +1801,7 @@ BYTE arrAnimHookBytesOrig[10];
 BYTE arrAnimHookBytesMod[10];
 void highlightHookFunc()
 {
-	// does this func get called for both chars individually? 
+	// does this func get called for both chars individually?
 	void* funcAddress = (void*)0x0045f650;
 	// restore func to original state
 	patchMemcpy(funcAddress, arrAnimHookBytesOrig, 10);
@@ -1829,7 +1829,7 @@ void SetSeed(uint32_t nSeed)
 	*(uint32_t*)(dwBaseAddress + adRNGIndex) = 55;
 
 	std::srand(nSeed);
-	
+
 	uint8_t nOffset = 1;
 	do
 	{
@@ -2224,19 +2224,13 @@ void HandleExtendedTrainingEffects() {
 	HandleCharacterPage();		//page 5
 }
 
+static bool isDirectXHooked = false;
+
 void __stdcall legacyPauseCallback(DWORD dwMilliseconds)
 {
 
 	// windows Sleep, the func being overitten is an stdcall, which is why we have __stdcall
 	// this func is legacy, but it seems like the best place for me to init my hooks, for some reason
-
-	// i am unsure if doing this here is the best location, but it has been working
-	// and weird things happen if i call it right after i grab the device
-	// please never move this
-	static bool isDirectXHooked = true;
-	/*if (!isDirectXHooked) {
-		isDirectXHooked = HookDirectX();
-	}*/
 
 	static bool isRendererHooked = false;
 	if (!isRendererHooked && isDirectXHooked) {
@@ -2279,7 +2273,7 @@ void setFPSLimiter(bool b) {
 	if (disableFpsMenuOption != NULL) {
 		disableFpsMenuOption->optionState = b;
 	}
-	
+
 }
 
 void ChangeVolume() {
@@ -2473,14 +2467,14 @@ void frameDoneCallback()
 
 	static KeyState rKey('R');
 	if (lShiftKey.keyHeld() && rKey.keyDown()) {
-		
+
 		//log("RKEY hit");
-		
+
 		QueueTrainingReset();
-		
+
 		///replayManager.load("./ReplayVS/RED_ARCUEIDxSATSUKI_251128130201.rep");
 		replayManager.reset();
-		
+
 
 		//TASManagerObj.load("TAS.txt");
 		//needTrainingModeReset = true;
@@ -2586,7 +2580,7 @@ void frameDoneCallback()
 		drawFancyMenu();
 		dragManager.handleDrag();
 	}
-	
+
 	static bool etmMenuInit = false;
 	if (!etmMenuInit) {
 		initExtendedMenu();
@@ -2682,7 +2676,7 @@ void frameDoneCallback()
 
 		//HookDirectX();
 	}*/
-	
+
 	//drawTextWithBorder(300, 300, 36, 48	, " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~");
 	if (bFreeze && shouldDrawHud)
 	{
@@ -3417,7 +3411,7 @@ void RoundcallCallback() {
 
 DWORD RoundcallCallback_PatchAddr = 0x00472964;
 __declspec(naked) void _naked_RoundcallCallback() {
-	
+
 	PUSH_ALL;
 	RoundcallCallback();
 	POP_ALL;
@@ -3496,7 +3490,7 @@ void newPauseCallback2()
 			_naked_newPauseCallback2_IsPaused = false;
 		}
 	}
-	
+
 	static uint8_t nFrameNumber = 0;
 	nFrameNumber++;
 
@@ -3523,7 +3517,7 @@ void newPauseCallback2()
 	else if (needPause > 1) {
 		needPause--;
 	}
-	
+
 	if (!_naked_newPauseCallback2_IsPaused) {
 		unpausedFrameCount++;
 		for (int i = 0; i < 4; i++) {
@@ -3532,12 +3526,12 @@ void newPauseCallback2()
 	}
 
 	if (!_naked_newPauseCallback2_IsPaused && needPause != 2) {
-		
+
 		if (!isPaused()) {
 			//log("calling rollforward 3");
 			replayManager.rollForward();
 		}
-		
+
 	}
 
 	if (!_naked_newPauseCallback2_IsPaused)
@@ -3617,14 +3611,14 @@ __declspec(naked) void _naked_newPauseCallback2() {
 
 	_SKIP:
 
-	
+
 		// when the func is NOT called, we still need to deal with input display, attack display, and whatever the fuck controls the dummy recorder
 		// i have 2/3 of those covered
 
 		// this call, should be ok?
 		call[_naked_newPauseCallback2_Func_TrainingPause];
 
-		
+
 		call[_naked_newPauseCallback2_Func_UpdateFX];
 
 		//push 0040e476h;
@@ -3674,13 +3668,13 @@ __declspec(naked) void _naked_trigPauseHook() {
 		JNE _CONT;
 
 		// being here means we are in our pause section. ret.
-		
+
 		ret;
 
 	_CONT:
 	}
 
-	
+
 
 	// overwritten bytes
 	__asm _emit 0xA1;
@@ -3758,7 +3752,7 @@ void checkPauseEffect() {
 		}
 
 		// the meter flash seems to be,, pattern 108 or 104?
-		
+
 	}
 
 	checkPauseEffect_Skip = 1;
@@ -3798,7 +3792,7 @@ __declspec(naked) void _naked_updateEffectsPauseLoop1() {
 	__asm _emit 0x00;
 
 	// not inlining the jz on purpose, its reljump
-	// i could align my jump func to 0xF but holy shit no 
+	// i could align my jump func to 0xF but holy shit no
 	__asm {
 		JZ _gotoNextLoop;
 
@@ -3864,7 +3858,7 @@ __declspec(naked) void _naked_pauseHitEffectsHook() {
 		//mov al, byte ptr [0055d203h]; // generates mov al, 03. how???
 		mov al, ds: [0055d203h];
 		mov _naked_pauseHitEffectsHook_pauseVal, eax;
-		
+
 		pop eax;
 	}
 
@@ -3997,7 +3991,7 @@ __declspec(naked) void _naked_DrawBackground() {
 
 		call[_naked_DrawBackground_FuncAddr];
 
-	
+
 	_SKIP:
 
 	}
@@ -4042,7 +4036,7 @@ DWORD _naked_DrawHud_FuncAddr = 0x00424100;
 __declspec(naked) void _naked_DrawHud() {
 
 	// i despise msvc
-	
+
 	__asm {
 		push eax;
 		push ebx;
@@ -4056,7 +4050,7 @@ __declspec(naked) void _naked_DrawHud() {
 		pop ebx;
 		pop eax;
 	}
-	
+
 
 	__asm {
 		//cmp shouldDrawHud, 0;
@@ -4650,7 +4644,7 @@ bool LoopingScrolling(Element* element, int& storage, int min, int max, int inte
 			interval -= max - min + 1;
 		}
 		storage -= interval;
-		
+
 	}
 	else if (item == RIGHT) { //right
 		retVal = true;
@@ -4725,7 +4719,7 @@ bool NormalScrolling(Element* element, int& storage, int min, int max, int inter
 		}
 	}
 
-	if (accelInterval != 0 && 
+	if (accelInterval != 0 &&
 		(*(byte*)(adMBAABase + adP1MenuDirInput) == 4 || *(byte*)(adMBAABase + adP1MenuDirInput) == 6)) {
 		ScrollAccelTimer++;
 	}
@@ -5264,7 +5258,7 @@ void ExtendedMenuInputChecking() {
 				(curMenuInfo->elementList).listStart[(int)eTRAINING::P1_METER]->SetCurItemLabel(labelBuf);
 			}
 		}
-		
+
 		if (pP2->subObj.moon != 2) {
 			switch (XS_p2Meter) {
 			case 30000:
@@ -6770,7 +6764,7 @@ void CSSCallback() {
 	if (enableMouseControls && !showDebugMenu) {
 		DoCSSMouseControls();
 	}
-		
+
 }
 
 DWORD CSSCallback_PatchAddr = 0x004271e0;
@@ -6788,7 +6782,7 @@ __declspec(naked) void _naked_CSSCallback() {
 // ---
 
 DWORD _naked_DisableShadows_FuncAddr = 0x0041a390;
-__declspec(naked) void _naked_DisableShadows() { 
+__declspec(naked) void _naked_DisableShadows() {
 
 	// patched at 0x0041b47c and 0041b58a
 	__asm {
@@ -6798,7 +6792,7 @@ __declspec(naked) void _naked_DisableShadows() {
 		JE _SKIP;
 
 		call[_naked_DisableShadows_FuncAddr];
-	
+
 	_SKIP:
 
 		push 0041b481h;
@@ -6906,7 +6900,7 @@ void meterGainHook() {
 	}
 
 	switch (moon) {
-		// unsure if the rounding here is ok 
+		// unsure if the rounding here is ok
 	default:
 	case 0: // CMOON, do nothing
 		break;
@@ -6961,7 +6955,7 @@ __declspec(naked) void _naked_meterGainHook()
 	__asm _emit 0xEC;
 	__asm _emit 0x08;
 
-	// cmp byte ptr [0x00562a6f], 0x0 
+	// cmp byte ptr [0x00562a6f], 0x0
 	__asm _emit 0x80;
 	__asm _emit 0x3D;
 	__asm _emit 0x6F;
@@ -7029,10 +7023,10 @@ void newAttackDisplay() {
 
 	TextDraw(xVal, 122,      12, 0xFFFFFFFF, "COMBO%9d(%5d)", invalidComboVal, validComboVal);
 	TextDraw(xVal, 122 + 12, 12, 0xFFFFFFFF, "DAMAGE%8d(%5d)", scaledDamageVal, unscaledDamageVal);
-			 
+
 	TextDraw(xVal, 152,      12, 0xFFFFFFFF, "CORRECTION VALUE%4d%%", correctionValue);
 	TextDraw(xVal, 152 + 12, 12, 0xFFFFFFFF, "REVERSE PENALTY%5.1f%%", reversePenalty);
-			 
+
 	TextDraw(xVal, 182,      12, 0xFFFFFFFF, "P1 METER GAIN%4d.%02d%%", nP1MeterGain / 100, nP1MeterGain % 100);
 	TextDraw(xVal, 182 + 12, 12, 0xFFFFFFFF, "P2 METER GAIN%4d.%02d%%", nP2MeterGain / 100, nP2MeterGain % 100);
 
@@ -7040,10 +7034,10 @@ void newAttackDisplay() {
 
 __declspec(naked) void _naked_newAttackDisplay() {
 	// there are some last minute things that need to be done here before we can move on to draw code
-	// for reasons unknown, they are also interlaied with random pushes for the next call. why? idek 
+	// for reasons unknown, they are also interlaied with random pushes for the next call. why? idek
 	// recreating the code without the pushes here
 	// and while i am aware, that i could trust the assembler to do it for me, i dont, so its raw bytes again (maybe);
-	
+
 	__asm {
 		add esp, 014h; // cleanup the prev stack
 		mov newAttackDisplay_local_14c, esi;
@@ -7055,7 +7049,7 @@ __declspec(naked) void _naked_newAttackDisplay() {
 
 	// overwritten code
 	/*
-	
+
 	*/
 
 	__asm {
@@ -7085,7 +7079,7 @@ void inputCallback() {
 	profileFunction();
 
 	KeyState::updateControllers(); // this call is taking half a ms, and wtf why am i even caring
-	
+
 	if (enableRevTAS) {
 		TASManagerObj[pActiveP2->subObj.index].setInputs(pActiveP2->subObj.index);
 	}
@@ -7094,7 +7088,7 @@ void inputCallback() {
 			TASManagerObj[i].setInputs(i);
 		}
 	}
-	
+
 	replayManager.setInputs();
 
 }
@@ -7123,10 +7117,10 @@ __declspec(naked) void _naked_inputCallback() {
 }
 
 __declspec(naked, noinline) void _naked_inputCallbackMidGameUpdate() {
-	
+
 	// patched at 0x0042373d
 
-	// overwritten asm 
+	// overwritten asm
 	emitCall(0x004745e0); // maybeReadControlsOrSomething?
 
 	PUSH_ALL;
@@ -7412,7 +7406,7 @@ __declspec(naked) void _naked_HitboxOnConnect() {
 		mov didHitboxConnect, 1;
 	}
 
-	// overwritten asm 
+	// overwritten asm
 	emitByte(0x80);
 	emitByte(0x83);
 	emitByte(0x76);
@@ -7437,7 +7431,7 @@ __declspec(naked) void _naked_CustomLoadReplay() {
 	_CUSTOM:
 		mov eax, customLoadReplayPathPtr;
 		mov customLoadReplay, 0;
-	
+
 	_END:
 		push 0x00437d6b;
 		ret;
@@ -7448,13 +7442,13 @@ __declspec(naked) void _naked_CustomLoadReplay() {
 
 void initFrameDoneCallback()
 {
-	// caster hooks the start of this func. ill have to hook the end of it 
+	// caster hooks the start of this func. ill have to hook the end of it
 	void* patchAddr = (void*)0x00432e2b;
 	patchJump(patchAddr, nakedFrameDoneCallback);
 
 }
 
-void initHighlightHook() 
+void initHighlightHook()
 {
 	void* funcAddress = (void*)0x0045f650;
 	// backup
@@ -7463,7 +7457,7 @@ void initHighlightHook()
 	patchFunction(funcAddress, highlightHookFunc);
 	// ret
 	patchByte(((BYTE*)funcAddress) + 5, 0xC3);
-	// backup modded bytes 
+	// backup modded bytes
 	patchMemcpy(arrAnimHookBytesMod, funcAddress, 10);
 }
 
@@ -7472,10 +7466,10 @@ void initCasterMods()
 
 	// if caster ever updates, these offsets will most likely(basically definitely) need to be changed!
 
-	// 0x665f17d5 is total meter gain 
+	// 0x665f17d5 is total meter gain
 	patchByte(dwCasterBaseAddress + 0x665f17d5, '\0');
 
-	// 0x665f17c1 is meter gain 
+	// 0x665f17c1 is meter gain
 	patchByte(dwCasterBaseAddress + 0x665f17c1, '\0');
 
 	// 0x665f17cd is the actual string passed to printf
@@ -7484,7 +7478,7 @@ void initCasterMods()
 	// it would be better to just patch this func out
 
 	/*
-	
+
 	for reasons only known to madsci, caster does some wack things in regards to fps, busy waiting, the whole 9 yards of ugh
 	i do not want to fuck with this shit,, hell if i were to release a caster update this is what i would fix
 	but like,,, omfg
@@ -7504,7 +7498,7 @@ void initCasterMods()
 	//log("setDesiredFPS was %08X", (DWORD)setDesiredFPS);
 
 	// ok to be honest, wanting to have draws in both caster and training mode is greed beyond human comprehension
-	// but having 2v2, etm, and shock collar be able to share code (mostly the debug info here) and all use the same draw code instead of overwriting each other 
+	// but having 2v2, etm, and shock collar be able to share code (mostly the debug info here) and all use the same draw code instead of overwriting each other
 	// would be soso nice
 	// but also having everything in one project would be,, difficult
 	// i wanted to make the next shock collar revision in caster, but maybe i should keep it as a mod.
@@ -7520,10 +7514,10 @@ void initCasterMods()
 void initAttackMeterDisplay()
 {
 
-	// this func rets early, this jump prevents that 
+	// this func rets early, this jump prevents that
 	void* patchAddr = (void*)0x00478fe2;
 	patchJump(patchAddr, 0x00478ffd);
-	
+
 	void* funcAddr = (void*)0x00479005;
 	patchFunction(funcAddr, attackMeterDisplayCallback);
 	patchByte(((BYTE*)funcAddr) + 5, 0xC3);
@@ -7579,14 +7573,14 @@ void initPauseCallback()
 }
 
 void initNewPauseCallback() {
-	
+
 	patchJump(0x004794c4, _naked_pauseInputDisplay2);
 
 	patchJump(0x004235d1, _naked_newPauseCallback2);
 
 	patchJump(0x0044c48e, _naked_pauseMenuProcessInput2);
 
-	// ppl wanted to open the menu while paused, so not doing this anymore	
+	// ppl wanted to open the menu while paused, so not doing this anymore
 	//patchJump(0x0044c7b0, _naked_trigPauseHook);
 
 	//patchJump(0x00477eb3, _naked_preventPauseReset);
@@ -7619,7 +7613,7 @@ void initNewAttackDisplay() {
 void initDualInputDisplay() {
 
 	patchJump(0x00477f17, _naked_dualInputDisplay);
-	patchMemset(0x00477f20, 0x90, 5); 
+	patchMemset(0x00477f20, 0x90, 5);
 }
 
 void initInputCallback() {
@@ -7709,22 +7703,13 @@ void initCustomLoadReplay() {
 	patchJump(CustomLoadReplay_PatchAddr, _naked_CustomLoadReplay);
 }
 
-#include "DirectXHook.h"
 
-HRESULT APIENTRY hkPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pScourceRect, const RECT *pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion)
-{
-	if(!bInit) {
-		bInit = true;
-		initFont();
-	}
-	_doDrawCalls();
 
-	return oPresent(pDevice, pScourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
-}
+
 
 // dll thread func
 
-void threadFunc() 
+void threadFunc()
 {
 	srand(time(NULL));
 
@@ -7750,7 +7735,7 @@ void threadFunc()
 	initHighlightHook();
 	InitializeCharacterMaps();
 	// when running with caster, the prints to this area are disabled
-	// when not running with caster, they arent even there, so this is fine to run regardless of caster 
+	// when not running with caster, they arent even there, so this is fine to run regardless of caster
 	//initAttackMeterDisplay();
 	initMeterGainHook();
 	//initNewAttackDisplay();
@@ -7814,12 +7799,28 @@ void threadFunc()
 	//timeMeltyCall(0x0040e4fb, "FUN_00406680");
 	//timeMeltyCall(0x0040e500, "FUN_004be8b0");
 	//timeMeltyCall(0x0040e505, "FUN_0040e220");
-	device = *(IDirect3DDevice9**)(0x0076e7d4);
-	memcpy(pTable, *reinterpret_cast<void***>(device), sizeof(pTable));
-	oPresent = (tPresent)trampolineHook((char*)pTable[17], (char*)hkPresent, 7);
+
+	// Handle DirectX hooking
+	static bool deviceInit = false;
+	if (!deviceInit && *(DWORD*)0x0076e7d4 != 0) {
+        deviceInit = true;
+	    device = *(IDirect3DDevice9**)(0x0076e7d4);
+	}
+
+	LPCTSTR subKey = L"Software\\Wine";
+	HKEY res = nullptr;
+	LONG isWine = RegOpenKeyEx(HKEY_CURRENT_USER,subKey,0,KEY_READ,&res);
+
+	if(isWine == ERROR_SUCCESS) {
+	    //running under wine, use the wine hooking method
+		if(HookDirectXWine()) {isDirectXHooked = true;}
+	} else {
+	    // running in windows, use the default hooking method
+		if(HookDirectX()) {isDirectXHooked = true;}
+	}
 }
 
-BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) 
+BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 {
 	(void)hinstDLL;
 	(void)lpReserved;

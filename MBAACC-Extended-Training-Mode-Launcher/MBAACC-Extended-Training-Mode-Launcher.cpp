@@ -245,7 +245,7 @@ void launchEXE(LPCWSTR path) {
 		NULL,
 		NULL,
 		FALSE,
-		0,
+		CREATE_NEW_PROCESS_GROUP,
 		NULL,
 		NULL,
 		&si,

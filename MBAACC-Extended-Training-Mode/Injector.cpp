@@ -16,7 +16,6 @@
 
 int inject(unsigned long procID, std::wstring dllPath)
 {
-
 	unsigned long pid = procID;
 	size_t dllPathLength = (dllPath.length() + 1) * sizeof(wchar_t);
 
@@ -55,7 +54,7 @@ int inject(unsigned long procID, std::wstring dllPath)
 		return 1;
 	}
 
-	return 0;
+	return 1;
 }
 
 bool InjectIntoMBAA(unsigned long nPID, std::wstring sDLLPath)

@@ -96,7 +96,7 @@ typedef struct DragInfo {
 		};
 		Rect bounds;
 	};
-	
+
 	bool enable = false;
 
 	DragInfo() {}
@@ -174,9 +174,9 @@ public:
 };
 
 template <typename T>
-class Quad { 
+class Quad {
 public:
-	// really should have made this class more complex to allow for easier texture usage, and also i need to make my point class better. but i also need to actually use that class 
+	// really should have made this class more complex to allow for easier texture usage, and also i need to make my point class better. but i also need to actually use that class
 	Quad() {}
 
 	Quad(const T& v1_, const T& v2_, const T& v3_, const T& v4_) {
@@ -199,7 +199,7 @@ public:
 	}
 
 	Quad(const Rect& pos, const Rect& texPos = Rect({ 0.0f, 0.0f }, { 0.0f, 0.0f }), DWORD col = 0xFF42E5F4) {
-		v1 = T(pos.x1, pos.y1, 0.0f, 1.0f, texPos.x1, texPos.y1, col); 
+		v1 = T(pos.x1, pos.y1, 0.0f, 1.0f, texPos.x1, texPos.y1, col);
 		v2 = T(pos.x2, pos.y1, 0.0f, 1.0f, texPos.x2, texPos.y1, col);
 		v3 = T(pos.x1, pos.y2, 0.0f, 1.0f, texPos.x1, texPos.y2, col);
 		v4 = T(pos.x2, pos.y2, 0.0f, 1.0f, texPos.x2, texPos.y2, col);
@@ -295,7 +295,7 @@ public:
 			// this log call was getting called to often, and would fuck things up
 			return;
 		}
-		
+
 		vertexData[vertexIndex++] = v1;
 		vertexData[vertexIndex++] = v2;
 		vertexData[vertexIndex++] = v3;
@@ -393,7 +393,7 @@ typedef struct PosColTexVert {
 } PosColTexVert;
 
 typedef struct MeltyVert { // if having all these initializers causes slowdown, ill cry
-	
+
 	union {
 		D3DVECTOR position = D3DVECTOR(0.0f, 0.0f, 0.0f);
 		struct {
@@ -411,7 +411,7 @@ typedef struct MeltyVert { // if having all these initializers causes slowdown, 
 			float v;
 		};
 	};
-	
+
 	MeltyVert() {}
 
 	MeltyVert(float x, float y, D3DXVECTOR2 uv_, DWORD col = 0xFFFFFFFF) {
@@ -512,7 +512,7 @@ enum class BoxType {
 	Clash, // yellow
 	Blue, // what is this
 	Shield, // Purple, also like,,, vaki??
-	Reflect, // 
+	Reflect, //
 	Throw,
 	ExtendedP1Origin,
 	ExtendedP2Origin,
@@ -622,19 +622,19 @@ inline void scaleVertex(D3DVECTOR& v) {
 
     ret;
 
-	might be faster, 
-	but would require the struct to be alignas(16) 
-	at the very least, it is not slower, despite doing 
+	might be faster,
+	but would require the struct to be alignas(16)
+	at the very least, it is not slower, despite doing
 	2x mults.
 	very weird
-	
+
 	*/
 }
 
 inline void scaleVertex(MeltyVert& v) {
 	v.position.x += topLeftPos.x;
 	v.position.y += topLeftPos.y;
-	
+
 	v.position.x *= renderModificationFactor.x;
 	v.position.y *= renderModificationFactor.y;
 }
@@ -777,7 +777,7 @@ void HitboxBatchDrawNoBlend(const BoxObjects* b);
 
 void HitboxBatchDrawBlend(const BoxObjects* b);
 
-// ----- horrid Profiler, as a treat 
+// ----- horrid Profiler, as a treat
 
 extern std::vector<std::function<void(void)>> drawCalls;
 typedef struct ProfileInfo {
@@ -914,4 +914,4 @@ void _naked_RehookDirectX();
 void maintainFPS();
 
 bool HookDirectX();
-
+bool HookDirectXWine();

@@ -1,9 +1,10 @@
 #include "MBAACC-Extended-Training-Mode.h"
+#include "FrameDisplay.h"
 
 int main(int argc, char* argv[])
 {
-    FreeConsole(); //remove created console
-    AttachConsole(ATTACH_PARENT_PROCESS); //attach console to parent ie launcher console
+    //FreeConsole(); //remove created console
+    //AttachConsole(ATTACH_PARENT_PROCESS); //attach console to parent ie launcher console
 
     // disable quick edit mode, aka "i clicked in the console window and idk how why it hangs" mode
     // https://learn.microsoft.com/en-us/windows/console/setconsolemode
@@ -22,7 +23,14 @@ int main(int argc, char* argv[])
     SetConsoleMode(hConsoleHandle, consoleMode);
 
     //vtEnabled = consoleMode & ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-    vtEnabled = true;
+    LPCTSTR subKey = L"Software\\Wine";
+	HKEY res = nullptr;
+	LONG isWine = RegOpenKeyEx(HKEY_CURRENT_USER,subKey,0,KEY_READ,&res);
+	if (isWine == ERROR_SUCCESS) {
+	    vtEnabled = false;
+	} else {
+        vtEnabled = true;
+	}
     if (GetAsyncKeyState(VK_CONTROL)) {
         vtEnabled = false;
     }

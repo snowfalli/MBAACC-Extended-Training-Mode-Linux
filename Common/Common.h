@@ -11,13 +11,13 @@
 #if !defined(DWORD)
 //typedef unsigned DWORD;
 //static_assert(sizeof(DWORD) == 4, "what are you doing maddy");
-#endif 
+#endif
 
 
 //void LogInfo(const std::string& sInfo);
 //void LogError(const std::string& sError);
 
-#pragma comment(lib, "ws2_32.lib") 
+#pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "dinput8.lib")
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "dxerr.lib")
