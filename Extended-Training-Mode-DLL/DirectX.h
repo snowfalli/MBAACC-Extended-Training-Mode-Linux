@@ -914,4 +914,3 @@ void _naked_RehookDirectX();
 void maintainFPS();
 
 bool HookDirectX();
-bool HookDirectXWine();

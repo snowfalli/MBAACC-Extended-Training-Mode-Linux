@@ -2224,13 +2224,19 @@ void HandleExtendedTrainingEffects() {
 	HandleCharacterPage();		//page 5
 }
 
-static bool isDirectXHooked = false;
-
 void __stdcall legacyPauseCallback(DWORD dwMilliseconds)
 {
 
 	// windows Sleep, the func being overitten is an stdcall, which is why we have __stdcall
 	// this func is legacy, but it seems like the best place for me to init my hooks, for some reason
+
+	// i am unsure if doing this here is the best location, but it has been working
+	// and weird things happen if i call it right after i grab the device
+	// please never move this
+	static bool isDirectXHooked = true;
+	/*if (!isDirectXHooked) {
+		isDirectXHooked = HookDirectX();
+	}*/
 
 	static bool isRendererHooked = false;
 	if (!isRendererHooked && isDirectXHooked) {
@@ -7703,9 +7709,18 @@ void initCustomLoadReplay() {
 	patchJump(CustomLoadReplay_PatchAddr, _naked_CustomLoadReplay);
 }
 
+#include "DirectXHook.h"
 
+HRESULT APIENTRY hkPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pScourceRect, const RECT *pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion)
+{
+	if(!bInit) {
+		bInit = true;
+		initFont();
+	}
+	_doDrawCalls();
 
-
+	return oPresent(pDevice, pScourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
+}
 
 // dll thread func
 
@@ -7799,25 +7814,18 @@ void threadFunc()
 	//timeMeltyCall(0x0040e4fb, "FUN_00406680");
 	//timeMeltyCall(0x0040e500, "FUN_004be8b0");
 	//timeMeltyCall(0x0040e505, "FUN_0040e220");
-
-	// Handle DirectX hooking
-	static bool deviceInit = false;
-	if (!deviceInit && *(DWORD*)0x0076e7d4 != 0) {
-        deviceInit = true;
-	    device = *(IDirect3DDevice9**)(0x0076e7d4);
-	}
-
 	LPCTSTR subKey = L"Software\\Wine";
 	HKEY res = nullptr;
 	LONG isWine = RegOpenKeyEx(HKEY_CURRENT_USER,subKey,0,KEY_READ,&res);
-
-	if(isWine == ERROR_SUCCESS) {
-	    //running under wine, use the wine hooking method
-		if(HookDirectXWine()) {isDirectXHooked = true;}
+	device = *(IDirect3DDevice9**)(0x0076e7d4);
+	if (isWine == ERROR_SUCCESS) {
+        memcpy(pTable, *reinterpret_cast<void***>(device), sizeof(pTable));
+        oPresent = (tPresent)trampolineHook((char*)pTable[17], (char*)hkPresent, 7);
 	} else {
-	    // running in windows, use the default hooking method
-		if(HookDirectX()) {isDirectXHooked = true;}
+        HookDirectX();
 	}
+
+
 }
 
 BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)

@@ -3977,38 +3977,6 @@ void logDeviceCapability() {
 
 // starter
 
-HRESULT APIENTRY hkPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pScourceRect, const RECT *pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion)
-{
-	if(!bInit) {
-		bInit = true;
-		initFont();
-	}
-	_doDrawCalls();
-
-	return oPresent(pDevice, pScourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
-}
-
-bool HookDirectXWine() {
-    if (device == NULL) {
-		return false;
-	}
-
-    HRESULT hr = device->TestCooperativeLevel();
-
-	if (hr != D3D_OK) {
-		return false;
-	}
-
-	timeBeginPeriod(1);
-
-	logDeviceCapability();
-
-	patchByte(0x00554128, 0x00);
-
-	memcpy(pTable, *reinterpret_cast<void***>(device), sizeof(pTable));
-	oPresent = (tPresent)trampolineHook((char*)pTable[17], (char*)hkPresent, 7);
-}
-
 bool HookDirectX() {
 
 	if (device == NULL) {
