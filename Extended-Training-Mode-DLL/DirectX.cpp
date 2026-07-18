@@ -3173,14 +3173,8 @@ void drawRoaHiddenCharge() {
 bool doSaveScreenshot = false; // add a menu option for this lest i murder everyones pcs
 
 std::mutex screenShotDataLock;
-<<<<<<< HEAD
-std::deque<std::pair<std::string, LPD3DXBUFFER>> screenShots;
-
-//std::deque<std::pair<std::string, IDirect3DSurface9*>> screenShots;
-=======
 //std::deque<std::pair<std::string, LPD3DXBUFFER>> screenShots;
 std::deque<std::pair<std::string, IDirect3DSurface9*>> screenShots;
->>>>>>> 1206ac2 (save screenshots faster with png)
 std::atomic<bool> stopSaveScreenshotThread = false;
 
 std::thread saveScreenshotThread;
@@ -3222,18 +3216,6 @@ void saveScreenshotThreadFunc() {
 
 			pair.second->Release();
 		}
-<<<<<<< HEAD
-
-
-
-		if (stopSaveScreenshotThread) {
-			stopSaveScreenshotThread = false;
-			break;
-		}
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(16 * 10));
-=======
 		screenShotDataLock.unlock();
 			
 		//}
@@ -3244,7 +3226,6 @@ void saveScreenshotThreadFunc() {
 			break;
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(16));
->>>>>>> 1206ac2 (save screenshots faster with png)
 	
 	}
 
@@ -3328,22 +3309,8 @@ void saveScreenshot() {
 
 	static char filename[256];
 
-<<<<<<< HEAD
-	//snprintf(filename, 256, "./%s/ugh%d.png", folderName.c_str(), _frameIndex);
-	snprintf(filename, 256, "./%s/ugh%d.bmp", folderName.c_str(), _frameIndex);
-	
-	static char filename[256];
-
-	// todo, should really add a setting to swap between png and bpm. 
-	// bmp is large, but the speed makes it worth it.
-
-	// gaku said she prefers fast, lots of space, vs the alt. bmp it is
-	//snprintf(filename, 256, "./%s/ugh%d.png", folderName.c_str(), _frameIndex);
-	snprintf(filename, 256, "./%s/ugh%d.bmp", folderName.c_str(), _frameIndex);
-=======
 	snprintf(filename, 256, "./%s/ugh%d.png", folderName.c_str(), _frameIndex);
 	//snprintf(filename, 256, "./%s/ugh%d.bmp", folderName.c_str(), _frameIndex);
->>>>>>> 1206ac2 (save screenshots faster with png)
 	//snprintf(filename, 256, "./%s/ugh%d.tga", folderName.c_str(), _frameIndex);
 	_frameIndex++;
 
@@ -3358,11 +3325,6 @@ void saveScreenshot() {
 	hr = D3DXSaveSurfaceToFileA(buffer, D3DXIFF_PNG, surf, NULL, &rect);
 
 	//hr = D3DXSaveSurfaceToFileA(filename, D3DXIFF_PNG, surf, NULL, &rect);
-<<<<<<< HEAD
-
-	LPD3DXBUFFER buffer = NULL;
-	hr = D3DXSaveSurfaceToFileInMemory(&buffer, D3DXIFF_BMP, surf, NULL, &rect);
-=======
 	
 	//LPD3DXBUFFER buffer = NULL;
 	//hr = D3DXSaveSurfaceToFileInMemory(&buffer, D3DXIFF_BMP, surf, NULL, &rect);
@@ -3385,7 +3347,6 @@ void saveScreenshot() {
 	}
 	
 	hr = device->GetRenderTargetData(surf, plainSurf);
->>>>>>> 1206ac2 (save screenshots faster with png)
 
 	if (hr != S_OK) {
 		log("D3DXSaveSurfaceToFileA failed");
@@ -3393,14 +3354,8 @@ void saveScreenshot() {
 	}*/
 
 	screenShotDataLock.lock();
-<<<<<<< HEAD
-	screenShots.push_back(std::make_pair(std::string(filename), buffer));
-	//screenShots.push_back(std::make_pair(std::string(filename), plainSurf));
-	//log("%d frames processing", screenShots.size());
-=======
 	//screenShots.push_back(std::make_pair(std::string(filename), buffer));
 	screenShots.push_back(std::make_pair(std::string(filename), plainSurf));
->>>>>>> 1206ac2 (save screenshots faster with png)
 	screenShotDataLock.unlock();
 
 	//long long beforeRelease = getMicroSec();
