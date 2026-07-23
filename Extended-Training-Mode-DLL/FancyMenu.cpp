@@ -55,8 +55,12 @@ int p2LoadMoon = 0;
 int p2LoadChar = 0;
 int p2LoadPal = 1;
 
-bool reloadCheckFile = false;
+bool doCharacterReload = false;
 
+int dummyGuardFirstHitOnly = 0;
+int dummyGuardFirstHitNumGaps = 1;
+int dummyGuardFirstHitDropChance = 100;
+int dummyGuardUntilCrossUp = 0;
 int dummyTechDelay = 0;
 int dummyBurstChance = 100;
 int dummyDelayBurstChance = 100;
@@ -686,6 +690,116 @@ void initFramebarSubmenu() {
 
 }
 
+void initDummySubmenu() {
+	Menu dummy("Dummy");
+
+	dummy.add<int*>("Guard First Hit Only",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt &= 0b1;
+		},
+		[](int* opt) -> std::string {
+			if (*opt == 0) return "OFF";
+			return "ON";
+		},
+		L"",
+		&dummyGuardFirstHitOnly
+	);
+
+	dummy.add<int*>(" >Number Gaps Until Drop Guard",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 1, 100);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		&dummyGuardFirstHitNumGaps
+	);
+
+	dummy.add<int*>(" >Drop Guard Chance",
+		[](int inc, int*& opt) {
+			*opt += 10 * inc;
+			*opt = CLAMP(*opt, 0, 100);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		&dummyGuardFirstHitDropChance
+	);
+
+
+	dummy.add<int*>("Drop Guard On Cross Up",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt &= 0b1;
+		},
+		[](int* opt) -> std::string {
+			if (*opt == 0) return "OFF";
+			return "ON";
+		},
+		L"",
+		&dummyGuardUntilCrossUp
+	);
+	
+
+	dummy.add<int*>("Delay Tech Frames",
+		[](int inc, int*& opt) {
+			*opt += inc;
+			*opt = CLAMP(*opt, 0, 3);
+		},
+		[](int* opt) -> std::string {
+			if (*opt == 3)
+			{
+				return "RANDOM";
+			}
+			return std::to_string(*opt);
+		},
+		L"",
+		&dummyTechDelay
+	);
+
+	dummy.add<int*>("Burst Chance",
+		[](int inc, int*& opt) {
+			*opt += 10 * inc;
+			*opt = CLAMP(*opt, 0, 100);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		&dummyBurstChance
+	);
+
+	dummy.add<int*>(" >Delay Burst Chance / Frame",
+		[](int inc, int*& opt) {
+			*opt += 10 * inc;
+			*opt = CLAMP(*opt, 0, 100);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		&dummyDelayBurstChance
+	);
+
+	dummy.add<int*>("Bunker Chance",
+		[](int inc, int*& opt) {
+			*opt += 10 * inc;
+			*opt = CLAMP(*opt, 0, 100);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		&dummyBunkerChance
+	);
+
+	dummy.add<int*>(" >Delay Bunker Chance / Frame",
+		[](int inc, int*& opt) {
+			*opt += 10 * inc;
+			*opt = CLAMP(*opt, 0, 100);
+		},
+		pointerIntSliderNameFunc,
+		L"",
+		&dummyDelayBunkerChance
+	);
+
+	baseMenu.add(dummy);
+}
+
 void initMiscSubmenu() {
 
 	Menu misc("Misc");
@@ -883,62 +997,6 @@ void initMiscSubmenu() {
 	);
 
 	misc.add(windMenu);
-
-	misc.add<int*>("Dummy Delay Tech Frames",
-		[](int inc, int*& opt) {
-			*opt += inc;
-			*opt = CLAMP(*opt, 0, 3);
-		},
-		[](int* opt) -> std::string {
-			if (*opt == 3)
-			{
-				return "RANDOM";
-			}
-			return std::to_string(*opt);
-		},
-		L"",
-		&dummyTechDelay
-	);
-
-	misc.add<int*>("Dummy Burst Chance",
-		[](int inc, int*& opt) {
-			*opt += 10 * inc;
-			*opt = CLAMP(*opt, 0, 100);
-		},
-		pointerIntSliderNameFunc,
-		L"",
-		& dummyBurstChance
-	);
-
-	misc.add<int*>(" >Delay Burst Chance / Frame",
-		[](int inc, int*& opt) {
-			*opt += 10 * inc;
-			*opt = CLAMP(*opt, 0, 100);
-		},
-		pointerIntSliderNameFunc,
-		L"",
-		&dummyDelayBurstChance
-	);
-
-	misc.add<int*>("Dummy Bunker Chance",
-		[](int inc, int*& opt) {
-			*opt += 10 * inc;
-			*opt = CLAMP(*opt, 0, 100);
-		},
-		pointerIntSliderNameFunc,
-		L"",
-		& dummyBunkerChance
-	);
-
-	misc.add<int*>(" >Delay Bunker Chance / Frame",
-		[](int inc, int*& opt) {
-			*opt += 10 * inc;
-			*opt = CLAMP(*opt, 0, 100);
-		},
-		pointerIntSliderNameFunc,
-		L"",
-		& dummyDelayBunkerChance
-	);
 
 	misc.add<int>("Framestep on held input",
 		[](int inc, int& opt) {
@@ -1211,22 +1269,13 @@ void initReloadSubmenu() {
 		[](int inc, int*& opt) {
 			*opt += inc;
 			*opt = CLAMP(*opt, 0, 9);
-			while (MoonMap[*opt].at(0) == '_') *opt += inc;
+			while (MoonMap.count(*opt) == 0) {
+				*opt += inc;
+				*opt = *opt % 10;
+			}
 		},
 		[](int* opt) -> std::string {
-			switch (*opt)
-			{
-			case 0:
-				return "CRESCENT";
-			case 1:
-				return "FULL";
-			case 2:
-				return "HALF";
-			case 8:
-				return "BOSS HALF";
-			case 9:
-				return "ECLIPSE";
-			}
+			return MoonMap.at(*opt);
 		},
 		L"",
 		&p1LoadMoon
@@ -1285,22 +1334,13 @@ void initReloadSubmenu() {
 		[](int inc, int*& opt) {
 			*opt += inc;
 			*opt = CLAMP(*opt, 0, 9);
-			while (MoonMap[*opt].at(0) == '_') *opt += inc;
+			while (MoonMap.count(*opt) == 0) {
+				*opt += inc;
+				*opt = *opt % 10;
+			}
 		},
 		[](int* opt) -> std::string {
-			switch (*opt)
-			{
-			case 0:
-				return "CRESCENT";
-			case 1:
-				return "FULL";
-			case 2:
-				return "HALF";
-			case 8:
-				return "BOSS HALF";
-			case 9:
-				return "ECLIPSE";
-			}
+			return MoonMap.at(*opt);
 		},
 		L"",
 		&p2LoadMoon
@@ -1355,19 +1395,7 @@ void initReloadSubmenu() {
 		&p2LoadPal
 	);
 
-	reload.add<int>("Do File Check (requires extracted 0002.p)",
-		[](int inc, int& opt) {
-			opt += inc;
-			opt &= 0b1;
-
-			reloadCheckFile = opt != 0;
-		},
-		defaultOnOffNameFunc,
-		L"",
-		0
-	);
-
-	reload.add<int>("Reset Selection to Current",
+	reload.add<int>("Reset Selection",
 		[](int inc, int& opt) {
 			PlayerData* pd = (PlayerData*)(adMBAABase + adP1Base);
 			p1LoadChar = pd->subObj.charID;
@@ -1378,6 +1406,13 @@ void initReloadSubmenu() {
 			p2LoadChar = pd->subObj.charID;
 			p2LoadMoon = pd->subObj.moon;
 			p2LoadPal = pd->subObj.palette + 1;
+		},
+		buttonNameFunc
+	);
+
+	reload.add<int>("Load",
+		[](int inc, int& opt) {
+			doCharacterReload = true;
 		},
 		buttonNameFunc
 	);
@@ -1733,6 +1768,8 @@ void initMenu() {
 	initHitboxSubmenu();
 
 	initFramebarSubmenu();
+
+	initDummySubmenu();
 
 	initMiscSubmenu();
 

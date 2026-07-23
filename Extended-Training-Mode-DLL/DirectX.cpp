@@ -2,12 +2,11 @@
 #include <set>
 
 #include "DirectX.h"
-#include "DirectXHook.h"
 #include "resource.h"
 #include "FancyMenu.h"
 #include "FancyInputDisplay.h"
 #include "TrainingMenu.h"
-//#include "version.h"
+//#include "version.h"	
 #include "..\Common\version.h"
 #include "..\Common\Common.h"
 
@@ -60,8 +59,8 @@ void DragManager::add(DragInfo* info) {
 	if (dragInfoData.contains(info)) {
 		log("DragManager had a duplicate id added. this should never happen");
 		return;
-	}
-
+	} 
+	
 	dragInfoData.insert(info);
 }
 
@@ -284,7 +283,7 @@ IDirect3DVertexShader9* createVertexShader(const char* shaderCode) {
 }
 
 IDirect3DPixelShader9* loadPixelShaderFromFile(const std::wstring& filename) {
-
+	
 	std::ifstream file(filename, std::ios::binary | std::ios::ate);
 
 	if (!file.good()) {
@@ -396,27 +395,27 @@ IDirect3DPixelShader9* getFontOutlinePixelShader() {
 			float4 texSize : register(c219);
 
 			float4 main(float2 texCoordIn : TEXCOORD0) : COLOR {
-
+									
 					float2 texOffset = 4.0 / texSize;
-
+	
 					//texOffset.y /= (4.0 / 3.0);
 
 					float2 texCoord = texCoordIn + (texOffset * 0.5);
 
 					float4 texColor = tex2D(textureSampler, texCoord);
-
+				
 					// this outline needs to be a bit different, since im trying to have it be outside the bounds of the drawn color.
 
 					if(texColor.a > 0.0) {
 						return float4(texColor.rgb, 1.0);
 					}
-
+	
 					float2 offsets[8] = { // order is adjusted to check diags last. performance.
-
+						
 						texCoord + float2(-texOffset.x, 0.0),
 						texCoord + float2(0.0, -texOffset.y),
 						texCoord + float2(0.0, texOffset.y),
-						texCoord + float2(texOffset.x, 0.0),
+						texCoord + float2(texOffset.x, 0.0),						
 
 						texCoord + float2(texOffset.x, -texOffset.y),
 						texCoord + float2(-texOffset.x, -texOffset.y),
@@ -435,7 +434,7 @@ IDirect3DPixelShader9* getFontOutlinePixelShader() {
 						}
 
 					}
-
+			
 					return float4(0.0, 0.0, 0.0, 0.0);
 
 			}
@@ -449,12 +448,12 @@ IDirect3DVertexShader9* getFontOutlineVertexShader() {
 				float4 position : POSITION;
 				float2 texCoord : TEXCOORD0;
 			};
-
+    
 			struct VS_OUTPUT {
 				float4 position : POSITION;
 				float2 texCoord : TEXCOORD0;
 			};
-
+    
 			VS_OUTPUT main(VS_INPUT input) {
 				VS_OUTPUT output;
 				output.position = input.position;
@@ -512,7 +511,7 @@ void _initDefaultFontOutline(IDirect3DTexture9*& fontTex) {
 
 
 
-	VertexData<PosTexVert, 3 * 2> tempVertData(D3DFVF_XYZ | D3DFVF_TEX1, &fontTex); // the deconstructor should handle this.
+	VertexData<PosTexVert, 3 * 2> tempVertData(D3DFVF_XYZ | D3DFVF_TEX1, &fontTex); // the deconstructor should handle this.	
 	tempVertData.alloc();
 
 	PosTexVert v1 = { D3DVECTOR(-1.0f, 1.0f, 0.5f), D3DXVECTOR2(0.0f, 0.0f) };
@@ -620,8 +619,8 @@ void _initMeltyFont() {
 	device->SetPixelShaderConstantF(219, (float*)&textureSize, 1);
 
 	device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0);
-
-	VertexData<PosTexVert, 3 * 2> tempVertData(D3DFVF_XYZ | D3DFVF_TEX1, &meltyTex); // the deconstructor should handle this.
+	
+	VertexData<PosTexVert, 3 * 2> tempVertData(D3DFVF_XYZ | D3DFVF_TEX1, &meltyTex); // the deconstructor should handle this.	
 	tempVertData.alloc();
 
 	PosTexVert v1 = { D3DVECTOR(-1.0f, 1.0f, 0.5f), D3DXVECTOR2(0.0f, 0.0f) };
@@ -915,7 +914,7 @@ void __stdcall backupRenderState() {
 	mouseTopLeft.x = 0.0f;
 	mouseTopLeft.y = 0.0f;
 
-	// the border on top of the window is taken into account with this.
+	// the border on top of the window is taken into account with this. 
 	if (isWide) {
 		mouseTopLeft.x = (wWidth - (wHeight * (4.0f / 3.0f))) / 2.0f;
 	}
@@ -1009,7 +1008,7 @@ void __stdcall backupRenderState() {
 
 	//if (dragManager.hasDrag == NULL) {
 	//	TextDraw(mousePos.x - 4.0f, mousePos.y - 4.0f, 32, 0x8042e5f4, "%c", CURSOR);
-	//} else {
+	//} else {										   
 	//	TextDraw(mousePos.x - 4.0f, mousePos.y - 4.0f, 32, 0x8042e5f4, "%c", CURSOR_LOADING);
 	//}
 
@@ -1094,7 +1093,7 @@ void LineDraw(float x1, float y1, float x2, float y2, DWORD ARGB, bool side) {
 	// this is going to need to be changed at different resolutions
 	float lineWidth = 1.0f / vHeight;
 
-	// i am,,, i bit confused on how exactly to do this.
+	// i am,,, i bit confused on how exactly to do this. 
 	// current vibes say,,, two very thin triangles.
 
 	// i would like,,, diag lines please too.
@@ -1461,7 +1460,7 @@ Rect TextDraw(float x, float y, float size, DWORD ARGB, const char* format) {
 			TempARGB = 0xFFFF8F8F;
 			str++;
 			continue;
-		case '@': // green
+		case '@': // green 
 			TempARGB = 0xFF8FFF8F;
 			str++;
 			continue;
@@ -1481,7 +1480,7 @@ Rect TextDraw(float x, float y, float size, DWORD ARGB, const char* format) {
 			TempARGB = 0xFF888888;
 			str++;
 			continue;
-		case '}': // reset
+		case '}': // reset 
 			TempARGB = ARGB;
 			str++;
 			continue;
@@ -1677,7 +1676,7 @@ Rect TextDrawRight(float x, float y, float size, DWORD ARGB, const char* format)
 			TempARGB = 0xFFFF8F8F;
 			str++;
 			continue;
-		case '@': // green
+		case '@': // green 
 			TempARGB = 0xFF8FFF8F;
 			str++;
 			continue;
@@ -1697,7 +1696,7 @@ Rect TextDrawRight(float x, float y, float size, DWORD ARGB, const char* format)
 			TempARGB = 0xFF888888;
 			str++;
 			continue;
-		case '}': // reset
+		case '}': // reset 
 			TempARGB = ARGB;
 			str++;
 			continue;
@@ -2019,24 +2018,24 @@ IDirect3DPixelShader9* getOutlinePixelShader() {
 
 					float2 texOffset = 1.0 / texSize;
 
-					texOffset.y /= (4.0 / 3.0); // THIS LINE IS CORRECT.
+					texOffset.y /= (4.0 / 3.0); // THIS LINE IS CORRECT. 
 
 					float2 texCoord = texCoordIn + (texOffset * 0.5); // move the tex coord into the "center" of the pixel, should it be plus or minus???
-
+					
 					float4 texColor = tex2D(textureSampler, texCoord);
-
+				
 					if(texColor.a <= 0.0) {
 						return texColor;
 					}
-
+					
 					// should diags have a radic(2) instead of 1,1?
-
+	
 					float2 offsets[8] = { // order is adjusted to check diags last. performance.
-
+						
 						texCoord + float2(-texOffset.x, 0.0),
 						texCoord + float2(0.0, -texOffset.y),
 						texCoord + float2(0.0, texOffset.y),
-						texCoord + float2(texOffset.x, 0.0),
+						texCoord + float2(texOffset.x, 0.0),						
 
 						texCoord + float2(texOffset.x, -texOffset.y),
 						texCoord + float2(-texOffset.x, -texOffset.y),
@@ -2046,9 +2045,9 @@ IDirect3DPixelShader9* getOutlinePixelShader() {
 
 
 					float4 tempColor;
-
+					
 					// having to go through all 8 cases fucks perfomance
-					// ooooo
+					// ooooo 
 					[unroll(8)] for(int i=0; i<8; i++) {
 
 						tempColor = tex2D(textureSampler, offsets[i]);
@@ -2057,7 +2056,7 @@ IDirect3DPixelShader9* getOutlinePixelShader() {
 						}
 
 					}
-
+			
 					return float4(texColor.rgb, shadeColor.a);
 			}
 
@@ -2070,12 +2069,12 @@ IDirect3DVertexShader9* getOutlineVertexShader() {
 				float4 position : POSITION;
 				float2 texCoord : TEXCOORD0;
 			};
-
+    
 			struct VS_OUTPUT {
 				float4 position : POSITION;
 				float2 texCoord : TEXCOORD0;
 			};
-
+    
 			VS_OUTPUT main(VS_INPUT input) {
 				VS_OUTPUT output;
 				output.position = input.position;
@@ -2100,11 +2099,11 @@ IDirect3DVertexShader9* getColorVertexShader() {
 			struct VS_INPUT {
 				float4 position : POSITION;
 			};
-
+    
 			struct VS_OUTPUT {
 				float4 position : POSITION;
 			};
-
+    
 			VS_OUTPUT main(VS_INPUT input) {
 				VS_OUTPUT output;
 				output.position = input.position;
@@ -2162,7 +2161,7 @@ void drawBatchHitboxes(const BoxList& boxList, DWORD ARGB) {
 		return;
 	}
 
-	// draws a set of hitboxes of ONE color for ONE object.
+	// draws a set of hitboxes of ONE color for ONE object. 
 
 
 	IDirect3DSurface9* renderTargetSurf = NULL;
@@ -2589,7 +2588,7 @@ void WikiHitboxDraw(const BoxObjects* b) {
 
 }
 
-// ----- horrid Profiler, as a treat
+// ----- horrid Profiler, as a treat 
 
 std::vector<std::function<void(void)>> drawCalls;
 std::map<const char*, ProfileInfo > profilerData;
@@ -2598,7 +2597,7 @@ std::map<const char*, ProfileInfo > profilerData;
 
 void DrawHitboxes(BoxObjects* b) { // didnt need to be a pointer, but i would rather know im not passing by copy. also the optimizer better inline this(who am i kiding, its def not)
 	//boxDataList[static_cast<int>(type)].emplace_back(BoxData{x / 640.0f, y / 480.0f, w / 640.0f, h / 480.0f, player });
-	//boxDataList[static_cast<int>(type)].emplace_back(BoxData{ x, y , w , h });
+	//boxDataList[static_cast<int>(type)].emplace_back(BoxData{ x, y , w , h }); 
 	boxObjectList.emplace_back(b);
 }
 
@@ -2661,7 +2660,7 @@ void _drawProfiler() {
 	DWORD col = 0xFF00FFFF;
 
 	if (doDrawProfiler) {
-		// how slow is this,,, im not sure how expensive map lookups are, but the keys to it could be constexpr. ugh
+		// how slow is this,,, im not sure how expensive map lookups are, but the keys to it could be constexpr. ugh 
 		// i also have the pointer strat. might go do that tbh
 		float profileInfoY = 256;
 		for (auto& [name, info] : profilerData) {
@@ -2965,7 +2964,7 @@ void _drawBuildInfo() {
 		firstRun = false;
 	}
 
-
+	
 
 	//TextDraw(640 - (7 * 10), 0, 10, col, str.data());
 	TextDraw(640 - (3.25 * 10), 0, 10, col, str.data());
@@ -2973,7 +2972,7 @@ void _drawBuildInfo() {
 }
 
 void drawPowerInfo() {
-
+	
 	static SYSTEM_POWER_STATUS powerStatus;
 	if (__frameDoneCount % (60 * 10) == 0) {
 		GetSystemPowerStatus(&powerStatus);
@@ -3076,19 +3075,19 @@ void drawFindWhisk() {
 	typedef struct WhiskState {
 		short x = rand() % 640;
 		short y = rand() % 480;
-
+		
 		short xVel = (rand() & 1 ? 1 : -1) * (1 + (rand() % (maxCrowdVel - 1))); // value is made line this since it cannot be 0
 		short yVel = (rand() & 1 ? 1 : -1) * (1 + (rand() % (maxCrowdVel - 1)));
 
 		BYTE icon = ARCICON + (rand() % 3);
-
+		
 		void update() {
-
+			
 			short nextX;
 			nextX = x + xVel;
 			if (nextX < 0 || nextX > 640) {
 				xVel = -xVel;
-			}
+			} 
 			nextX = x + xVel;
 			x = nextX;
 
@@ -3125,13 +3124,13 @@ void drawFindWhisk() {
 
 	static int prevmaxCrowdVel = maxCrowdVel;
 	if (prevmaxCrowdVel != maxCrowdVel || crowd.size() != crowdSize) {
-
+		
 		// simple, stupid, works
 		crowd.resize(0);
 		crowd.resize(crowdSize);
 
 		whisk = WhiskState();
-
+		
 		prevmaxCrowdVel = maxCrowdVel;
 	}
 
@@ -3157,7 +3156,7 @@ void drawRoaHiddenCharge() {
 	}
 
 	Point p(100, 100);
-
+	
 	if (*(BYTE*)(0x00555130 + 0x5 + (0 * 0xAFC)) == 31 && *(BYTE*)(0x00555130 + 0xC + (0 * 0xAFC)) == 0) {
 		TextDraw(p, 14, 0xFFFFFFFF, "%02d", *(BYTE*)(adMBAABase + dwP1RoaHiddenCharge));
 	}
@@ -3259,7 +3258,7 @@ void saveScreenshot() {
 	static std::string folderName = "";
 
 	if (!prevDoSaveScreenshot && doSaveScreenshot) { // rising edge, generate a new folder, reset the counter
-
+		
 		_frameIndex = 0;
 
 		time_t timeVal;
@@ -3286,7 +3285,7 @@ void saveScreenshot() {
 	// in the future, this could (and probs should) be made threaded to not slow the game to a crawl. but i work with what i have
 
 	HRESULT hr;
-
+	
 	IDirect3DSurface9* surf = NULL;
 
 	hr = device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &surf);
@@ -3300,14 +3299,15 @@ void saveScreenshot() {
 	surf->GetDesc(&sDesc);
 
 	RECT rect = { 0, 0, sDesc.Width, sDesc.Height };
-
-
-	static char buffer[256];
-
+	
 	static char filename[256];
 
-	snprintf(filename, 256, "./%s/ugh%d.png", folderName.c_str(), _frameIndex);
-	//snprintf(filename, 256, "./%s/ugh%d.bmp", folderName.c_str(), _frameIndex);
+	// todo, should really add a setting to swap between png and bpm. 
+	// bmp is large, but the speed makes it worth it.
+
+	// gaku said she prefers fast, lots of space, vs the alt. bmp it is
+	//snprintf(filename, 256, "./%s/ugh%d.png", folderName.c_str(), _frameIndex);
+	snprintf(filename, 256, "./%s/ugh%d.bmp", folderName.c_str(), _frameIndex);
 	//snprintf(filename, 256, "./%s/ugh%d.tga", folderName.c_str(), _frameIndex);
 	_frameIndex++;
 
@@ -3318,16 +3318,15 @@ void saveScreenshot() {
 	// dds was even faster
 	// 004bd280 shows how melty is getting the screen, and doing it faster
 	// also they use bmp
-
-	hr = D3DXSaveSurfaceToFileA(buffer, D3DXIFF_PNG, surf, NULL, &rect);
-
+	
 	//hr = D3DXSaveSurfaceToFileA(filename, D3DXIFF_PNG, surf, NULL, &rect);
 	
-	//LPD3DXBUFFER buffer = NULL;
-	//hr = D3DXSaveSurfaceToFileInMemory(&buffer, D3DXIFF_BMP, surf, NULL, &rect);
+	LPD3DXBUFFER buffer = NULL;
+	hr = D3DXSaveSurfaceToFileInMemory(&buffer, D3DXIFF_BMP, surf, NULL, &rect);
 	// this isnt ideal. this might make another surface in the backend? but god i dont want bpm format. converting this to png is a pain as well
 	// and getting the raw pixels, without using this func is a pain
 
+	/*
 	IDirect3DSurface9* plainSurf = NULL;
 	hr = device->CreateOffscreenPlainSurface(
 		sDesc.Width, sDesc.Height,
@@ -3338,6 +3337,7 @@ void saveScreenshot() {
 	);
 
 	if (hr != S_OK) {
+		// if E_OUTOFMEMORY, the writer thread is behind.
 		log("CreateOffscreenPlainSurface failed");
 		printDirectXError(hr);
 		return;
@@ -3443,7 +3443,7 @@ void __stdcall _doDrawCalls() {
 		if (setDesiredFPS != NULL) {
 			setDesiredFPS(prevDisableFPSLimit ? 1000.0 : 60);
 		}
-
+		
 
 
 	}
@@ -3465,14 +3465,14 @@ void __stdcall _doDrawCalls() {
 		//printDirectXError(hr);
 		return;
 	}
-	_freqTimerYVal = 0.0f;
+	_freqTimerYVal = 0.0f; 
 
 
 	/*
 	if (device != NULL) {
 		DWORD** temp = (DWORD**)0x005642cc;
 		if (*temp != 0 && **temp != 0) {
-
+			
 			DWORD testVal = **temp + 8;
 			//[[[0x005642cc]] + 8]
 			if (testVal != 0) {
@@ -3506,7 +3506,7 @@ void __stdcall _doDrawCalls() {
 
 		if (renderingEnable) {
 
-			// i can totally get melty to run faster than this if i properly disable the threaded waiting
+			// i can totally get melty to run faster than this if i properly disable the threaded waiting 
 			// rn its sorta consistent at ~300us jumping to 1000us sometimes. smells like threads?
 			// if i assume a worste case average of 500us, thats ~2000fps, a 33.33x speedup.
 			// im not sure if thats enough for what i want to do without setting some sorta distributed system up tho
@@ -3514,7 +3514,7 @@ void __stdcall _doDrawCalls() {
 			// before i move on to NEAT or something, please have something that waits until a move connects (but also registers if it doesnt somehow? a timeout ig?)
 
 			patchMemset(0x0040e48d, 0x50, 1);
-
+			
 			BYTE code1[5] = { 0xe8, 0x27, 0x4c, 0x02, 0x00 };
 			patchMemcpy(0x0040e494, &code1, 5);
 
@@ -3538,7 +3538,7 @@ void __stdcall _doDrawCalls() {
 		}
 	}
 
-	//loadCharacterPalettes(); // calling this even when it isnt in use, might be bad
+	//loadCharacterPalettes(); // calling this even when it isnt in use, might be bad	
 
 	static KeyState tickKey(VK_OEM_3);
 	if (lShiftKey.keyHeld() && tickKey.keyDown()) {
@@ -3661,7 +3661,7 @@ void logFPS() {
 			TextDraw(0.0, 0.0, 10, 0xFF42e5f4, "%5.2lf", timerData.mean);
 		}
 	}
-
+	
 	// this better not make it into a release
 	//log("fps: %5.2lf", timerData.mean);
 
@@ -3699,7 +3699,7 @@ __declspec(naked) void _naked_PresentHook() {
 	/*if (maintainFPSState == 2) {
 		maintainFPS();
 	}*/
-
+	
 	POP_ALL;
 
 	__asm {
@@ -3734,7 +3734,7 @@ __declspec(naked) void _naked_doDrawCalls() {
 }
 
 __declspec(naked) void _naked_linkedListInspect() {
-
+	
 	PUSH_ALL;
 	debugLinkedList();
 	POP_ALL;
@@ -3778,7 +3778,7 @@ void cleanForDirectXReset() {
 	// for unknown reasons, after pressing caster f4, if you alt tab/fullscreen unfull screen, it fixes it
 
 	log("attempting to reset resources");
-
+	
 
 	// fonttexture is managed, doesnt need release
 	if (renderTargetTex != NULL) {
@@ -3861,8 +3861,8 @@ __declspec(naked) void _DirectX_EvictManagedResources_Func() {
 DWORD _DirectX_Present_Func_ret;
 DWORD _DirectX_Present_Func_Addr = 0;
 __declspec(naked) void _DirectX_Present_Func() {
-	// IMPORTANT. i am unsure if the hooked areas where ppl would be adding draw calls here,,
-	// some hooks for certain things might be after present. if so, things would get drawn a frame late.
+	// IMPORTANT. i am unsure if the hooked areas where ppl would be adding draw calls here,, 
+	// some hooks for certain things might be after present. if so, things would get drawn a frame late. 
 	// figure it out.
 	PUSH_ALL;
 	//log("IDirect3DDevice9_Present called!");
@@ -3874,7 +3874,7 @@ __declspec(naked) void _DirectX_Present_Func() {
 
 		cmp renderingEnable, 0; // insanity. is this hook even active? will masm throw a tantrum when i try using anything but a dword in it?
 		JE _SKIP;
-
+		
 		call[_DirectX_Present_Func_Addr];
 
 	_SKIP:
@@ -3927,7 +3927,7 @@ __declspec(naked) void _naked_InitDirectXHooks() {
 		mov[ecx + 000000F0h], edx;
 	_DirectX_BeginStateBlock_Func_DONT:
 
-
+		
 		// i re enabled this hook. it might have problems!!
 		/*
 		// hook present, so we can draw on the screen
@@ -3941,7 +3941,7 @@ __declspec(naked) void _naked_InitDirectXHooks() {
 		mov[ecx + 00000044h], edx;
 	_DirectX_Present_Func_DONT:
 		*/
-
+		
 
 		// hook evict, so i can manage memory properly for once
 		mov eax, [device];
@@ -4078,7 +4078,7 @@ void logDeviceCapability() {
 	log("D3DPSHADERCAPS2_0 INT   StaticFlowControlDepth %d", caps.PS20Caps.StaticFlowControlDepth);
 	log("D3DPSHADERCAPS2_0 INT   NumInstructionSlots %d", caps.PS20Caps.NumInstructionSlots);
 	log("-----");
-
+	
 	log("%32s                   %d.%d", "VertexShaderVersion", D3DSHADER_VERSION_MAJOR(caps.VertexShaderVersion), D3DSHADER_VERSION_MINOR(caps.VertexShaderVersion));
 	log("%32s                   %d.%d", "PixelShaderVersion",  D3DSHADER_VERSION_MAJOR(caps.PixelShaderVersion), D3DSHADER_VERSION_MINOR(caps.PixelShaderVersion));
 
@@ -4117,15 +4117,15 @@ bool HookDirectX() {
 	// this NEEDS to be first, before directx is hooked
 	initFont();
 
-	// idrk why, but ig im just
+	// idrk why, but ig im just 
 	// why does my code still work even when, nothing is hooked, and my resets arent there
 	// like,, the font texture is not being recreated and doesnt crash
 	// the only thing i can think of is i installed the steam ver this morning???
 	// did the steam ver do something to directx? did it change melty's settings??? why is this happening?
-	// additionally, INITING the directx hook in pausecallback vs in framedonecallback
-	// causes different things to happen.
+	// additionally, INITING the directx hook in pausecallback vs in framedonecallback 
+	// causes different things to happen. 
 	// the ONLY WAY this occurs, is if caster is,,, hooking and unhooking it periodically? on every call?
-	// actually, ok here.
+	// actually, ok here. 
 	// either caster is calling my hook, or im calling caster's hook. caster doesnt seem to sanitize
 	// or actually maybe i was relying on casters unsanitized state as my default?
 	// however, it actually seems like caster does not call my hooks,, and that was the issue?
