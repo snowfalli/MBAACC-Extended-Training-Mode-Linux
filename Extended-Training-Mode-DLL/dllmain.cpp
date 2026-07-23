@@ -58,6 +58,8 @@ IDirect3DDevice9* device = NULL;
 
 bool disableFPSLimit = false;
 
+LONG isWine = -1;
+
 const ADDRESS INPUTDISPLAYTOGGLE = (dwBaseAddress + 0x001585f8);
 
 DWORD tempRegister1;
@@ -2404,6 +2406,16 @@ void DoMenuMouseControls() {
 	}
 }
 
+bool CheckLoadedGameFile(LPCSTR filePath)
+{
+	const DWORD MBAA_FUN_004db9b0 = 0x004db9b0;
+	__asm {
+		push filePath;
+		mov esi, 0x0076e9c4; //this is the game's list of loaded files
+		call[MBAA_FUN_004db9b0];
+	}
+}
+
 void frameDoneCallback()
 {
 	profileFunction();
@@ -2501,39 +2513,37 @@ void frameDoneCallback()
 	}
 
 	static KeyState nKey('N');
-	if (lShiftKey.keyHeld() && nKey.keyDown())
+	if ((lShiftKey.keyHeld() && nKey.keyDown()) || doCharacterReload)
 	{
-		if (reloadCheckFile)
+		doCharacterReload = false;
+		ArrayContainer<CSSData*> cssArray = **(ArrayContainer<CSSData*>**)(0x0055df18);
+		if (cssArray.array[p1LoadChar] != 0x0)
 		{
-			ArrayContainer<CSSData*> cssArray = **(ArrayContainer<CSSData*>**)(0x0055df18);
-			if (cssArray.array[p1LoadChar] != 0x0)
-			{
-				char buffer[256];
-				char* charName = cssArray.array[p1LoadChar]->File1;
-				snprintf(buffer, 256, "%s%s%s_%01d.txt", ".\\data", "\\", charName, p1LoadMoon);
-				if (!std::filesystem::exists(buffer)) return;
+			char buffer[256];
+			char* charName = cssArray.array[p1LoadChar]->File1;
+			snprintf(buffer, 256, "%s%s_%0d.txt", ".\\data\\", charName, p1LoadMoon);
+			if (!CheckLoadedGameFile(buffer)) return;
 
-				if (cssArray.array[p1LoadChar]->File2[0] != '0')
-				{
-					charName = cssArray.array[p1LoadChar]->File2;
-					snprintf(buffer, 256, "%s%s%s_%01d.txt", ".\\data", "\\", charName, p1LoadMoon);
-					if (!std::filesystem::exists(buffer)) return;
-				}
+			if (cssArray.array[p1LoadChar]->File2[0] != '0')
+			{
+				charName = cssArray.array[p1LoadChar]->File2;
+				snprintf(buffer, 256, "%s%s_%0d.txt", ".\\data\\", charName, p1LoadMoon);
+				if (!CheckLoadedGameFile(buffer)) return;
 			}
+		}
 
-			if (cssArray.array[p2LoadChar] != 0x0)
+		if (cssArray.array[p2LoadChar] != 0x0)
+		{
+			char buffer[256];
+			char* charName = cssArray.array[p2LoadChar]->File1;
+			snprintf(buffer, 256, "%s%s_%0d.txt", ".\\data\\", charName, p2LoadMoon);
+			if (!CheckLoadedGameFile(buffer)) return;
+
+			if (cssArray.array[p2LoadChar]->File2[0] != '0')
 			{
-				char buffer[256];
-				char* charName = cssArray.array[p2LoadChar]->File1;
-				snprintf(buffer, 256, "%s%s%s_%01d.txt", ".\\data", "\\", charName, p2LoadMoon);
-				if (!std::filesystem::exists(buffer)) return;
-
-				if (cssArray.array[p2LoadChar]->File2[0] != '0')
-				{
-					charName = cssArray.array[p2LoadChar]->File2;
-					snprintf(buffer, 256, "%s%s%s_%01d.txt", ".\\data", "\\", charName, p2LoadMoon);
-					if (!std::filesystem::exists(buffer)) return;
-				}
+				charName = cssArray.array[p2LoadChar]->File2;
+				snprintf(buffer, 256, "%s%s_%0d.txt", ".\\data\\", charName, p2LoadMoon);
+				if (!CheckLoadedGameFile(buffer)) return;
 			}
 		}
 
@@ -7341,6 +7351,61 @@ void DummyTechGuardFix() {
 	}
 }
 
+void DummyFirstHitGuard() {
+	if (pDummy->subObj.doTrainingAction != 0 && dummyGuardFirstHitOnly != 0) {
+		static int numGuards = 0;
+		static int framesOutOfGuard = 0;
+		static bool inGuardLastFrame = false;
+		if (pDummy->subObj.onBlockComboCount == 0) {
+			framesOutOfGuard += 1;
+		}
+		else {
+			framesOutOfGuard = 0;
+		}
+
+		if (pDummy->subObj.animationDataPtr->stateData->canMove && numGuards < dummyGuardFirstHitNumGaps) {
+			pDummy->subObj.willBlock = 1;
+		}
+		else {
+			if (rand() % 100 < dummyGuardFirstHitDropChance) {
+				pDummy->subObj.willBlock = 0;
+			}
+			else {
+				pDummy->subObj.willBlock = 1;
+			}
+		}
+
+		if (framesOutOfGuard > 30) {
+			numGuards = 0;
+			framesOutOfGuard = 31;
+		}
+		else if (inGuardLastFrame && framesOutOfGuard != 0) {
+			numGuards += 1;
+		}
+
+		inGuardLastFrame = framesOutOfGuard == 0;
+	}
+}
+
+void DummyCrossUpNoGuard() {
+	if (pDummy->subObj.doTrainingAction != 0 && dummyGuardUntilCrossUp != 0) {
+		static int crossUpTimer = 0;
+		bool dummyIsOppLeft = pDummy->subObj.isOpponentToLeft;
+		static bool lastDummyIsOppLeft = false;
+		if (dummyIsOppLeft != lastDummyIsOppLeft) {
+			crossUpTimer = 1;
+		}
+		if (crossUpTimer != 0) {
+			pDummy->subObj.willBlock = 0;
+			crossUpTimer += 1;
+			if (crossUpTimer > 30) {
+				crossUpTimer = 0;
+			}
+		}
+		lastDummyIsOppLeft = pDummy->subObj.isOpponentToLeft;
+	}
+}
+
 void LoadSave() {
 	if (doLoad && XS_saveStateSlot > 0 && saveStateManager.FullSaves[XS_saveStateSlot - 1]->IsSaved)
 	{
@@ -7393,6 +7458,8 @@ void LoadSave() {
 void EndUpdateBattleScene() {
 	LoadSave();
 	if (*(byte*)(adMBAABase + 0x0015d203) == 0) { //is not paused
+		DummyFirstHitGuard();
+		DummyCrossUpNoGuard();
 		DummyTechGuardFix();
 	}
 }
@@ -7830,7 +7897,6 @@ void threadFunc()
 	} else {
         HookDirectX();
 	}
-
 
 }
 
