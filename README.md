@@ -2,6 +2,9 @@
 
 ![alt text](https://github.com/fangdreth/MBAACC-Extended-Training-Mode/blob/NewReadMe/Images/Features.png?raw=true)
 
+# Linux compatability has been added to bleeding of the main repo https://github.com/fangdreth/MBAACC-Extended-Training-Mode
+# Don't use this unless for older versions
+
 + New "EXTENDED SETTINGS" menu
 	+ Reversals (Page 1)
 		+ Four reversal slots
